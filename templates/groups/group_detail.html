@@ -1,0 +1,250 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}📋 Группа {{ group.group_number }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .group-container {
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        padding: 15px;
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+    }
+
+    .group-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding-bottom: 10px;
+        border-bottom: 2px solid #f1f5f9;
+    }
+    .group-header h1 { margin: 0; font-size: 18px; color: #1e293b; }
+
+    .stats-bar {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+    .stat-chip {
+        background: #f8fafc;
+        padding: 6px 12px;
+        border-radius: 6px;
+        font-size: 12px;
+        color: #475569;
+        border: 1px solid #e2e8f0;
+    }
+    .stat-chip strong { color: #0f172a; }
+
+    .section-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: #1e293b;
+        margin: 0 0 10px 0;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .form-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 10px;
+    }
+
+    .field {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+    .field label { font-size: 11px; font-weight: 600; color: #64748b; }
+    .field input, .field select, .field textarea {
+        padding: 6px 8px;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        font-size: 13px;
+    }
+    .field textarea { resize: vertical; min-height: 40px; }
+
+    .actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        padding-top: 10px;
+        border-top: 1px dashed #e2e8f0;
+    }
+
+    .btn {
+        padding: 6px 12px;
+        border: none;
+        border-radius: 6px;
+        font-size: 13px;
+        font-weight: 500;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        text-decoration: none;
+    }
+    .btn-primary { background: #4facfe; color: white; }
+    .btn-primary:hover { background: #0095ff; }
+    .btn-secondary { background: #e2e8f0; color: #334155; }
+    .btn-secondary:hover { background: #cbd5e1; }
+
+    .student-row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 8px;
+        align-items: center;
+        padding: 6px 0;
+        border-bottom: 1px solid #f8fafc;
+    }
+    .student-row:last-child { border-bottom: none; }
+    .student-info { font-size: 13px; }
+    .student-phone { font-size: 11px; color: #64748b; }
+
+    .empty-state {
+        text-align: center;
+        padding: 15px;
+        color: #94a3b8;
+        font-size: 12px;
+        background: #f8fafc;
+        border-radius: 6px;
+    }
+
+    @media (max-width: 600px) {
+        .form-grid { grid-template-columns: 1fr; }
+        .stats-bar { flex-direction: column; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header" style="margin-bottom:10px;">
+    <h1>📋 Группа {{ group.group_number }}</h1>
+    <a href="{% url 'groups:group_list' %}" class="btn btn-secondary">← Назад</a>
+</div>
+
+<div class="group-container">
+    <!-- 🔹 Статистика -->
+    <div class="stats-bar">
+        <div class="stat-chip">👥 <strong>{{ current_students.count }}</strong> уч.</div>
+        <div class="stat-chip">📚 {{ group.category.code|default:"—" }}</div>
+        <div class="stat-chip" style="color:{% if group.status == 'active' %}#16a34a{% elif group.status == 'paused' %}#d97706{% else %}#dc2626{% endif %}">
+            {% if group.status == 'active' %}🟢{% elif group.status == 'paused' %}{% else %}🔴{% endif %}
+            {{ group.get_status_display|default:"Статус" }}
+        </div>
+    </div>
+
+    <!-- 🔹 Форма настроек + дат -->
+    <form method="post">
+        {% csrf_token %}
+
+        <div class="form-grid">
+            <div class="field">
+                <label>📅 Начало договора</label>
+                <input type="date" name="contract_start" value="{{ group.contract_start|date:'Y-m-d' }}">
+            </div>
+            <div class="field">
+                <label>📅 Окончание договора</label>
+                <input type="date" name="contract_end" value="{{ group.contract_end|date:'Y-m-d' }}">
+            </div>
+            <div class="field">
+                <label>📚 ПДД (внутр.)</label>
+                <input type="date" name="exam_internal_theory_date" value="{{ group.exam_internal_theory_date|date:'Y-m-d' }}">
+            </div>
+            <div class="field">
+                <label> Вождение (внутр.)</label>
+                <input type="date" name="exam_internal_driving_date" value="{{ group.exam_internal_driving_date|date:'Y-m-d' }}">
+            </div>
+            <div class="field">
+                <label>🏁 Экзамен ГАИ</label>
+                <input type="date" name="exam_gai_date" value="{{ group.exam_gai_date|date:'Y-m-d' }}">
+            </div>
+            <div class="field">
+                <label>🚦 Статус</label>
+                <select name="status">
+                    <option value="active" {% if group.status == 'active' %}selected{% endif %}>🟢 Активна</option>
+                    <option value="paused" {% if group.status == 'paused' %}selected{% endif %}>🟡 Приостановлена</option>
+                    <option value="closed" {% if group.status == 'closed' %}selected{% endif %}> Закрыта</option>
+                </select>
+            </div>
+            <div class="field">
+                <label>🏫 Аудитория</label>
+                <select name="classroom">
+                    <option value="">— Не назначена —</option>
+                    {% for c in classrooms %}
+                    <option value="{{ c.id }}" {% if group.classroom and group.classroom.id == c.id %}selected{% endif %}>
+                        {{ c.classroom_number }} — {{ c.address|default:"—" }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="field">
+                <label>👨‍🏫 Преподаватель</label>
+                <select name="teacher">
+                    <option value="">— Не назначен —</option>
+                    {% for t in teachers %}
+                    <option value="{{ t.id }}" {% if group.teacher and group.teacher.id == t.id %}selected{% endif %}>
+                        {{ t.last_name }} {{ t.first_name|slice:":1" }}.
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="field" style="margin-top:10px;">
+            <label>📝 Комментарий</label>
+            <textarea name="comments" rows="2" placeholder="Заметки...">{{ group.comments }}</textarea>
+        </div>
+
+        <div class="actions">
+            <button type="submit" name="save_group" class="btn btn-primary">💾 Сохранить</button>
+        </div>
+    </form>
+
+    <!-- 🔹 Учащиеся -->
+    <div style="margin-top:10px;padding-top:10px;border-top:1px solid #e2e8f0;">
+        <div class="section-title">👥 Учащиеся ({{ current_students.count }})</div>
+
+        <!-- Форма добавления -->
+        <form method="post" style="display:flex;gap:8px;margin-bottom:10px;">
+            {% csrf_token %}
+            <select name="student_id" required style="flex:1;padding:6px 8px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;">
+                <option value="">— Добавить учащегося —</option>
+                {% for student in available_students %}
+                <option value="{{ student.id }}">{{ student.full_name }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" name="add_student" class="btn btn-primary" style="padding:6px 12px;">➕</button>
+        </form>
+
+        <!-- Список -->
+        {% if current_students %}
+        <div style="max-height:200px;overflow-y:auto;border:1px solid #f1f5f9;border-radius:6px;padding:5px;">
+            {% for s in current_students %}
+            <div class="student-row">
+                <div class="student-info">
+                    {{ s.full_name }}
+                    <span class="student-phone">📞 {{ s.phone }}</span>
+                </div>
+                <a href="{% url 'students:student_detail' s.pk %}" class="btn btn-secondary" style="padding:4px 8px;font-size:12px;">👁️</a>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">📭 В группе пока нет учащихся</div>
+        {% endif %}
+    </div>
+
+    <!-- 🔹 Прогресс -->
+    <div style="background:#f8fafc;padding:10px;border-radius:6px;text-align:center;">
+        <a href="{% url 'groups:credits_exams' %}?group={{ group.id }}" class="btn btn-secondary" style="width:100%;justify-content:center;">
+            📊 Открыть матрицу зачётов
+        </a>
+    </div>
+</div>
+{% endblock %}

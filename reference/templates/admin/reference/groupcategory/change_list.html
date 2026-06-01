@@ -1,0 +1,56 @@
+{% extends "admin/change_list.html" %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+    /* 🔹 1. Сжимаем ячейки таблицы (Jazzmin обёртка) */
+    .card-body .table thead th,
+    .card-body .table tbody td,
+    .card-body .table tbody th {
+        padding: 2px 6px !important;
+        margin: 0 !important;
+        line-height: 1.2 !important;
+        height: auto !important;
+        font-size: 13px !important;
+        vertical-align: middle !important;
+    }
+
+    /* 🔹 2. КРИТИЧНО: Сжимаем поля ввода (они задают высоту строки) */
+    .card-body .table td form,
+    .card-body .table td input[type="text"],
+    .card-body .table td input[type="number"],
+    .card-body .table td select {
+        padding: 2px 4px !important;
+        margin: 0 !important;
+        height: 22px !important;
+        min-height: 22px !important;
+        max-height: 22px !important;
+        line-height: 1 !important;
+        font-size: 12px !important;
+        box-sizing: border-box !important;
+        display: block !important; /* Убираем лишние отступы строчных элементов */
+        width: 100% !important;
+    }
+
+    /* 🔹 3. Убираем отступы у форм внутри ячеек */
+    .card-body .table td form {
+        padding: 0 !important;
+        margin: 0 !important;
+        line-height: 0 !important;
+    }
+
+    /* 🔹 4. Ширина колонок */
+    .card-body .table th.field-code,
+    .card-body .table td.field-code {
+        width: 60px !important;
+        min-width: 60px !important;
+        max-width: 60px !important;
+        text-align: center !important;
+    }
+    .card-body .table th.field-description,
+    .card-body .table td.field-description {
+        min-width: 280px !important;
+        width: auto !important;
+    }
+</style>
+{% endblock %}

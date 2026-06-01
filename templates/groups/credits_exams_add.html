@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}➕ Добавить результаты зачётов{% endblock %}
+
+{% block extra_css %}
+<style>
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 25px; }
+    #left_block, #commission_block { display: flex; flex-direction: column; gap: 6px; padding: 12px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; }
+    .form-group { display: flex; flex-direction: column; gap: 2px; }
+    .form-group label { font-weight: 600; color: #475569; font-size: 12px; }
+    .form-group input, .form-group select { padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; background: white; }
+    .form-group input:focus, .form-group select:focus { outline: none; border-color: #4facfe; box-shadow: 0 0 0 2px rgba(79,172,254,0.15); }
+    .block-title, .commission-title { font-weight: 600; color: #475569; font-size: 13px; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+    .separator { height: 1px; background: #e2e8f0; margin: 4px 0; }
+    .results-table { width: 100%; border-collapse: collapse; margin-top: 10px; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.05); font-size: 13px; }
+    .results-table th { background: #f8fafc; padding: 10px 12px; text-align: left; font-weight: 600; color: #475569; border-bottom: 1px solid #e2e8f0; }
+    .results-table td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; }
+    .results-table tr:last-child td { border-bottom: none; }
+    .results-table tr:hover { background: #f8fafc; }
+    .result-select { padding: 4px 8px; min-width: 100px; }
+    .add-student-bar { display: flex; gap: 8px; margin-top: 10px; align-items: center; padding-top: 10px; border-top: 1px dashed #cbd5e1; }
+    .add-student-bar select { flex: 1; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; }
+    .form-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px; padding-top: 15px; border-top: 1px solid #e2e8f0; }
+    .btn { padding: 10px 20px; border: none; border-radius: 8px; font-weight: 500; font-size: 14px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+    .btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    .btn-secondary { background: #e2e8f0; color: #334155; }
+    .btn-primary { background: #4facfe; color: white; }
+    .btn-small { padding: 8px 14px; font-size: 12px; }
+    .badge-free { background: #dcfce7; color: #16a34a; padding: 2px 6px; border-radius: 4px; font-size: 11px; }
+    .badge-paid { background: #fef3c7; color: #d97706; padding: 2px 6px; border-radius: 4px; font-size: 11px; }
+    @media (max-width: 768px) { .form-grid { grid-template-columns: 1fr; } .form-actions { flex-direction: column-reverse; } .btn { width: 100%; justify-content: center; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>➕ Добавить результаты зачётов</h1>
+    <div><a href="{% url 'groups:credits_exams' %}" class="btn btn-secondary">← Назад к списку</a></div>
+</div>
+
+<form method="post" style="background:white;padding:20px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.05);">
+    {% csrf_token %}
+    <div class="form-grid">
+        <!-- 🔹 ЛЕВЫЙ БЛОК: Дата + Тема + Группа -->
+        <div id="left_block">
+            <div class="block-title">📋 Основная информация</div>
+            <div class="form-group">
+                <label for="credit_date">📅 Дата зачёта *</label>
+                <input type="date" name="credit_date" id="credit_date" required>
+            </div>
+            <div class="separator"></div>
+            <div class="form-group">
+                <label for="credit_id">📚 Тема зачёта *</label>
+                <select name="credit_id" id="credit_id" required>
+                    <option value="">— Выберите тему зачёта —</option>
+                    {% for c in credits %}
+                    <option value="{{ c.id }}">№{{ c.number }}: {{ c.topic }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="separator"></div>
+            <div class="form-group">
+                <label for="group_select">👥 Выбрать группу</label>
+                <select name="group_id" id="group_select" onchange="loadStudentsByGroup(this.value)">
+                    <option value="">— Выберите группу —</option>
+                    {% for g in groups %}
+                    <option value="{{ g.id }}">{{ g.group_number }} — {{ g.category|default:"—" }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <!-- 🔹 ПРАВЫЙ БЛОК: Комиссия (4 человека) -->
+        <div id="commission_block">
+            <div class="commission-title">👥 Комиссия:</div>
+            <select name="chairman" id="chairman" required>
+                <option value="">— Председатель комиссии * —</option>
+                {% for t in teachers %}
+                <option value="{{ t.id }}">{{ t.last_name }} {{ t.first_name|slice:":1" }}.{{ t.patronymic|slice:":1"|default:"" }}.</option>
+                {% endfor %}
+            </select>
+            <select name="member1" id="member1">
+                <option value="">— Член комиссии 1 —</option>
+                {% for t in teachers %}
+                <option value="{{ t.id }}">{{ t.last_name }} {{ t.first_name|slice:":1" }}.{{ t.patronymic|slice:":1"|default:"" }}.</option>
+                {% endfor %}
+            </select>
+            <select name="member2" id="member2">
+                <option value="">— Член комиссии 2 —</option>
+                {% for t in teachers %}
+                <option value="{{ t.id }}">{{ t.last_name }} {{ t.first_name|slice:":1" }}.{{ t.patronymic|slice:":1"|default:"" }}.</option>
+                {% endfor %}
+            </select>
+            <select name="member3" id="member3">
+                <option value="">— Член комиссии 3 —</option>
+                {% for t in teachers %}
+                <option value="{{ t.id }}">{{ t.last_name }} {{ t.first_name|slice:":1" }}.{{ t.patronymic|slice:":1"|default:"" }}.</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+
+    <!-- Таблица результатов -->
+    <div id="students_list" style="margin-top:10px;">
+        <h3 style="margin:0 0 12px 0;color:#1e293b;font-size:15px;font-weight:600;">📋 Результаты зачёта</h3>
+        <table class="results-table">
+            <thead>
+                <tr>
+                    <th>ФИО</th>
+                    <th style="width:80px;">№ попытки</th>
+                    <th style="width:100px;">Тип</th>
+                    <th style="width:100px;">Итог</th>
+                    <th style="width:40px;"></th>
+                </tr>
+            </thead>
+            <tbody id="students_body">
+                <tr><td colspan="5" style="padding:25px;text-align:center;color:#64748b;">Выберите группу выше</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Кнопка добавления отдельного учащегося -->
+    <div class="add-student-bar">
+        <select id="manual_student_select">
+            <option value="">— Добавить учащегося вручную —</option>
+        </select>
+        <button type="button" onclick="addStudentToTable()" class="btn btn-primary btn-small">➕ Добавить</button>
+        <span style="font-size:12px;color:#64748b;margin-left:auto;">(например, для пересдачи)</span>
+    </div>
+
+    <!-- 🔹 Поле общего комментария -->
+    <div class="form-group" style="margin-top: 20px; padding-top: 15px; border-top: 1px dashed #cbd5e1;">
+        <label for="global_comment">📝 Общий комментарий</label>
+        <textarea name="global_comment" id="global_comment" rows="2"
+                  placeholder="Дополнительная информация для всех записей (необязательно)"
+                  style="padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; width: 100%; resize: vertical;"></textarea>
+    </div>
+
+    <div class="form-actions">
+        <a href="{% url 'groups:credits_exams' %}" class="btn btn-secondary">✕ Отмена</a>
+        <button type="submit" class="btn btn-primary">💾 Сохранить результаты</button>
+    </div>
+</form>
+
+<script>
+const ALL_STUDENTS = {{ students_json|safe }};
+const addedIds = new Set();
+
+document.addEventListener('DOMContentLoaded', () => {
+    const manualSelect = document.getElementById('manual_student_select');
+    ALL_STUDENTS.sort((a, b) => a.name.localeCompare(b.name));
+    ALL_STUDENTS.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s.id;
+        opt.textContent = s.name + (s.group_id ? ` (${s.group_id})` : '');
+        manualSelect.appendChild(opt);
+    });
+});
+
+function getAttemptInfo(student, creditId) {
+    // ✅ Получаем текущее количество попыток из JSON
+    const attempts = student.attempts || {};
+    const count = attempts[creditId] || 0;
+    // ✅ Автоопределение типа: free до 3-й попытки, paid начиная с 4-й
+    const type = count >= 4 ? 'paid' : 'free';
+    return { number: count, type: type };
+}
+
+function loadStudentsByGroup(groupId) {
+    const tbody = document.getElementById('students_body');
+    tbody.innerHTML = '';
+    addedIds.clear();
+    if (!groupId) { tbody.innerHTML = '<tr><td colspan="5" style="padding:25px;text-align:center;color:#64748b;">Выберите группу выше</td></tr>'; return; }
+
+    const filtered = ALL_STUDENTS.filter(s => s.group_id == parseInt(groupId));
+    if (!filtered.length) { tbody.innerHTML = '<tr><td colspan="5" style="padding:25px;text-align:center;color:#64748b;">⚠️ В этой группе нет учащихся</td></tr>'; return; }
+
+    filtered.forEach(s => appendStudentRow(s));
+}
+
+function addStudentToTable() {
+    const select = document.getElementById('manual_student_select');
+    const studentId = parseInt(select.value);
+    if (!studentId) return;
+    if (addedIds.has(studentId)) { alert('⚠️ Учащийся уже добавлен в таблицу'); return; }
+    const student = ALL_STUDENTS.find(s => s.id === studentId);
+    if (student) { appendStudentRow(student); addedIds.add(studentId); select.value = ''; }
+}
+
+function appendStudentRow(s) {
+    const tbody = document.getElementById('students_body');
+    const tr = document.createElement('tr');
+    tr.dataset.studentId = s.id;
+
+    // ✅ Получаем актуальную попытку для автоподстановки типа по умолчанию
+    const creditId = document.getElementById('credit_id').value;
+    const attempts = s.attempts || {};
+    const count = attempts[creditId] || 0;
+    const defaultType = count >= 4 ? 'paid' : 'free';
+
+    tr.innerHTML = `
+        <td style="font-weight:500;color:#1e293b;">${s.name}</td>
+        <td style="text-align:center;font-weight:600;color:#475569;">
+            <span style="background:#e2e8f0;padding:3px 8px;border-radius:4px;">${count}</span>
+        </td>
+        <td style="text-align:center;">
+            <select name="student_${s.id}_type" class="result-select" required style="padding:4px 8px;min-width:90px;">
+                <option value="free" ${defaultType === 'free' ? 'selected' : ''}>Бесплатная</option>
+                <option value="paid" ${defaultType === 'paid' ? 'selected' : ''}>Платная</option>
+            </select>
+        </td>
+        <td>
+            <select name="student_${s.id}_status" class="result-select" required>
+                <option value="passed">✅ Сдал</option>
+                <option value="failed">❌ Не сдал</option>
+            </select>
+        </td>
+        <td><button type="button" onclick="removeStudentRow(${s.id})" style="background:none;border:none;cursor:pointer;color:#ef4444;font-size:16px;">✕</button></td>
+    `;
+    tbody.appendChild(tr);
+}
+
+function removeStudentRow(id) {
+    const row = document.querySelector(`tr[data-student-id="${id}"]`);
+    if (row) { row.remove(); addedIds.delete(id); }
+}
+
+// ✅ Пересчитываем попытки и обновляем выбор типа при смене темы зачёта
+document.getElementById('credit_id').addEventListener('change', function() {
+    const creditId = this.value;
+    if (!creditId) return;
+
+    document.querySelectorAll('#students_body tr').forEach(row => {
+        const sid = parseInt(row.dataset.studentId);
+        if (!sid) return;
+
+        const student = ALL_STUDENTS.find(s => s.id === sid);
+        if (!student) return;
+
+        const attempts = student.attempts || {};
+        const count = attempts[creditId] || 0;
+        const newType = count >= 4 ? 'paid' : 'free';
+
+        // Обновляем номер попытки
+        const attemptCell = row.children[1];
+        if (attemptCell) {
+            attemptCell.innerHTML = `<span style="background:#e2e8f0;padding:3px 8px;border-radius:4px;font-weight:600;">${count}</span>`;
+        }
+
+        // Обновляем выбор типа в select (меняем selected)
+        const typeSelect = row.querySelector(`select[name="student_${sid}_type"]`);
+        if (typeSelect) {
+            typeSelect.value = newType;
+        }
+    });
+});
+</script>
+{% endblock %}

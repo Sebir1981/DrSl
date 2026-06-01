@@ -1,0 +1,20 @@
+{% extends "admin/base.html" %}
+
+{% block extrahead %}
+{{ block.super }}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Ищем ссылку в шапке (универсальный селектор для всех версий Jazzmin)
+    var headerLink = document.querySelector('.brand-link, .navbar-brand, a.site-header-link, .main-header a');
+    
+    if (headerLink) {
+        headerLink.href = '/vault/';
+        // На всякий случай блокируем стандартный клик и принудительно редиректим
+        headerLink.onclick = function(e) {
+            e.preventDefault();
+            window.location.href = '/vault/';
+        };
+    }
+});
+</script>
+{% endblock %}

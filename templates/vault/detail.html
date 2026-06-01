@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="vault-detail">
+  <h2>{{ entry.title }}</h2>
+  <table>
+    <tr><th>Логин:</th><td>{{ entry.username|default:"—" }}</td></tr>
+    <tr><th>Пароль:</th><td id="pass-field">••••••••</td></tr>
+    <tr><th>Ссылка:</th><td><a href="{{ entry.url }}" target="_blank">{{ entry.url|default:"—" }}</a></td></tr>
+    <tr><th>Заметки:</th><td>{{ entry.notes|linebreaks }}</td></tr>
+  </table>
+
+  <button onclick="togglePassword()">👁️ Показать/Скрыть</button>
+  <button onclick="copyPassword()">📋 Копировать</button>
+</div>
+
+<script>
+  const realPassword = "{{ decrypted_password|escapejs }}";
+  function togglePassword() {
+    const el = document.getElementById('pass-field');
+    el.textContent = el.textContent === '••••••••' ? realPassword : '••••••••';
+  }
+  function copyPassword() {
+    navigator.clipboard.writeText(realPassword);
+    alert('Пароль скопирован!');
+  }
+</script>
+{% endblock %}

@@ -1,0 +1,21 @@
+/* static/css/date-fields.css */
+
+/* 🔹 Поля дат: фиксированная ширина и шрифт */
+input.vDateField,
+input.ru-date-input {
+    width: 110px !important;
+    min-width: 110px !important;
+    font-family: monospace !important;
+    font-size: 13px !important;
+    padding: 6px 8px !important;
+    box-sizing: border-box !important;
+}
+
+/* 🔹 Адаптив для мобильных */
+@media (max-width: 768px) {
+    input.vDateField,
+    input.ru-date-input {
+        width: 100% !important;
+        min-width: auto !important;
+    }
+}

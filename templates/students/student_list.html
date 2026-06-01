@@ -1,0 +1,313 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}🎓 Учащиеся — Автошкола{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/phone-mask.js' %}" defer></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 🔹 Маска телефонов
+    document.querySelectorAll('[id^="id_phone_"]').forEach(input => { input.id = 'id_phone'; });
+
+    // 🔹 Автоподсказки для поиска
+    const searchInput = document.getElementById('search-input');
+    const suggestionsBox = document.getElementById('search-suggestions');
+    let debounceTimer;
+
+    if (!searchInput) return;
+
+    async function fetchSuggestions(query) {
+        if (query.length < 2) { suggestionsBox.style.display = 'none'; return; }
+        try {
+            const response = await fetch(`{% url 'students:surname_suggestions' %}?q=${encodeURIComponent(query)}`, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            const data = await response.json();
+            renderSuggestions(data.suggestions, query);
+        } catch (err) { console.error('Ошибка автоподсказок:', err); }
+    }
+
+    function renderSuggestions(suggestions, query) {
+        if (!suggestions.length) { suggestionsBox.style.display = 'none'; return; }
+        suggestionsBox.innerHTML = suggestions.map(s => {
+            const highlighted = s.replace(new RegExp(`^(${query})`, 'i'), '<strong style="color:#4facfe">$1</strong>');
+            return `<div class="suggestion-item" style="padding:8px 12px;cursor:pointer;border-bottom:1px solid #f1f5f9;font-size:14px;color:#334155;" data-value="${s}">${highlighted}</div>`;
+        }).join('');
+        suggestionsBox.style.display = 'block';
+        suggestionsBox.querySelectorAll('.suggestion-item').forEach(item => {
+            item.onclick = () => {
+                searchInput.value = item.dataset.value;
+                suggestionsBox.style.display = 'none';
+                searchInput.closest('form').submit();
+            };
+        });
+    }
+
+    searchInput.addEventListener('input', (e) => {
+        clearTimeout(debounceTimer);
+        const query = e.target.value.trim();
+        debounceTimer = setTimeout(() => fetchSuggestions(query), 300);
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!searchInput.contains(e.target) && !suggestionsBox.contains(e.target)) {
+            suggestionsBox.style.display = 'none';
+        }
+    });
+
+    searchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && suggestionsBox.style.display === 'block') {
+            const first = suggestionsBox.querySelector('.suggestion-item');
+            if (first) {
+                searchInput.value = first.dataset.value;
+                suggestionsBox.style.display = 'none';
+                searchInput.closest('form').submit();
+            }
+        }
+        if (e.key === 'Escape') suggestionsBox.style.display = 'none';
+    });
+});
+</script>
+{% endblock %}
+
+{% block content %}
+
+<!-- 🔔 Подсказка при входе в режим отчисления -->
+{% if request.GET.highlight == 'dismissal' %}
+<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px 16px;margin-bottom:20px;font-size:14px;color:#991b1b;display:flex;align-items:center;gap:10px;">
+    <span style="font-size:18px;">⚠️</span>
+    <div>
+        <strong>Режим отчисления:</strong> Клик по фамилии откроет форму.
+        <a href="{% url 'students:student_list' %}" style="color:#dc2626;font-weight:600;text-decoration:underline;">Выйти из режима</a>
+    </div>
+</div>
+{% endif %}
+
+<!-- 🔔 Подсказка при входе в режим отказа -->
+{% if request.GET.highlight == 'refusal' %}
+<div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:12px 16px;margin-bottom:20px;font-size:14px;color:#92400e;display:flex;align-items:center;gap:10px;">
+    <span style="font-size:18px;">🚫</span>
+    <div>
+        <strong>Режим отказа:</strong> Клик по фамилии откроет форму.
+        <a href="{% url 'students:student_list' %}" style="color:#d97706;font-weight:600;text-decoration:underline;">Выйти из режима</a>
+    </div>
+</div>
+{% endif %}
+
+<!-- 🔔 Подсказка при входе в режим приостановки -->
+{% if request.GET.highlight == 'suspension' %}
+<div style="background:#ede9fe;border:1px solid #c4b5fd;border-radius:8px;padding:12px 16px;margin-bottom:20px;font-size:14px;color:#6d28d9;display:flex;align-items:center;gap:10px;">
+    <span style="font-size:18px;">⏸️</span>
+    <div>
+        <strong>Режим приостановки:</strong> Клик по фамилии откроет форму.
+        <a href="{% url 'students:student_list' %}" style="color:#7c3aed;font-weight:600;text-decoration:underline;">Выйти из режима</a>
+    </div>
+</div>
+{% endif %}
+
+<!-- 🔹 ОТЛАДКА: показываем значения переменных -->
+{% if debug_mode %}
+<div style="background:#1e293b;color:#94a3b8;padding:10px;font-size:11px;margin-bottom:15px;border-radius:6px;">
+    <strong>🔍 Debug info:</strong><br>
+    highlight param: <code>{{ request.GET.highlight|default:"(пусто)" }}</code><br>
+    URL name: <code>{{ request.resolver_match.url_name }}</code><br>
+    Full path: <code>{{ request.get_full_path }}</code>
+</div>
+{% endif %}
+
+{% if request.GET.highlight == 'transfer' or request.resolver_match.url_name == 'student_list' and 'transfer-hint' in request.get_full_path %}
+<div id="transfer-hint" style="background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:12px 16px;margin-bottom:20px;font-size:14px;color:#92400e;display:flex;align-items:center;gap:10px;">
+    <span style="font-size:18px;">💡</span>
+    <div>
+        <strong>Как перевести учащегося:</strong><br>
+        1. Найдите нужного учащегося через поиск или фильтры → 2. Кликните на его ФИО → 3. Нажмите кнопку 🔄 в карточке
+    </div>
+    <button onclick="this.closest('div[style]').style.display='none'" style="margin-left:auto;background:none;border:none;font-size:18px;cursor:pointer;color:#92400e;">&times;</button>
+</div>
+{% endif %}
+
+<div class="page-header">
+    <h1>🎓 Учащиеся</h1>
+    <div>
+        <a href="{% url 'vault:dashboard' %}" class="btn" style="margin-right: 10px; background:#e2e8f0; color:#334155;">← На главную</a>
+        <a href="{% url 'admin:students_student_add' %}" class="btn btn-primary">+ Добавить учащегося</a>
+    </div>
+</div>
+
+<!-- 🔹 ФИЛЬТРЫ + ПОИСК -->
+<form method="get" class="filters-form" style="background:white;padding:15px 20px;border-radius:12px;margin-bottom:20px;box-shadow:0 2px 8px rgba(0,0,0,0.05);display:flex;gap:15px;flex-wrap:wrap;align-items:flex-end;">
+
+    <!-- 🔍 Поиск по ФИО с автоподсказками -->
+    <div style="display:flex;flex-direction:column;gap:6px;min-width:220px;position:relative;">
+        <label style="font-size:13px;font-weight:600;color:#475569;">🔍 Поиск по ФИО</label>
+        <input type="text" name="search" id="search-input" value="{{ search_query|default:'' }}"
+               placeholder="Введите фамилию..." autocomplete="off"
+               style="padding:8px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;min-width:200px;">
+        <div id="search-suggestions" style="position:absolute;top:100%;left:0;right:0;background:white;border:1px solid #cbd5e1;border-radius:8px;margin-top:4px;box-shadow:0 4px 12px rgba(0,0,0,0.1);max-height:200px;overflow-y:auto;z-index:1000;display:none;"></div>
+    </div>
+
+    <!-- 👥 Фильтр по группе -->
+    <div style="display:flex;flex-direction:column;gap:6px;min-width:200px;">
+        <label style="font-size:13px;font-weight:600;color:#475569;">👥 Группа</label>
+        <select name="group" style="padding:8px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;min-width:180px;">
+            <option value="">Все группы</option>
+            {% for g in groups %}
+            <option value="{{ g.group_number }}" {% if selected_group == g.group_number %}selected{% endif %}>
+                {{ g.group_number }} — {{ g.category|default:"—" }}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <!-- 📚 Фильтр по преподавателю -->
+    <div style="display:flex;flex-direction:column;gap:6px;min-width:250px;">
+        <label style="font-size:13px;font-weight:600;color:#475569;">📚 Преподаватель</label>
+        <select name="teacher" style="padding:8px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;min-width:220px;">
+            <option value="">Все преподаватели</option>
+            {% for t in teachers %}
+            <option value="{{ t.last_name }}" {% if selected_teacher == t.last_name %}selected{% endif %}>
+                {{ t.last_name }} {{ t.first_name|slice:":1" }}.{{ t.patronymic|slice:":1"|default:"" }}.
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <!-- Кнопки -->
+    <div style="display:flex;gap:8px;">
+        <button type="submit" class="btn btn-primary" style="padding:8px 16px;font-size:14px;">🔍 Найти</button>
+        <a href="?" class="btn" style="padding:8px 16px;font-size:14px;background:#94a3b8;color:white;">✕ Сбросить</a>
+    </div>
+
+    <!-- Отображение активных фильтров -->
+    {% if search_query or selected_group or selected_teacher %}
+    <div style="margin-left:auto;font-size:13px;color:#64748b;">
+        {% if search_query %}📌 Поиск: <strong>"{{ search_query }}"</strong>{% endif %}
+        {% if selected_group %}{% if search_query %} • {% endif %}📌 Группа: <strong>{{ selected_group }}</strong>{% endif %}
+        {% if selected_teacher %}{% if search_query or selected_group %} • {% endif %}📌 Преподаватель: <strong>{{ selected_teacher }}</strong>{% endif %}
+    </div>
+    {% endif %}
+</form>
+
+<!-- 🔹 ТАБЛИЦА УЧАЩИХСЯ -->
+<div class="data-table">
+    <table>
+        <thead>
+            <tr>
+                <th>ФИО</th>
+                <th>Телефон</th>
+                <th>Группа</th>
+                <th>Категория</th>
+                <th>Преподаватель</th>
+                <th>Статус</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in students %}  {# ✅ item — словарь с подготовленными данными #}
+            <tr>
+                <!-- ✅ ФИО: цвет зависит от статуса -->
+                <td>
+                    {% if request.GET.highlight == "transfer" %}
+                        <a href="{% url 'students:transfer_student' item.student.pk %}" style="text-decoration:none;color:#4facfe;font-weight:600;">
+                            {{ item.student.last_name }} {{ item.student.first_name }}
+                            {% if item.student.patronymic %}<br><small style="color:#94a3b8">{{ item.student.patronymic }}</small>{% endif %}
+                        </a>
+                    {% elif request.GET.highlight == "dismissal" %}
+                        <a href="{% url 'students:student_dismissal' item.student.pk %}" style="text-decoration:none;color:#dc2626;font-weight:600;">
+                            {{ item.student.last_name }} {{ item.student.first_name }}
+                            {% if item.student.patronymic %}<br><small style="color:#94a3b8">{{ item.student.patronymic }}</small>{% endif %}
+                        </a>
+                    {% elif request.GET.highlight == "refusal" %}
+                        <a href="{% url 'students:student_refuse' item.student.pk %}" style="text-decoration:none;color:#d97706;font-weight:600;">
+                            {{ item.student.last_name }} {{ item.student.first_name }}
+                            {% if item.student.patronymic %}<br><small style="color:#94a3b8">{{ item.student.patronymic }}</small>{% endif %}
+                        </a>
+                    {% elif request.GET.highlight == "suspension" %}
+                        <a href="{% url 'students:student_suspend' item.student.pk %}" style="text-decoration:none;color:#7c3aed;font-weight:600;">
+                            {{ item.student.last_name }} {{ item.student.first_name }}
+                            {% if item.student.patronymic %}<br><small style="color:#94a3b8">{{ item.student.patronymic }}</small>{% endif %}
+                        </a>
+                    {% else %}
+                        {# 🔹 Цвет ссылки по статусу #}
+                        {% if item.status == 'Отчислен' %}
+                            <a href="{% url 'students:student_detail' item.student.pk %}" style="text-decoration:none;color:#dc2626;font-weight:600;" title="Отчислен">
+                        {% elif item.status == 'Отказ' %}
+                            <a href="{% url 'students:student_detail' item.student.pk %}" style="text-decoration:none;color:#d97706;font-weight:600;" title="Отказ">
+                        {% elif item.status == 'Приостановлен' %}
+                            <a href="{% url 'students:student_detail' item.student.pk %}" style="text-decoration:none;color:#7c3aed;font-weight:600;" title="Приостановлен">
+                        {% elif item.status == 'Выпуск' %}
+                            <a href="{% url 'students:student_detail' item.student.pk %}" style="text-decoration:none;color:#0ea5e9;font-weight:600;" title="Выпуск">
+                        {% else %}
+                            <a href="{% url 'students:student_detail' item.student.pk %}" style="text-decoration:none;color:inherit;">
+                        {% endif %}
+                            <strong>{{ item.student.last_name }} {{ item.student.first_name }}</strong>
+                            {% if item.student.patronymic %}<br><small style="color:#94a3b8">{{ item.student.patronymic }}</small>{% endif %}
+                        </a>
+                    {% endif %}
+                </td>
+
+                <!-- 📞 Телефон -->
+                <td>{{ item.student.phone|default:"—" }}</td>
+
+                <!-- 👥 Группа -->
+                <td>
+                    {% if item.student.group %}
+                    <span style="background:#e0f2fe;color:#0369a1;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:500;">
+                        {{ item.student.group.group_number }}
+                    </span>
+                    {% else %}—{% endif %}
+                </td>
+
+                <!-- 📚 Категория -->
+                <td>
+                    {% if item.student.group and item.student.group.category %}
+                    <span style="background:#f1f5f9;color:#475569;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:500;">
+                        {{ item.student.group.category }}
+                    </span>
+                    {% else %}
+                    <span style="color:#94a3b8;font-size:12px;">—</span>
+                    {% endif %}
+                </td>
+
+                <!-- 👨‍🏫 Преподаватель -->
+                <td style="padding:12px 15px;border-bottom:1px solid #f1f5f9;font-size:14px;color:#475569;">
+                    {{ item.teacher_name|default:"—" }}
+                </td>
+
+                <!-- 🚦 Статус -->
+                <td style="padding:12px 15px;border-bottom:1px solid #f1f5f9;">
+                    <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:500;background:{{ item.status_color }}15;color:{{ item.status_color }};">
+                        {% if item.status == 'Активен' %}🟢
+                        {% elif item.status == 'Выпуск' %}🎓
+                        {% elif item.status == 'Отчислен' %}❌
+                        {% elif item.status == 'Отказ' %}🚫
+                        {% elif item.status == 'Приостановлен' %}⏸️
+                        {% else %}•{% endif %}
+                        {{ item.status }}
+                    </span>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" class="empty-state">📭 Учащиеся не найдены по заданным критериям.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- 🔹 Принудительный редирект ссылок в режиме перевода (резерв) -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    if (window.location.search.includes('highlight=transfer')) {
+        document.querySelectorAll('table a[href*="/students/"]').forEach(link => {
+            const href = link.href;
+            const match = href.match(/\/students\/(\d+)\//);
+            if (match && !href.includes('/transfer/')) {
+                const studentId = match[1];
+                link.href = `/students/${studentId}/transfer/`;
+                link.style.color = '#4facfe';
+                link.style.fontWeight = '600';
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

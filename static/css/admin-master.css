@@ -1,0 +1,50 @@
+/* static/css/admin-master.css */
+
+/* 🔹 Поля в 4 колонки: уменьшаем отступы и ширину */
+.form-row:has(input[name*="license_"]),
+.form-row:has(input[name*="training_"]) {
+    display: grid !important;
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 12px !important;
+    align-items: flex-end !important;
+    padding: 8px 0 !important;
+}
+
+/* 🔹 Подписи полей: компактно */
+.form-row:has(input[name*="license_"]) label,
+.form-row:has(input[name*="training_"]) label {
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    color: #475569 !important;
+    margin-bottom: 4px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
+/* 🔹 Поля ввода: фиксированная высота */
+.form-row:has(input[name*="license_"]) input,
+.form-row:has(input[name*="training_"]) input,
+.form-row:has(input[name*="license_"]) select,
+.form-row:has(input[name*="training_"]) select {
+    width: 100% !important;
+    padding: 6px 8px !important;
+    font-size: 13px !important;
+    box-sizing: border-box !important;
+}
+
+/* 🔹 Адаптив: на мобильных — 2 колонки */
+@media (max-width: 1024px) {
+    .form-row:has(input[name*="license_"]),
+    .form-row:has(input[name*="training_"]) {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+}
+
+/* 🔹 На очень узких экранах — 1 колонка */
+@media (max-width: 640px) {
+    .form-row:has(input[name*="license_"]),
+    .form-row:has(input[name*="training_"]) {
+        grid-template-columns: 1fr !important;
+    }
+}

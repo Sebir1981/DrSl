@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}⏸️ Приостановка обучения{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* 🔹 Стили — как в других формах */
+    .suspension-card {
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        overflow: hidden;
+        max-width: 600px;
+        margin: 2rem auto;
+    }
+    .suspension-header {
+        background: linear-gradient(135deg, #ede9fe, #ddd6fe);
+        padding: 1.5rem 2rem;
+        border-bottom: 1px solid #c4b5fd;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    .suspension-header h2 {
+        margin: 0;
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #6d28d9;
+    }
+    .suspension-body { padding: 2rem; }
+    .student-info {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 1rem 1.25rem;
+        margin-bottom: 1.5rem;
+        font-size: 0.95rem;
+    }
+    .student-info p { margin: 0.25rem 0; color: #334155; }
+    .student-info strong { color: #1e293b; min-width: 110px; display: inline-block; }
+    .form-group { margin-bottom: 1.25rem; }
+    .form-group label {
+        display: block;
+        font-weight: 500;
+        color: #334155;
+        margin-bottom: 0.5rem;
+        font-size: 0.95rem;
+    }
+    .form-group input,
+    .form-group textarea {
+        width: 100%;
+        padding: 0.625rem 0.875rem;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        font-size: 1rem;
+        transition: border-color 0.2s, box-shadow 0.2s;
+        box-sizing: border-box;
+    }
+    .form-group input:focus,
+    .form-group textarea:focus {
+        outline: none;
+        border-color: #8b5cf6;
+        box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
+    }
+    .form-group textarea { min-height: 90px; resize: vertical; }
+    .form-hint { font-size: 0.85rem; color: #64748b; margin-top: 0.375rem; }
+    .form-error { color: #dc2626; font-size: 0.85rem; margin-top: 0.375rem; }
+
+    /* 🔹 Две даты в ряд */
+    .date-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+    }
+    @media (max-width: 520px) {
+        .date-row { grid-template-columns: 1fr; }
+    }
+
+    .suspension-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+        padding-top: 1.5rem;
+        border-top: 1px solid #e2e8f0;
+        margin-top: 1.5rem;
+    }
+    .btn {
+        padding: 0.625rem 1.5rem;
+        border-radius: 8px;
+        font-weight: 500;
+        font-size: 0.95rem;
+        cursor: pointer;
+        text-decoration: none;
+        border: none;
+        transition: transform 0.1s, box-shadow 0.2s;
+    }
+    .btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    .btn-secondary { background: #f1f5f9; color: #475569; }
+    .btn-secondary:hover { background: #e2e8f0; }
+    .btn-purple {
+        background: linear-gradient(135deg, #8b5cf6, #a78bfa);
+        color: white;
+    }
+    .btn-purple:hover { background: linear-gradient(135deg, #7c3aed, #8b5cf6); }
+    @media (max-width: 640px) {
+        .suspension-card { margin: 1rem; }
+        .suspension-header, .suspension-body { padding: 1.25rem; }
+        .suspension-footer { flex-direction: column-reverse; }
+        .btn { width: 100%; text-align: center; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="suspension-card">
+
+        <!-- 🔹 Заголовок -->
+        <div class="suspension-header">
+            <span style="font-size: 1.5rem;">⏸️</span>
+            <h2>Приостановка обучения</h2>
+        </div>
+
+        <div class="suspension-body">
+
+            <!-- 🔹 Информация об учащемся -->
+            <div class="student-info">
+                <p><strong>ФИО:</strong> {{ student.full_name }}</p>
+                <p><strong>Текущая группа:</strong> {{ student.group.group_number|default:"—" }} {% if student.group %}— {{ student.group.category|default:"" }}{% endif %}</p>
+                <p><strong>Преподаватель:</strong> {{ student.teacher.get_full_name|default:"—" }}</p>
+                {% if student.phone %}<p><strong>Телефон:</strong> {{ student.phone }}</p>{% endif %}
+            </div>
+
+            <!-- 🔹 Форма -->
+            <form method="post" novalidate>
+                {% csrf_token %}
+
+                <!-- Две даты в ряд -->
+                <div class="date-row">
+                    <div class="form-group">
+                        <label for="{{ form.suspension_start.id_for_label }}">
+                            {{ form.suspension_start.label }} <span style="color:#8b5cf6;">*</span>
+                        </label>
+                        {{ form.suspension_start }}
+                        {% if form.suspension_start.errors %}
+                            <div class="form-error">{{ form.suspension_start.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="form-group">
+                        <label for="{{ form.suspension_end.id_for_label }}">
+                            {{ form.suspension_end.label }}
+                        </label>
+                        {{ form.suspension_end }}
+                        {% if form.suspension_end.errors %}
+                            <div class="form-error">{{ form.suspension_end.errors.0 }}</div>
+                        {% else %}
+                            <div class="form-hint">{{ form.suspension_end.help_text }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Комментарий -->
+                <div class="form-group">
+                    <label for="{{ form.comment.id_for_label }}">
+                        {{ form.comment.label }}
+                    </label>
+                    {{ form.comment }}
+                    {% if form.comment.errors %}
+                        <div class="form-error">{{ form.comment.errors.0 }}</div>
+                    {% else %}
+                        <div class="form-hint">{{ form.comment.help_text }}</div>
+                    {% endif %}
+                </div>
+
+                <!-- 🔹 Кнопки -->
+                <div class="suspension-footer">
+                    <a href="{% url 'students:student_detail' student.pk %}" class="btn btn-secondary">
+                        ✕ Отмена
+                    </a>
+                    <button type="submit" class="btn btn-purple">
+                        ✅ OK — Приостановить
+                    </button>
+                </div>
+            </form>
+
+        </div>
+    </div>
+</div>
+{% endblock %}

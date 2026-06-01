@@ -1,0 +1,35 @@
+/* static/css/admin-custom.css */
+
+/* 🔹 Горизонтальные чекбоксы */
+.form-row:has(input[name*="schedule_"]),
+.form-row:has(input[name*="teaches_"]) {
+    display: flex !important;
+    gap: 25px !important;
+    align-items: center !important;
+    flex-wrap: wrap !important;
+}
+
+.form-row label {
+    cursor: pointer !important;
+    font-weight: 500 !important;
+    color: #334155 !important;
+    margin: 0 !important;
+}
+
+/* 🔹 Улучшения для Jazzmin */
+.no-border fieldset {
+    border: none !important;
+    padding: 0 !important;
+    background: none !important;
+}
+
+/* 🔹 Горизонтальные поля */
+.horizontal-fields .form-row {
+    display: flex !important;
+    gap: 20px !important;
+    flex-wrap: wrap !important;
+}
+
+.horizontal-fields .form-row > div {
+    flex: 0 0 auto !important;
+}

@@ -1,0 +1,216 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}❌ Отчисление учащегося{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* 🔹 Стили формы — как в переводе */
+    .dismissal-card {
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        overflow: hidden;
+        max-width: 600px;
+        margin: 2rem auto;
+    }
+    .dismissal-header {
+        background: linear-gradient(135deg, #fee2e2, #fecaca);
+        padding: 1.5rem 2rem;
+        border-bottom: 1px solid #fecaca;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    .dismissal-header h2 {
+        margin: 0;
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #991b1b;
+    }
+    .dismissal-body {
+        padding: 2rem;
+    }
+    .student-info {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 1rem 1.25rem;
+        margin-bottom: 1.5rem;
+        font-size: 0.95rem;
+    }
+    .student-info p {
+        margin: 0.25rem 0;
+        color: #334155;
+    }
+    .student-info strong {
+        color: #1e293b;
+        min-width: 110px;
+        display: inline-block;
+    }
+    .form-group {
+        margin-bottom: 1.25rem;
+    }
+    .form-group label {
+        display: block;
+        font-weight: 500;
+        color: #334155;
+        margin-bottom: 0.5rem;
+        font-size: 0.95rem;
+    }
+    .form-group input,
+    .form-group textarea {
+        width: 100%;
+        padding: 0.625rem 0.875rem;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        font-size: 1rem;
+        transition: border-color 0.2s, box-shadow 0.2s;
+        box-sizing: border-box;
+    }
+    .form-group input:focus,
+    .form-group textarea:focus {
+        outline: none;
+        border-color: #dc2626;
+        box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.15);
+    }
+    .form-group textarea {
+        min-height: 90px;
+        resize: vertical;
+    }
+    .form-hint {
+        font-size: 0.85rem;
+        color: #64748b;
+        margin-top: 0.375rem;
+    }
+    .form-error {
+        color: #dc2626;
+        font-size: 0.85rem;
+        margin-top: 0.375rem;
+    }
+    .dismissal-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+        padding-top: 1.5rem;
+        border-top: 1px solid #e2e8f0;
+        margin-top: 1.5rem;
+    }
+    .btn {
+        padding: 0.625rem 1.5rem;
+        border-radius: 8px;
+        font-weight: 500;
+        font-size: 0.95rem;
+        cursor: pointer;
+        text-decoration: none;
+        border: none;
+        transition: transform 0.1s, box-shadow 0.2s;
+    }
+    .btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .btn-secondary {
+        background: #f1f5f9;
+        color: #475569;
+    }
+    .btn-secondary:hover {
+        background: #e2e8f0;
+    }
+    .btn-danger {
+        background: linear-gradient(135deg, #dc2626, #ef4444);
+        color: white;
+    }
+    .btn-danger:hover {
+        background: linear-gradient(135deg, #b91c1c, #dc2626);
+    }
+    @media (max-width: 640px) {
+        .dismissal-card { margin: 1rem; }
+        .dismissal-header, .dismissal-body { padding: 1.25rem; }
+        .dismissal-footer { flex-direction: column-reverse; }
+        .btn { width: 100%; text-align: center; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="dismissal-card">
+
+        <!-- 🔹 Заголовок -->
+        <div class="dismissal-header">
+            <span style="font-size: 1.5rem;">❌</span>
+            <h2>Отчисление учащегося</h2>
+        </div>
+
+        <div class="dismissal-body">
+
+            <!-- 🔹 Информация об учащемся (только чтение) -->
+            <div class="student-info">
+                <p><strong>ФИО:</strong> {{ student.full_name }}</p>
+                <p><strong>Текущая группа:</strong> {{ student.group.group_number|default:"—" }} {% if student.group %}— {{ student.group.category|default:"" }}{% endif %}</p>
+                <p><strong>Преподаватель:</strong> {{ student.teacher.get_full_name|default:"—" }}</p>
+                {% if student.phone %}<p><strong>Телефон:</strong> {{ student.phone }}</p>{% endif %}
+            </div>
+
+            <!-- 🔹 Форма -->
+            <form method="post" novalidate>
+                {% csrf_token %}
+
+                <!-- № приказа -->
+                <div class="form-group">
+                    <label for="{{ form.order_number.id_for_label }}">
+                        {{ form.order_number.label }} <span style="color:#dc2626;">*</span>
+                    </label>
+                    {{ form.order_number }}
+                    {% if form.order_number.errors %}
+                        <div class="form-error">{{ form.order_number.errors.0 }}</div>
+                    {% else %}
+                        <div class="form-hint">Например: 45-У, 128/к</div>
+                    {% endif %}
+                </div>
+
+                <!-- Дата приказа -->
+                <div class="form-group">
+                    <label for="{{ form.order_date.id_for_label }}">
+                        {{ form.order_date.label }} <span style="color:#dc2626;">*</span>
+                    </label>
+                    {{ form.order_date }}
+                    {% if form.order_date.errors %}
+                        <div class="form-error">{{ form.order_date.errors.0 }}</div>
+                    {% endif %}
+                </div>
+
+                <!-- Комментарий -->
+                <div class="form-group">
+                    <label for="{{ form.comment.id_for_label }}">
+                        {{ form.comment.label }}
+                    </label>
+                    {{ form.comment }}
+                    {% if form.comment.errors %}
+                        <div class="form-error">{{ form.comment.errors.0 }}</div>
+                    {% else %}
+                        <div class="form-hint">Причина отчисления, дополнительные сведения</div>
+                    {% endif %}
+                </div>
+
+                <!-- 🔹 Кнопки -->
+                <div class="dismissal-footer">
+                    <a href="{% url 'students:student_detail' student.pk %}" class="btn btn-secondary">
+                        ✕ Отмена
+                    </a>
+                    <button type="submit" class="btn btn-danger">
+                        ✅ OK — Отчислить
+                    </button>
+                </div>
+            </form>
+
+        </div>
+    </div>
+</div>
+
+<!-- 🔹 Маска даты для поля приказа (если нужна) -->
+{% if not debug %}
+<script src="{% static 'js/date-mask.js' %}" defer></script>
+{% endif %}
+{% endblock %}

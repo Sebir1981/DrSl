@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}🚫 Отказ от обучения{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* 🔹 Стили формы отказа */
+    .refusal-card {
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        overflow: hidden;
+        max-width: 600px;
+        margin: 2rem auto;
+    }
+    .refusal-header {
+        background: linear-gradient(135deg, #fef3c7, #fde68a);
+        padding: 1.5rem 2rem;
+        border-bottom: 1px solid #fcd34d;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    .refusal-header h2 {
+        margin: 0;
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #92400e;
+    }
+    .refusal-body { padding: 2rem; }
+    .student-info {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 1rem 1.25rem;
+        margin-bottom: 1.5rem;
+        font-size: 0.95rem;
+    }
+    .student-info p { margin: 0.25rem 0; color: #334155; }
+    .student-info strong { color: #1e293b; min-width: 110px; display: inline-block; }
+    .form-group { margin-bottom: 1.25rem; }
+    .form-group label {
+        display: block;
+        font-weight: 500;
+        color: #334155;
+        margin-bottom: 0.5rem;
+        font-size: 0.95rem;
+    }
+    .form-group input,
+    .form-group textarea {
+        width: 100%;
+        padding: 0.625rem 0.875rem;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        font-size: 1rem;
+        transition: border-color 0.2s, box-shadow 0.2s;
+        box-sizing: border-box;
+    }
+    .form-group input:focus,
+    .form-group textarea:focus {
+        outline: none;
+        border-color: #f59e0b;
+        box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15);
+    }
+    .form-group textarea { min-height: 90px; resize: vertical; }
+    .form-hint { font-size: 0.85rem; color: #64748b; margin-top: 0.375rem; }
+    .form-error { color: #dc2626; font-size: 0.85rem; margin-top: 0.375rem; }
+    .refusal-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+        padding-top: 1.5rem;
+        border-top: 1px solid #e2e8f0;
+        margin-top: 1.5rem;
+    }
+    .btn {
+        padding: 0.625rem 1.5rem;
+        border-radius: 8px;
+        font-weight: 500;
+        font-size: 0.95rem;
+        cursor: pointer;
+        text-decoration: none;
+        border: none;
+        transition: transform 0.1s, box-shadow 0.2s;
+    }
+    .btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    .btn-secondary { background: #f1f5f9; color: #475569; }
+    .btn-secondary:hover { background: #e2e8f0; }
+    .btn-warning {
+        background: linear-gradient(135deg, #f59e0b, #fbbf24);
+        color: #78350f;
+    }
+    .btn-warning:hover { background: linear-gradient(135deg, #d97706, #f59e0b); }
+    @media (max-width: 640px) {
+        .refusal-card { margin: 1rem; }
+        .refusal-header, .refusal-body { padding: 1.25rem; }
+        .refusal-footer { flex-direction: column-reverse; }
+        .btn { width: 100%; text-align: center; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="refusal-card">
+        
+        <!-- 🔹 Заголовок -->
+        <div class="refusal-header">
+            <span style="font-size: 1.5rem;">🚫</span>
+            <h2>Отказ от обучения</h2>
+        </div>
+        
+        <div class="refusal-body">
+            
+            <!-- 🔹 Информация об учащемся (только чтение) -->
+            <div class="student-info">
+                <p><strong>ФИО:</strong> {{ student.last_name }} {{ student.first_name }} {{ student.patronymic|default:"" }}</p>
+                <p><strong>Текущая группа:</strong> {{ student.group.group_number|default:"—" }} {% if student.group %}— {{ student.group.category|default:"" }}{% endif %}</p>
+                <p><strong>Преподаватель:</strong> {{ student.teacher.get_full_name|default:"—" }}</p>
+                {% if student.phone %}<p><strong>Телефон:</strong> {{ student.phone }}</p>{% endif %}
+            </div>
+            
+            <!-- 🔹 Форма -->
+            <form method="post" novalidate>
+                {% csrf_token %}
+                
+                <!-- Дата отказа (HTML-инпут, данные читаются во вью через request.POST) -->
+                <div class="form-group">
+                    <label for="refusal_date">Дата отказа *</label>
+                    <input type="date" 
+                           id="refusal_date" 
+                           name="refusal_date" 
+                           class="form-control" 
+                           value="{% now 'Y-m-d' %}" 
+                           required>
+                    {% if messages %}
+                        {% for message in messages %}
+                            {% if 'укажите дату' in message.message %}
+                                <div class="form-error">⚠️ Поле обязательно для заполнения</div>
+                            {% endif %}
+                        {% endfor %}
+                    {% endif %}
+                </div>
+                
+                <!-- Комментарий (рендерится из Django формы) -->
+                <div class="form-group">
+                    <label for="{{ form.comment.id_for_label }}">
+                        {{ form.comment.label }}
+                    </label>
+                    {{ form.comment }}
+                    {% if form.comment.errors %}
+                        <div class="form-error">{{ form.comment.errors.0 }}</div>
+                    {% else %}
+                        <div class="form-hint">{{ form.comment.help_text|default:"Причина отказа, дополнительные сведения" }}</div>
+                    {% endif %}
+                </div>
+                
+                <!-- 🔹 Кнопки -->
+                <div class="refusal-footer">
+                    <a href="{% url 'students:student_detail' student.pk %}" class="btn btn-secondary">
+                        ✕ Отмена
+                    </a>
+                    <button type="submit" class="btn btn-warning">
+                        ✅ OK — Зафиксировать отказ
+                    </button>
+                </div>
+            </form>
+            
+        </div>
+    </div>
+</div>
+
+<!-- 🔹 Подтверждение перед отправкой -->
+<script>
+document.querySelector('form').addEventListener('submit', function(e) {
+    const date = document.getElementById('refusal_date').value;
+    if (!date) {
+        e.preventDefault();
+        alert('⚠️ Укажите дату отказа');
+        return;
+    }
+    if (!confirm(`✅ Подтвердите отказ от обучения:\nДата: ${date}\n\nЭто действие нельзя отменить.`)) {
+        e.preventDefault();
+    }
+});
+</script>
+{% endblock %}

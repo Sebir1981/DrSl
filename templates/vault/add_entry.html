@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="login-container" style="max-width: 500px; width: 90%;">
+    <h2>🔐 Добавить новую запись</h2>
+    
+    {% if messages %}
+        {% for msg in messages %}
+            <div class="{% if msg.tags == 'success' %}success{% else %}error{% endif %}">{{ msg }}</div>
+        {% endfor %}
+    {% endif %}
+
+    <form method="post" novalidate>
+        {% csrf_token %}
+        {% for field in form %}
+            <div class="input-group">
+                <label>{{ field.label }}</label>
+                {{ field }}
+                {% if field.errors %}
+                    <div class="error">{{ field.errors|striptags }}</div>
+                {% endif %}
+            </div>
+        {% endfor %}
+        <button type="submit">💾 Сохранить</button>
+    </form>
+    <a href="{% url 'vault:vault_list' %}" class="back-link">← Вернуться к списку</a>
+</div>
+{% endblock %}

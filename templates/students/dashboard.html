@@ -1,0 +1,396 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}
+🎓 Учащиеся — Автошкола
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h1>🎓 Управление учащимися</h1>
+
+    <div>
+        <a href="{% url 'vault:dashboard' %}"
+           class="btn"
+           style="
+                background:#e2e8f0;
+                color:#334155;
+                padding:10px 20px;
+                border-radius:8px;
+                text-decoration:none;
+           ">
+            ← На главную
+        </a>
+    </div>
+</div>
+
+<div class="cards-grid">
+
+    <a href="{% url 'admin:students_student_add' %}"
+       class="card card-primary">
+
+        <div class="card-icon">➕</div>
+
+        <div class="card-title">
+            Добавить ученика
+        </div>
+
+        <div class="card-description card-description-light">
+            Создать новую запись учащегося
+        </div>
+    </a>
+
+
+    <a href="{% url 'students:student_list' %}"
+       class="card card-default border-blue">
+
+        <div class="card-icon">📋</div>
+
+        <div class="card-title text-dark">
+            Информация о учениках
+        </div>
+
+        <div class="card-description">
+            Просмотр, поиск и фильтры
+        </div>
+
+        {% if total_students %}
+        <div class="card-counter text-blue">
+            Всего учащихся:
+            <strong>{{ total_students }}</strong>
+        </div>
+        {% endif %}
+    </a>
+
+
+    <a href="{% url 'students:student_list' %}?highlight=transfer"
+       class="card card-default border-orange">
+
+        <div class="card-icon">🔄</div>
+
+        <div class="card-title text-dark">
+            Перевод в другую группу
+        </div>
+
+        <div class="card-description">
+            Выберите учащегося для перевода
+        </div>
+    </a>
+
+
+    <div class="card card-disabled">
+
+        <div class="card-icon">📄</div>
+
+        <div class="card-title text-muted">
+            Продление договора
+        </div>
+
+        <div class="card-description text-light">
+            Функция в разработке
+        </div>
+
+        <div class="card-soon">
+            🔜 Скоро
+        </div>
+    </div>
+
+
+    <div class="card card-disabled">
+
+        <div class="card-icon">💳</div>
+
+        <div class="card-title text-muted">
+            Оплаты
+        </div>
+
+        <div class="card-description text-light">
+            Функция в разработке
+        </div>
+
+        <div class="card-soon">
+            🔜 Скоро
+        </div>
+    </div>
+
+
+    <div class="card card-disabled">
+
+        <div class="card-icon">🔔</div>
+
+        <div class="card-title text-muted">
+            Уведомления
+        </div>
+
+        <div class="card-description text-light">
+            Функция в разработке
+        </div>
+
+        <div class="card-soon">
+            🔜 Скоро
+        </div>
+    </div>
+
+
+    <a href="{% url 'students:student_list' %}?highlight=suspension"
+       class="card card-purple">
+
+        <div class="card-header">
+            <span class="card-icon-small">⏸️</span>
+
+            <h3 class="card-subtitle text-purple">
+                Приостановка обучения
+            </h3>
+        </div>
+
+        <p class="card-description text-purple-light">
+            Временно приостановить обучение учащегося с указанием периода
+        </p>
+
+        <span class="card-arrow text-purple-border">
+            →
+        </span>
+    </a>
+
+
+    <a href="{% url 'students:student_list' %}?highlight=refusal"
+       class="card card-yellow">
+
+        <div class="card-header">
+            <span class="card-icon-small">🚫</span>
+
+            <h3 class="card-subtitle text-brown">
+                Отказ от обучения
+            </h3>
+        </div>
+
+        <p class="card-description text-orange">
+            Зафиксировать отказ учащегося от продолжения обучения
+        </p>
+
+        <span class="card-arrow text-yellow-border">
+            →
+        </span>
+    </a>
+
+
+    <a href="{% url 'students:student_list' %}?highlight=dismissal"
+       class="card card-red">
+
+        <div class="card-header">
+            <span class="card-icon-small">❌</span>
+
+            <h3 class="card-subtitle text-red-dark">
+                Отчисление учащихся
+            </h3>
+        </div>
+
+        <p class="card-description text-red">
+            Выберите учащегося из списка для оформления отчисления
+        </p>
+
+        <span class="card-arrow text-red-border">
+            →
+        </span>
+    </a>
+
+</div>
+
+<style>
+
+.cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.card {
+    position: relative;
+
+    display: block;
+
+    padding: 25px;
+
+    border-radius: 16px;
+
+    text-decoration: none;
+    color: inherit;
+
+    transition:
+        transform 0.2s ease,
+        box-shadow 0.2s ease;
+
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+}
+
+.card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+}
+
+.card-primary {
+    background: linear-gradient(135deg, #4facfe, #00f2fe);
+    color: white;
+}
+
+.card-default {
+    background: white;
+}
+
+.card-disabled {
+    background: #f8fafc;
+
+    border-left: 4px solid #94a3b8;
+
+    opacity: 0.7;
+}
+
+.border-blue {
+    border-left: 4px solid #4facfe;
+}
+
+.border-orange {
+    border-left: 4px solid #f59e0b;
+}
+
+.card-purple {
+    background: #ede9fe;
+    border: 2px solid #c4b5fd;
+}
+
+.card-yellow {
+    background: #fef3c7;
+    border: 2px solid #fcd34d;
+}
+
+.card-red {
+    background: #fef2f2;
+    border: 2px solid #fecaca;
+}
+
+.card-icon {
+    font-size: 32px;
+    margin-bottom: 12px;
+}
+
+.card-icon-small {
+    font-size: 24px;
+}
+
+.card-title {
+    font-size: 18px;
+    font-weight: 600;
+
+    margin-bottom: 8px;
+}
+
+.card-subtitle {
+    margin: 0;
+
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.card-description {
+    font-size: 13px;
+    color: #64748b;
+}
+
+.card-description-light {
+    color: rgba(255,255,255,0.9);
+}
+
+.card-counter {
+    margin-top: 12px;
+
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.card-soon {
+    margin-top: 12px;
+
+    font-size: 11px;
+    font-weight: 500;
+
+    color: #f59e0b;
+}
+
+.card-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    margin-bottom: 8px;
+}
+
+.card-arrow {
+    position: absolute;
+
+    right: 20px;
+    top: 50%;
+
+    transform: translateY(-50%);
+
+    font-size: 18px;
+}
+
+.text-dark {
+    color: #1e293b;
+}
+
+.text-muted {
+    color: #475569;
+}
+
+.text-light {
+    color: #94a3b8;
+}
+
+.text-blue {
+    color: #4facfe;
+}
+
+.text-purple {
+    color: #6d28d9;
+}
+
+.text-purple-light {
+    color: #7c3aed;
+}
+
+.text-purple-border {
+    color: #c4b5fd;
+}
+
+.text-brown {
+    color: #92400e;
+}
+
+.text-orange {
+    color: #b45309;
+}
+
+.text-yellow-border {
+    color: #fcd34d;
+}
+
+.text-red-dark {
+    color: #991b1b;
+}
+
+.text-red {
+    color: #dc2626;
+}
+
+.text-red-border {
+    color: #fecaca;
+}
+
+</style>
+
+{% endblock %}

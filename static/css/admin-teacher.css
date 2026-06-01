@@ -1,0 +1,45 @@
+/* static/css/admin-teacher.css */
+
+/* 🔹 Горизонтальные чекбоксы (график и тип ТС) */
+.form-row:has(input[name*="schedule_"]),
+.form-row:has(input[name*="teaches_"]) {
+    display: flex !important;
+    gap: 30px !important;
+    align-items: center !important;
+    flex-wrap: wrap !important;
+    padding: 8px 0 !important;
+}
+
+.form-row:has(input[name*="schedule_"]) label,
+.form-row:has(input[name*="teaches_"]) label {
+    cursor: pointer !important;
+    font-weight: 500 !important;
+    color: #334155 !important;
+    margin: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+}
+
+/* 🔹 Поля ФИО: чуть больше отступ между строками */
+.field-last_name,
+.field-first_name,
+.field-patronymic {
+    margin-bottom: 12px !important;
+}
+
+/* 🔹 Поле телефона: делаем чуть шире */
+.field-phone input {
+    width: 220px !important;
+    max-width: 100% !important;
+}
+
+/* 🔹 Адаптив для мобильных */
+@media (max-width: 768px) {
+    .form-row:has(input[name*="schedule_"]),
+    .form-row:has(input[name*="teaches_"]) {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 8px !important;
+    }
+}

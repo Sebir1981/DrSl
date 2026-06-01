@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}📚 Преподаватели — Автошкола{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/phone-mask.js' %}" defer></script>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>📚 Преподаватели</h1>
+    <div>
+        <a href="{% url 'vault:dashboard' %}" class="btn" style="margin-right: 10px; background:#e2e8f0; color:#334155;">← На главную</a>
+        <a href="{% url 'admin:teachers_teacher_add' %}" class="btn btn-primary">+ Добавить</a>
+    </div>
+</div>
+
+<!-- Фильтры -->
+<form method="get" style="display:flex;gap:15px;margin-bottom:20px;flex-wrap:wrap;align-items:center;">
+    <div style="display:flex;gap:8px;align-items:center;background:white;padding:8px 15px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.05);">
+        <strong>🚗 Тип:</strong>
+        <label><input type="checkbox" name="vehicle" value="truck" {% if active_vehicle == 'truck' %}checked{% endif %}> 🚛</label>
+        <label><input type="checkbox" name="vehicle" value="car" {% if active_vehicle == 'car' %}checked{% endif %}> 🚗</label>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;background:white;padding:8px 15px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.05);">
+        <strong>🕐 График:</strong>
+        <label><input type="checkbox" name="schedule" value="morning" {% if active_schedule == 'morning' %}checked{% endif %}> 🌅</label>
+        <label><input type="checkbox" name="schedule" value="evening" {% if active_schedule == 'evening' %}checked{% endif %}> 🌆</label>
+        <label><input type="checkbox" name="schedule" value="weekend" {% if active_schedule == 'weekend' %}checked{% endif %}> 📅</label>
+    </div>
+    <button type="submit" class="btn btn-primary" style="padding:6px 12px;font-size:13px;">Применить</button>
+    <a href="?" class="btn" style="padding:6px 12px;font-size:13px;background:#94a3b8;color:white;">Сбросить</a>
+</form>
+
+<div class="data-table">
+    <table>
+        <thead>
+            <tr>
+                <th>№</th>
+                <th>ФИО</th>
+                <th>Телефон</th>
+                <th>Тип</th>
+                <th>График</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for t in teachers %}
+            <tr>
+                <td><strong>{{ forloop.counter }}</strong></td>
+                <td>
+                    <strong>{{ t.last_name }} {{ t.first_name }}</strong>
+                    {% if t.patronymic %}<br><small style="color:#94a3b8">{{ t.patronymic }}</small>{% endif %}
+                </td>
+                <td>{{ t.phone }}</td>
+                <td>
+                    {% if t.teaches_truck %}<span style="display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:500;background:#e0f2fe;color:#0369a1;margin-right:4px;">🚛 Грузовой</span>{% endif %}
+                    {% if t.teaches_car %}<span style="display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:500;background:#e0f2fe;color:#0369a1;margin-right:4px;">🚗 Легковой</span>{% endif %}
+                    {% if not t.teaches_truck and not t.teaches_car %}—{% endif %}
+                </td>
+                <td style="text-align:center;font-size:14px;">
+                    {% if t.schedule_morning %}🌅{% endif %}{% if t.schedule_evening %}🌆{% endif %}{% if t.schedule_weekend %}📅{% endif %}
+                    {% if not t.schedule_morning and not t.schedule_evening and not t.schedule_weekend %}—{% endif %}
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="empty-state">📭 Преподаватели не найдены.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('[id^="id_phone_"]').forEach(input => {
+        input.id = 'id_phone';
+    });
+});
+</script>
+{% endblock %}

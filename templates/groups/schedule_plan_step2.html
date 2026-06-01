@@ -1,0 +1,493 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ title }} — Автошкола{% endblock %}
+
+{% block extra_css %}
+<style>
+    .step2-container {
+        background: white;
+        border-radius: 16px;
+        padding: 24px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+        max-width: 100%;
+        margin: 0 auto;
+        overflow-x: auto;
+    }
+
+    /* 🔹 Выровненная шапка */
+    .info-block {
+        background: #f8fafc;
+        border-radius: 12px;
+        padding: 24px;
+        margin-bottom: 24px;
+        border: 1px solid #e2e8f0;
+    }
+    .info-title {
+        margin: 0 0 20px 0;
+        color: #1e293b;
+        font-size: 18px;
+        font-weight: 700;
+        text-align: center;
+    }
+    .info-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 24px;
+    }
+    .info-column {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+    .info-field {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+    .info-label {
+        font-size: 11px;
+        color: #64748b;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .info-value {
+        font-size: 15px;
+        color: #1e293b;
+        font-weight: 600;
+    }
+    .info-select {
+        width: 100%;
+        padding: 8px 10px;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        font-size: 14px;
+        background: #fff;
+        transition: border-color 0.2s;
+    }
+    .info-select:focus {
+        outline: none;
+        border-color: #4facfe;
+        box-shadow: 0 0 0 2px rgba(79,172,254,0.15);
+    }
+
+    .schedule-year {
+        text-align: center;
+        font-size: 20px;
+        font-weight: 700;
+        color: #1e293b;
+        margin: 0 0 16px 0;
+        padding-bottom: 8px;
+        border-bottom: 2px solid #e2e8f0;
+    }
+
+    .distribution-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+        margin: 16px 0;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        table-layout: fixed;
+    }
+    .distribution-table th, .distribution-table td {
+        border: 1px solid #cbd5e1;
+        padding: 4px;
+        text-align: center;
+        vertical-align: middle;
+    }
+    .distribution-table th { background: #f1f5f9; font-weight: 600; color: #475569; }
+    .distribution-table .subject-cell {
+        background: #f8fafc; font-weight: 600; text-align: left; padding-left: 12px;
+        position: sticky; left: 0; z-index: 10; min-width: 180px; width: 180px;
+    }
+    .distribution-table .month-header { background: #dbeafe; font-weight: 700; color: #1e40af; padding: 8px 4px; white-space: nowrap; }
+    .distribution-table .date-header {
+        background: #eff6ff; font-size: 11px; color: #64748b; font-weight: 500;
+        width: 48px; min-width: 48px; max-width: 48px; padding: 6px 2px;
+    }
+
+    .hours-input {
+        width: 100%;
+        height: 28px;
+        padding: 0;
+        border: 1px solid #cbd5e1;
+        border-radius: 3px;
+        text-align: center;
+        font-size: 12px;
+        font-weight: 600;
+        box-sizing: border-box;
+        transition: border-color 0.2s;
+        -moz-appearance: textfield;
+    }
+    .hours-input::-webkit-outer-spin-button,
+    .hours-input::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+    .hours-input:focus { outline: none; border-color: #4facfe; box-shadow: 0 0 0 2px rgba(79,172,254,0.2); }
+    .hours-input.total { background: #fef3c7; border-color: #fcd34d; font-weight: 700; color: #92400e; }
+    .hours-input[readonly] { background: #f1f5f9; color: #64748b; cursor: not-allowed; border-color: #e2e8f0; }
+    .hours-input.invalid { border-color: #dc2626; background: #fef2f2; }
+
+    .tooltip { position: relative; cursor: help; border-bottom: 2px dotted #4facfe; }
+    .tooltip:hover::after {
+        content: attr(data-tooltip); position: absolute; bottom: 125%; left: 50%; transform: translateX(-50%);
+        background: #1e293b; color: white; padding: 6px 10px; border-radius: 4px; font-size: 11px; white-space: nowrap; z-index: 1000;
+    }
+
+    .validation-message { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 12px; margin: 16px 0; color: #dc2626; font-size: 13px; display: none; }
+    .validation-message.show { display: block; }
+    .validation-message.success { background: #dcfce7; border-color: #86efac; color: #166534; }
+
+    .action-buttons { display: flex; gap: 16px; justify-content: flex-end; margin-top: 24px; padding-top: 24px; border-top: 2px solid #e2e8f0; }
+    .btn-back { padding: 12px 32px; background: #e2e8f0; color: #334155; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none; }
+    .btn-confirm { padding: 12px 32px; background: #4facfe; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
+    .btn-confirm:disabled { background: #cbd5e1; cursor: not-allowed; }
+    .print-btn { padding: 12px 24px; background: #10b981; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; margin-right: auto; }
+
+    @media print { .action-buttons, .page-header { display: none; } .step2-container { box-shadow: none; overflow: visible; } .hours-input { border: none; } .subject-cell { position: static; } }
+    @media (max-width: 900px) { .info-grid { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>{{ title }}</h1>
+    <a href="{% url 'groups:schedule_plans_list' %}" class="btn" style="background:#e2e8f0;color:#334155;">← Назад к списку</a>
+</div>
+
+<div class="step2-container">
+    <div class="info-block">
+        <h2 class="info-title">
+            План-график выполнения единой программы подготовки водителей МТС категории "{{ plan.group.category.code|default:'B' }}"
+        </h2>
+
+        <div class="info-grid">
+            <!-- 🔹 Колонка 1: Группа + Аудитория -->
+            <div class="info-column">
+                <div class="info-field">
+                    <span class="info-label">Учебная группа</span>
+                    <span class="info-value">{{ plan.group }}</span>
+                </div>
+                <div class="info-field">
+                    <span class="info-label">Аудитория</span>
+                    <span class="info-value">📍 {{ location|default:"—" }}</span>
+                </div>
+            </div>
+
+            <!-- 🔹 Колонка 2: Преподаватель + Медицина -->
+            <div class="info-column">
+                <div class="info-field">
+                    <span class="info-label">Преподаватель</span>
+                    <span class="info-value">{{ plan.teacher }}</span>
+                </div>
+                <div class="info-field">
+                    <span class="info-label">Преподаватель медицины</span>
+                    <select name="med_teacher" class="info-select">
+                        <option value="">— Выберите —</option>
+                        {% for teacher in teachers %}
+                        <option value="{{ teacher.pk }}" {% if med_teacher_id == teacher.pk %}selected{% endif %}>
+                            {{ teacher.last_name }} {{ teacher.first_name }} {{ teacher.middle_name|default:'' }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <!-- 🔹 Колонка 3: Период + Расписание -->
+            <div class="info-column">
+                <div class="info-field">
+                    <span class="info-label">Период обучения</span>
+                    <span class="info-value">{{ plan.date_start|date:"d.m.Y" }} — {{ plan.date_end|date:"d.m.Y" }}</span>
+                </div>
+                <div class="info-field">
+                    <span class="info-label">Расписание</span>
+                    <span class="info-value">⏰ {{ time_start }} — {{ time_end }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="schedule-year">{{ plan_year }} год</div>
+
+    <div id="validation-msg" class="validation-message"></div>
+
+    <form id="hours-form" method="post" action="{% url 'groups:schedule_plan_step2' plan.id %}">
+        {% csrf_token %}
+
+        <table class="distribution-table">
+            <thead>
+                <tr>
+                    <th rowspan="2" style="width: 180px; min-width: 180px;">Занятия</th>
+                    {% for month, days in days_by_month.items %}
+                    <th colspan="{{ days|length }}" class="month-header">{{ month }}</th>
+                    {% endfor %}
+                    <th rowspan="2" style="width: 60px; background:#fef3c7;">ИТОГО</th>
+                </tr>
+                <tr>
+                    {% for month, days in days_by_month.items %}
+                    {% for day in days %}
+                    <th class="date-header" title="{{ day.raw_date }}">{{ day.day_num }}</th>
+                    {% endfor %}
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Всего часов (из расписания) -->
+                <tr style="background:#e0f2fe; font-weight:700;">
+                    <td class="subject-cell">Всего часов</td>
+                    {% for month, days in days_by_month.items %}
+                    {% for day in days %}
+                    <td>
+                        <input type="number" step="1" class="hours-input total"
+                               value="{{ day.duration }}" readonly
+                               title="Длительность дня по расписанию">
+                    </td>
+                    {% endfor %}
+                    {% endfor %}
+                    <td>
+                        <input type="number" step="1" class="hours-input total"
+                               id="grand-total" value="{{ required_hours }}" readonly>
+                    </td>
+                </tr>
+
+                <!-- ПДД -->
+                <tr>
+                    <td class="subject-cell">
+                        <span class="tooltip" data-tooltip="Правила дорожного движения">ПДД</span>
+                    </td>
+                    {% for month, days in days_by_month.items %}
+                    {% for day in days %}
+                    <td>
+                        <input type="number" step="1" class="hours-input subject-hours"
+                               data-subject="pdd" data-date="{{ day.raw_date }}"
+                               value="" min="0" placeholder="·">
+                    </td>
+                    {% endfor %}
+                    {% endfor %}
+                    <td>
+                        <input type="number" step="1" class="hours-input total subject-total"
+                               id="pdd-total" value="{{ pdd_default }}" min="0">
+                    </td>
+                </tr>
+
+                <!-- УА -->
+                <tr>
+                    <td class="subject-cell">
+                        <span class="tooltip" data-tooltip="Устройство автомобиля">УА</span>
+                    </td>
+                    {% for month, days in days_by_month.items %}
+                    {% for day in days %}
+                    <td>
+                        <input type="number" step="1" class="hours-input subject-hours"
+                               data-subject="ua" data-date="{{ day.raw_date }}"
+                               value="" min="0" placeholder="·">
+                    </td>
+                    {% endfor %}
+                    {% endfor %}
+                    <td>
+                        <input type="number" step="1" class="hours-input total subject-total"
+                               id="ua-total" value="{{ ua_default }}" min="0">
+                    </td>
+                </tr>
+
+                <!-- БД -->
+                <tr>
+                    <td class="subject-cell">
+                        <span class="tooltip" data-tooltip="Безопасность движения">БД</span>
+                    </td>
+                    {% for month, days in days_by_month.items %}
+                    {% for day in days %}
+                    <td>
+                        <input type="number" step="1" class="hours-input subject-hours"
+                               data-subject="bd" data-date="{{ day.raw_date }}"
+                               value="" min="0" placeholder="·">
+                    </td>
+                    {% endfor %}
+                    {% endfor %}
+                    <td>
+                        <input type="number" step="1" class="hours-input total subject-total"
+                               id="bd-total" value="{{ bd_default }}" min="0">
+                    </td>
+                </tr>
+
+                <!-- ПОДД -->
+                <tr>
+                    <td class="subject-cell">
+                        <span class="tooltip" data-tooltip="Правовые основы дорожного движения">ПОДД</span>
+                    </td>
+                    {% for month, days in days_by_month.items %}
+                    {% for day in days %}
+                    <td>
+                        <input type="number" step="1" class="hours-input subject-hours"
+                               data-subject="podd" data-date="{{ day.raw_date }}"
+                               value="" min="0" placeholder="·">
+                    </td>
+                    {% endfor %}
+                    {% endfor %}
+                    <td>
+                        <input type="number" step="1" class="hours-input total subject-total"
+                               id="podd-total" value="{{ podd_default }}" min="0">
+                    </td>
+                </tr>
+
+                <!-- Медицина -->
+                <tr>
+                    <td class="subject-cell">
+                        <span class="tooltip" data-tooltip="Оказание первой помощи при ДТП">Медицина</span>
+                    </td>
+                    {% for month, days in days_by_month.items %}
+                    {% for day in days %}
+                    <td>
+                        <input type="number" step="1" class="hours-input subject-hours"
+                               data-subject="med" data-date="{{ day.raw_date }}"
+                               value="" min="0" placeholder="·">
+                    </td>
+                    {% endfor %}
+                    {% endfor %}
+                    <td>
+                        <input type="number" step="1" class="hours-input total subject-total"
+                               id="med-total" value="{{ med_default }}" min="0">
+                    </td>
+                </tr>
+
+                <!-- Экзамен -->
+                <tr>
+                    <td class="subject-cell">Экзамен</td>
+                    {% for month, days in days_by_month.items %}
+                    {% for day in days %}
+                    <td>
+                        <input type="number" step="1" class="hours-input subject-hours"
+                               data-subject="exam" data-date="{{ day.raw_date }}"
+                               value="" min="0" placeholder="·">
+                    </td>
+                    {% endfor %}
+                    {% endfor %}
+                    <td>
+                        <input type="number" step="1" class="hours-input total subject-total"
+                               id="exam-total" value="{{ exam_default }}" min="0">
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="action-buttons">
+            <button type="button" onclick="window.print()" class="print-btn">🖨️ Печать</button>
+            <a href="{% url 'groups:schedule_plan_edit' plan.id %}" class="btn-back">🔙 Назад</a>
+            <button type="submit" id="btn-save" class="btn-confirm" disabled>✅ Сохранить распределение</button>
+        </div>
+    </form>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('hours-form');
+    const btnSave = document.getElementById('btn-save');
+    const validationMsg = document.getElementById('validation-msg');
+
+    const subjectsData = [
+        {id: 'pdd', label: 'ПДД', tooltip: 'Правила дорожного движения'},
+        {id: 'ua', label: 'УА', tooltip: 'Устройство автомобиля'},
+        {id: 'bd', label: 'БД', tooltip: 'Безопасность движения'},
+        {id: 'podd', label: 'ПОДД', tooltip: 'Правовые основы'},
+        {id: 'med', label: 'Медицина', tooltip: 'Первая помощь при ДТП'},
+        {id: 'exam', label: 'Экзамен', tooltip: null}
+    ];
+
+    function getVal(el) { return el.value.trim() === '' ? 0 : parseInt(el.value) || 0; }
+
+    function calculateSubjectTotal(subject) {
+        let total = 0;
+        document.querySelectorAll(`.subject-hours[data-subject="${subject}"]`).forEach(inp => total += getVal(inp));
+        return total;
+    }
+
+    function calculateGrandTotal() {
+        let total = 0;
+        subjectsData.forEach(s => total += getVal(document.getElementById(`${s.id}-total`)));
+        return total;
+    }
+
+    function validate() {
+        let valid = true;
+        let msgs = [];
+        const maxHours = parseInt(document.getElementById('grand-total').value) || 170;
+
+        subjectsData.forEach(s => {
+            const sum = calculateSubjectTotal(s.id);
+            const target = getVal(document.getElementById(`${s.id}-total`));
+            if (sum !== target) {
+                valid = false;
+                const diff = sum - target;
+                msgs.push(`${s.label.toUpperCase()}: по датам ${sum} ч., в итоге ${target} (разница ${diff>0?'+':''}${diff})`);
+                document.querySelectorAll(`.subject-hours[data-subject="${s.id}"]`).forEach(i => i.classList.add('invalid'));
+                document.getElementById(`${s.id}-total`).classList.add('invalid');
+            } else {
+                document.querySelectorAll(`.subject-hours[data-subject="${s.id}"]`).forEach(i => i.classList.remove('invalid'));
+                document.getElementById(`${s.id}-total`).classList.remove('invalid');
+            }
+        });
+
+        const subjectsSum = calculateGrandTotal();
+        const grandEl = document.getElementById('grand-total');
+        if (subjectsSum > maxHours) {
+            valid = false;
+            msgs.unshift(`❌ ПРЕВЫШЕН ЛИМИТ: сумма ${subjectsSum} ч., разрешено ${maxHours} ч.`);
+            grandEl.classList.add('invalid');
+        } else {
+            grandEl.classList.remove('invalid');
+            if(subjectsSum < maxHours) msgs.unshift(`⚠️ Недобор: ${subjectsSum} ч. из ${maxHours} ч.`);
+        }
+
+        if (msgs.length) {
+            validationMsg.className = 'validation-message show';
+            validationMsg.innerHTML = msgs.map(m => m.includes('❌') ? m : '• '+m).join('<br>');
+            btnSave.disabled = msgs.some(m => m.includes('❌'));
+        } else {
+            validationMsg.className = 'validation-message success show';
+            validationMsg.innerHTML = '✅ Всё сходится. Можно сохранять.';
+            btnSave.disabled = false;
+        }
+        return valid && !msgs.some(m => m.includes(''));
+    }
+
+    document.querySelectorAll('.hours-input').forEach(inp => {
+        inp.addEventListener('input', () => { inp.value = Math.max(0, parseInt(inp.value)||0); validate(); });
+        inp.addEventListener('blur', () => { if(inp.value==='0') inp.value=''; });
+    });
+
+        form.addEventListener('submit', e => {
+        e.preventDefault();
+        if(!validate()) return;
+
+        // Получаем выбранного преподавателя медицины
+        const medTeacherSelect = document.querySelector('select[name="med_teacher"]');
+        const medTeacherId = medTeacherSelect ? medTeacherSelect.value : '';
+
+        const data = {
+            plan_id: {{ plan.id }},
+            hours: {},
+            med_teacher: medTeacherId  // 🔹 Добавляем в данные
+        };
+
+        subjectsData.forEach(s => {
+            data.hours[s.id] = {};
+            document.querySelectorAll(`.subject-hours[data-subject="${s.id}"]`).forEach(inp => {
+                data.hours[s.id][inp.dataset.date] = getVal(inp);
+            });
+        });
+
+        fetch("{% url 'groups:schedule_plan_step2' plan.id %}", {
+            method: 'POST',
+            headers: {'Content-Type':'application/json', 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value},
+            body: JSON.stringify(data)
+        }).then(r=>r.json()).then(res=>{
+            if(res.success){ alert('✅ Сохранено!'); window.location.href="{% url 'groups:schedule_plans_list' %}"; }
+            else alert('❌ '+res.error);
+        }).catch(()=>alert('❌ Ошибка сети'));
+    });
+    validate();
+});
+</script>
+{% endblock %}

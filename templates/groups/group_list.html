@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}👥 Группы — Автошкола{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>👥 Список групп</h1>
+    <div>
+        <a href="{% url 'vault:dashboard' %}" class="btn" style="margin-right:10px;background:#e2e8f0;color:#334155;padding:10px 20px;border-radius:8px;text-decoration:none;">← На главную</a>
+        <a href="{% url 'admin:groups_group_add' %}" class="btn btn-primary">+ Добавить группу</a>
+    </div>
+</div>
+
+<!-- 🔹 ФИЛЬТРЫ -->
+<form method="get" style="background:white;padding:15px 20px;border-radius:12px;margin-bottom:20px;box-shadow:0 2px 8px rgba(0,0,0,0.05);display:flex;gap:15px;flex-wrap:wrap;align-items:flex-end;">
+
+    <!-- Поиск -->
+    <div style="display:flex;flex-direction:column;gap:6px;min-width:200px;">
+        <label style="font-size:13px;font-weight:600;color:#475569;">🔍 Поиск</label>
+        <input type="text" name="search" value="{{ search_query|default:'' }}" placeholder="№ группы..." style="padding:8px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;">
+    </div>
+
+    <!-- Категория -->
+    <div style="display:flex;flex-direction:column;gap:6px;min-width:180px;">
+        <label style="font-size:13px;font-weight:600;color:#475569;">📁 Категория</label>
+        <select name="category" style="padding:8px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;">
+            <option value="">Все</option>
+            {% for c in categories %}
+            <option value="{{ c.pk }}" {% if selected_category == c.pk|stringformat:"s" %}selected{% endif %}>{{ c.code }} — {{ c.description }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <!-- Статус -->
+    <div style="display:flex;flex-direction:column;gap:6px;min-width:150px;">
+        <label style="font-size:13px;font-weight:600;color:#475569;">📊 Статус</label>
+        <select name="status" style="padding:8px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;">
+            <option value="">Все</option>
+            <option value="active" {% if selected_status == 'active' %}selected{% endif %}>🟢 Активна</option>
+            <option value="closed" {% if selected_status == 'closed' %}selected{% endif %}>🔒 Закрыта</option>
+        </select>
+    </div>
+
+    <!-- Кнопки -->
+    <div style="display:flex;gap:8px;">
+        <button type="submit" class="btn btn-primary" style="padding:8px 16px;font-size:14px;">🔍 Найти</button>
+        <a href="?" class="btn" style="padding:8px 16px;font-size:14px;background:#94a3b8;color:white;">✕ Сброс</a>
+    </div>
+</form>
+
+<!-- 🔹 ТАБЛИЦА ГРУПП (5 колонок: без "Действия") -->
+<div class="data-table" style="overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.05);">
+        <thead style="background:#f8fafc;">
+            <tr>
+                <th style="padding:12px 15px;text-align:left;font-size:13px;font-weight:600;color:#475569;border-bottom:2px solid #e2e8f0;">№ Группы</th>
+                <th style="padding:12px 15px;text-align:left;font-size:13px;font-weight:600;color:#475569;border-bottom:2px solid #e2e8f0;">Категория</th>
+                <th style="padding:12px 15px;text-align:left;font-size:13px;font-weight:600;color:#475569;border-bottom:2px solid #e2e8f0;">🏫 Аудитория</th>
+                <th style="padding:12px 15px;text-align:left;font-size:13px;font-weight:600;color:#475569;border-bottom:2px solid #e2e8f0;">Преподаватель</th>
+                <th style="padding:12px 15px;text-align:left;font-size:13px;font-weight:600;color:#475569;border-bottom:2px solid #e2e8f0;">Статус</th>
+                <!-- ❌ Колонка "Действия" удалена -->
+            </tr>
+        </thead>
+        <tbody>
+            {% for g in groups %}
+            <tr style="border-bottom:1px solid #f1f5f9;transition:background 0.15s;">
+
+                <!-- № Группы -->
+              <td>
+        <a href="{% url 'groups:group_detail' g.pk %}" style="color:#4facfe;text-decoration:none;font-weight:600;">
+            {{ g.group_number }}
+        </a>
+        </td>
+
+                <!-- Категория -->
+                <td style="padding:12px 15px;font-size:14px;">
+                    {% if g.category %}
+                    <span style="background:#e0f2fe;color:#0369a1;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:500;">
+                        {{ g.category.code }}
+                    </span>
+                    {% else %}—{% endif %}
+                </td>
+
+                <!-- 🏫 Аудитория (✅ ТЕПЕРЬ ОБЫЧНЫЙ ТЕКСТ, без ссылки) -->
+                <td style="padding:12px 15px;font-size:14px;color:#64748b;">
+                    {% if g.classroom %}
+                        {{ g.classroom.name|default:g.classroom }}
+                    {% else %}
+                        <span style="color:#94a3b8;">—</span>
+                    {% endif %}
+                </td>
+
+                <!-- Преподаватель -->
+                <td style="padding:12px 15px;font-size:14px;color:#64748b;">
+                    {% if g.teacher %}
+                        {{ g.teacher.last_name }} {{ g.teacher.first_name|slice:":1" }}.
+                    {% else %}—{% endif %}
+                </td>
+
+                <!-- Статус -->
+                <td style="padding:12px 15px;font-size:14px;">
+                    {% if g.status == 'active' %}
+                    <span style="color:#16a34a;font-weight:500;">🟢 Активна</span>
+                    {% elif g.status == 'closed' %}
+                    <span style="color:#64748b;">🔒 Закрыта</span>
+                    {% else %}
+                    <span style="color:#f59e0b;">🟡 В процессе</span>
+                    {% endif %}
+                </td>
+
+                <!-- ❌ Ячейка "Действия" удалена -->
+
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="5" style="padding:30px;text-align:center;color:#64748b;">📭 Группы не найдены</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}👥 Группы — Автошкола{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>👥 Управление группами</h1>
+    <div>
+        <a href="{% url 'vault:dashboard' %}" class="btn" style="background:#e2e8f0;color:#334155;padding:10px 20px;border-radius:8px;text-decoration:none;">← На главную</a>
+    </div>
+</div>
+
+<!-- 🔹 СЕТКА КАРТОЧЕК -->
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px;max-width:1200px;margin:0 auto;">
+
+    <!-- ✅ Создание группы -->
+    <a href="{% url 'admin:groups_group_add' %}" class="card" style="background:linear-gradient(135deg,#4facfe,#00f2fe);color:white;padding:25px;border-radius:16px;text-decoration:none;box-shadow:0 4px 20px rgba(79,172,254,0.3);transition:transform 0.2s;">
+        <div style="font-size:32px;margin-bottom:12px;">➕</div>
+        <div style="font-size:18px;font-weight:600;margin-bottom:8px;">Создание группы</div>
+        <div style="font-size:13px;opacity:0.9;">Добавить новую учебную группу</div>
+    </a>
+
+    <!-- ✅ Список групп -->
+    <a href="{% url 'groups:group_list' %}" class="card" style="background:white;padding:25px;border-radius:16px;text-decoration:none;box-shadow:0 4px 20px rgba(0,0,0,0.08);border-left:4px solid #4facfe;transition:transform 0.2s;">
+        <div style="font-size:32px;margin-bottom:12px;">📋</div>
+        <div style="font-size:18px;font-weight:600;margin-bottom:8px;color:#1e293b;">Список групп</div>
+        <div style="font-size:13px;color:#64748b;">Просмотр, поиск и фильтры</div>
+        {% if total_groups %}
+        <div style="margin-top:12px;font-size:12px;color:#4facfe;font-weight:500;">
+            Всего групп: <strong>{{ total_groups }}</strong>
+        </div>
+        {% endif %}
+    </a>
+
+    <!-- ✅ План графики 1 (о) -->
+     <a href="{% url 'groups:schedule_plans_list' %}" class="card" style="background:white;padding:25px;border-radius:16px;text-decoration:none;box-shadow:0 4px 20px rgba(0,0,0,0.08);border-left:4px solid #4facfe;transition:transform 0.2s;">
+        <div style="font-size:32px;margin-bottom:12px;">📊</div>
+        <div style="font-size:18px;font-weight:600;margin-bottom:8px;color:#1e293b;">План-графики 1 (о)</div>
+        <div style="font-size:13px;color:#64748b;">Создание и редактирование расписания</div>
+    </a>
+
+    <!-- 🔜 План графики 2 (р) -->
+    <div class="card" style="background:#f8fafc;padding:25px;border-radius:16px;box-shadow:0 4px 20px rgba(0,0,0,0.05);border-left:4px solid #94a3b8;opacity:0.7;">
+        <div style="font-size:32px;margin-bottom:12px;">📈</div>
+        <div style="font-size:18px;font-weight:600;margin-bottom:8px;color:#475569;">План графики 2 (р)</div>
+        <div style="font-size:13px;color:#94a3b8;">Функция в разработке</div>
+        <div style="margin-top:12px;font-size:11px;color:#f59e0b;font-weight:500;">🔜 Скоро</div>
+    </div>
+
+    <!-- 🔜 Расписание -->
+    <div class="card" style="background:#f8fafc;padding:25px;border-radius:16px;box-shadow:0 4px 20px rgba(0,0,0,0.05);border-left:4px solid #94a3b8;opacity:0.7;">
+        <div style="font-size:32px;margin-bottom:12px;">🗓️</div>
+        <div style="font-size:18px;font-weight:600;margin-bottom:8px;color:#475569;">Расписание</div>
+        <div style="font-size:13px;color:#94a3b8;">Функция в разработке</div>
+        <div style="margin-top:12px;font-size:11px;color:#f59e0b;font-weight:500;">🔜 Скоро</div>
+    </div>
+
+    <!-- 🔜 Закрытие групп -->
+    <div class="card" style="background:#f8fafc;padding:25px;border-radius:16px;box-shadow:0 4px 20px rgba(0,0,0,0.05);border-left:4px solid #94a3b8;opacity:0.7;">
+        <div style="font-size:32px;margin-bottom:12px;">🔒</div>
+        <div style="font-size:18px;font-weight:600;margin-bottom:8px;color:#475569;">Закрытие групп</div>
+        <div style="font-size:13px;color:#94a3b8;">Функция в разработке</div>
+        <div style="margin-top:12px;font-size:11px;color:#f59e0b;font-weight:500;">🔜 Скоро</div>
+    </div>
+
+</div>
+
+<!-- 🔹 Анимация при наведении на активные карточки -->
+<style>
+.card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.12) !important;
+}
+.card a:hover, .card:hover {
+    text-decoration: none;
+}
+</style>
+{% endblock %}

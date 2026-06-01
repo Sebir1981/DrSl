@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}🔄 Перевод учащегося — Автошкола{% endblock %}
+
+{% block content %}
+<div style="max-width:600px;margin:40px auto;background:white;padding:30px;border-radius:16px;box-shadow:0 4px 20px rgba(0,0,0,0.1);">
+    <h2 style="margin:0 0 20px 0;color:#1e293b;font-size:22px;">🔄 Перевод в другую группу</h2>
+
+    <form method="post">
+        {% csrf_token %}
+
+        <!-- ФИО -->
+        <div style="margin-bottom:15px;">
+            <label style="display:block;font-size:14px;color:#64748b;margin-bottom:5px;">ФИО учащегося</label>
+            <div style="padding:10px;background:#f8fafc;border-radius:8px;font-size:15px;font-weight:500;color:#334155;">
+                {{ student.last_name }} {{ student.first_name }} {{ student.patronymic|default:"" }}
+            </div>
+        </div>
+
+        <!-- Текущая группа -->
+        <div style="margin-bottom:15px;">
+            <label style="display:block;font-size:14px;color:#64748b;margin-bottom:5px;">Текущая группа</label>
+            <div style="padding:10px;background:#f8fafc;border-radius:8px;font-size:15px;color:#0369a1;font-weight:500;">
+                {% if student.group %}{{ student.group.group_number }}{% else %}Не распределён{% endif %}
+            </div>
+        </div>
+
+        <!-- Дата перевода (авто) -->
+        <div style="margin-bottom:15px;">
+            <label style="display:block;font-size:14px;color:#64748b;margin-bottom:5px;">Дата перевода</label>
+            <div style="padding:10px;background:#f8fafc;border-radius:8px;font-size:15px;color:#475569;">
+                {{ today|date:"d.m.Y" }} <span style="font-size:12px;color:#94a3b8;">(заполняется автоматически)</span>
+            </div>
+        </div>
+
+        <!-- Выбор новой группы -->
+        <div style="margin-bottom:20px;">
+            <label for="target_group" style="display:block;font-size:14px;color:#64748b;margin-bottom:5px;font-weight:500;">Выберите группу для перевода</label>
+            <select name="target_group" id="target_group" required style="width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font-size:15px;">
+                <option value="">— Выберите группу —</option>
+                {% for g in groups %}
+                <option value="{{ g.pk }}">{{ g.group_number }} — {{ g.category|default:"Без категории" }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Кнопки -->
+        <div style="display:flex;gap:10px;justify-content:flex-end;border-top:1px solid #e2e8f0;padding-top:15px;">
+            <a href="{% url 'students:student_detail' student.pk %}" style="padding:10px 20px;background:#94a3b8;color:white;border:none;border-radius:8px;text-decoration:none;font-weight:500;">Отменить</a>
+            <button type="submit" style="padding:10px 20px;background:#4facfe;color:white;border:none;border-radius:8px;font-weight:500;cursor:pointer;">Подтвердить</button>
+        </div>
+    </form>
+</div>
+
+<!-- 🔹 Вывод сообщений Django (если не подключен в base.html) -->
+{% if messages %}
+<div style="position:fixed;top:20px;right:20px;z-index:9999;">
+    {% for message in messages %}
+    <div style="padding:12px 20px;border-radius:8px;margin-bottom:8px;color:white;font-weight:500;box-shadow:0 2px 10px rgba(0,0,0,0.15);background:{% if message.tags == 'error' %}#ef4444{% elif message.tags == 'warning' %}#f59e0b{% else %}#10b981{% endif %};">
+        {{ message }}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

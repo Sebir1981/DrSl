@@ -1,0 +1,20 @@
+# groups/urls.py
+from django.urls import path
+from . import views
+
+app_name = 'groups'
+
+urlpatterns = [
+    path('', views.groups_dashboard, name='dashboard'),
+    path('list/', views.group_list, name='group_list'),
+    path('<int:group_id>/', views.group_detail, name='group_detail'),
+    path('credits-exams/', views.credits_exams_dashboard, name='credits_exams'),
+    path('credits-exams/add/', views.credits_exams_add, name='credits_exams_add'),
+    path('schedules/', views.schedule_plans_list, name='schedule_plans_list'),
+    path('schedules/create/', views.schedule_plan_create, name='schedule_plan_create'),
+    path('schedules/<int:plan_id>/edit/', views.schedule_plan_create, name='schedule_plan_edit'),
+    path('schedules/<int:plan_id>/ajax/update-day/', views.schedule_plan_ajax_update_day, name='schedule_plan_ajax_update_day'),
+    path('schedules/<int:plan_id>/step2/', views.schedule_plan_step2, name='schedule_plan_step2'),
+    path('api/instructor/availability/', views.check_instructor_availability, name='check_instructor_availability'),
+    path('api/groups/<int:group_id>/data/', views.group_api_data, name='group_api_data'),
+]

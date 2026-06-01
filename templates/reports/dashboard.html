@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}📊 Отчёты{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>📊 Отчёты</h1>
+    <div>
+        <a href="{% url 'vault:dashboard' %}" class="btn" style="background:#e2e8f0;color:#334155;">← На главную</a>
+    </div>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax:300px,1fr);gap:20px;">
+    {% for section in sections %}
+    <a href="{% url section.url %}"
+       style="display:block;background:white;padding:25px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.05);text-decoration:none;color:inherit;transition:transform 0.2s,box-shadow 0.2s;">
+        <div style="font-size:32px;margin-bottom:12px;">{{ section.icon }}</div>
+        <h3 style="margin:0 0 8px 0;font-size:18px;color:#1e293b;">{{ section.name }}</h3>
+        <p style="margin:0;color:#64748b;font-size:14px;">{{ section.description }}</p>
+        <div style="margin-top:16px;color:#4facfe;font-weight:500;font-size:14px;">Открыть →</div>
+    </a>
+    {% endfor %}
+</div>
+{% endblock %}

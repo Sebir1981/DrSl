@@ -1,0 +1,40 @@
+﻿{% extends "admin/base.html" %}
+{% load static %}
+{# ✅ Убрали {% load utils %} и {% load i18n %} — всё делаем просто #}
+
+{% block title %}{{ title }} | {{ site_title|default:'Автошкола' }}{% endblock %}
+
+{% block branding %}
+{# ✅ Кликабельный логотип/заголовок → ведёт на /vault/ #}
+<a href="{% url 'vault:dashboard' %}" class="brand-link" style="display: flex; align-items: center; gap: 10px; color: white; text-decoration: none;">
+    {% if site_logo %}
+        <img src="{% static site_logo %}" alt="Logo" style="height: 40px; border-radius: 4px;">
+    {% else %}
+        <span style="font-size: 1.4rem; font-weight: 600;">🚗 {{ site_header|default:"Автошкола" }}</span>
+    {% endif %}
+</a>
+{% endblock %}
+
+{% block userlinks %}
+{# ✅ Отображаем ФИО вместо логина — без кастомных тегов #}
+{% if user.is_active and user.is_staff %}
+    <span style="margin-right: 10px; font-weight: 500; white-space: nowrap;">
+        {% if user.last_name and user.first_name %}
+            {{ user.last_name }} {{ user.first_name|make_list|first }}.
+            {% if user.profile.patronymic %}{{ user.profile.patronymic|make_list|first }}.{% endif %}
+        {% elif user.first_name and user.last_name %}
+            {{ user.last_name }} {{ user.first_name|truncatechars:1 }}.
+        {% else %}
+            {{ user.username }}
+        {% endif %}
+    </span>
+{% endif %}
+
+{# ✅ Стандартные ссылки админки — без {% translate %} #}
+{% if user.has_usable_password %}
+    <a href="{% url 'admin:password_change' %}">Сменить пароль</a> /
+{% endif %}
+<a href="{% url 'admin:logout' %}">Выйти</a>
+{% endblock %}
+
+{% block nav-global %}{% endblock %}

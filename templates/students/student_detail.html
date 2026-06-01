@@ -1,0 +1,263 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}🎓 {{ student.last_name }} {{ student.first_name }} — Автошкола{% endblock %}
+
+{% block content %}
+<div style="max-height: calc(100vh - 40px); overflow-y: auto; padding-bottom: 20px;">
+
+    <!-- 🔹 Заголовок -->
+    <div class="page-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:15px;">
+        <h1 style="margin:0;color:#1e293b;font-size:28px;font-weight:700;">🎓 Карточка учащегося</h1>
+        <a href="{% url 'students:student_list' %}" class="btn" style="background:#e2e8f0;color:#334155;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:500;">← Назад</a>
+    </div>
+
+    <!-- 🔹 Основная карточка -->
+    <div class="student-card" style="background:white;border-radius:16px;box-shadow:0 4px 20px rgba(0,0,0,0.08);max-width:1100px;margin:0 auto;padding:25px;">
+
+        <div style="border-bottom:2px solid #f1f5f9;padding-bottom:15px;margin-bottom:20px;">
+            <h2 style="margin:0;font-size:22px;color:#0f172a;">{{ student.last_name }} {{ student.first_name }} {{ student.patronymic|default:"" }}</h2>
+            {% if student.birth_date %}<p style="margin:6px 0 0 0;color:#64748b;font-size:14px;">🎂 {{ student.birth_date|date:"d.m.Y" }}</p>{% endif %}
+        </div>
+
+        <!-- 🔹 ВЕРХНИЙ РЯД: Контакты + Обучение -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-bottom:15px;">
+
+            <!-- 📞 Контакты -->
+            <div style="background:#f8fafc;padding:15px;border-radius:10px;border:1px solid #e2e8f0;">
+                <h3 style="margin:0 0 12px 0;font-size:15px;color:#475569;font-weight:600;">📞 Контакты</h3>
+                <p style="margin:0 0 8px 0;font-size:14px;"><strong>Телефон:</strong> {{ student.phone|default:"—" }}</p>
+                <p style="margin:0;font-size:14px;"><strong>Адрес:</strong> {{ student.place_of_residence|default:"—" }}</p>
+            </div>
+
+                        <!-- 🚗 Обучение (+ Выпадающее меню истории) -->
+            <div style="background:#f8fafc;padding:15px;border-radius:10px;border:1px solid #e2e8f0; position:relative;">
+
+                <!-- 🔹 Кнопка меню (правый верхний угол) -->
+                <div style="position:absolute; top:12px; right:12px;">
+                    <button type="button" onclick="toggleEduHistory()" style="background:none; border:none; cursor:pointer; font-size:20px; color:#94a3b8; padding:2px 6px; border-radius:4px; transition:background 0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='none'">⋮</button>
+                    <div id="edu-history-menu" style="display:none; position:absolute; right:0; top:100%; margin-top:4px; background:white; border:1px solid #e2e8f0; border-radius:8px; box-shadow:0 4px 15px rgba(0,0,0,0.1); min-width:240px; z-index:200; padding:6px 0; animation:fadeIn 0.15s;">
+                        <div style="padding:8px 12px; font-size:12px; color:#64748b; font-weight:600; border-bottom:1px solid #f1f5f9; margin-bottom:4px;">📜 История изменений</div>
+
+                        {% if change_history %}
+                            {% for ch in change_history %}
+                            <div style="padding:6px 12px; border-bottom:1px solid #f1f5f9;">
+                                <div style="display:flex; justify-content:space-between; align-items:center;">
+                                    <span style="font-weight:600; color:#0f172a; font-size:13px;">{{ ch.field }}</span>
+                                    <span style="font-size:11px; color:#94a3b8;">{{ ch.date|default:"—" }}</span>
+                                </div>
+                                <div style="font-size:12px; color:#475569; margin-top:2px;">
+                                    {{ ch.old|default:"—" }} → <strong>{{ ch.new|default:"—" }}</strong>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <div style="padding:8px 12px; font-size:12px; color:#94a3b8; text-align:center;">Изменений пока нет</div>
+                        {% endif %}
+
+                        <!-- 🔧 Заглушка для мастера -->
+                        <div style="padding:8px 12px; font-size:12px; color:#cbd5e1; border-top:1px solid #f1f5f9; margin-top:4px; display:flex; align-items:center; gap:6px;">
+                            🔧 Мастер: <span style="font-style:italic;">(в разработке)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <h3 style="margin:0 0 12px 0;font-size:15px;color:#475569;font-weight:600; padding-right:24px;">🚗 Обучение</h3>
+
+                <!-- 🔹 Группа + История перевода (на одной строке) -->
+                <p style="margin:0 0 8px 0;font-size:14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                    <strong>Группа:</strong>
+                    {% if student.group %}
+                    <span style="background:#e0f2fe;color:#0369a1;padding:2px 8px;border-radius:6px;font-size:12px;font-weight:600;">
+                        {{ student.group.group_number }}
+                    </span>
+                    {% else %}—{% endif %}
+
+                    {% if last_transfer %}
+                    <span style="font-size:12px;color:#64748b;background:#f8fafc;padding:2px 8px;border-radius:4px;border:1px solid #e2e8f0;">
+                        до {{ last_transfer.date }}: {{ last_transfer.details.from_group|default:"—" }}
+                    </span>
+                    {% endif %}
+                </p>
+
+                <p style="margin:0 0 8px 0;font-size:14px;">
+                    <strong>Категория:</strong>
+                    {% if student.group and student.group.category %}{{ student.group.category.code|default:student.group.category }}{% else %}—{% endif %}
+                </p>
+                 <!-- 🔹 НОВОЕ: Тип КПП -->
+                <p style="margin:0 0 8px 0;font-size:14px;">
+                    <strong>Тип КПП:</strong>
+                    {% if student.gearbox_type == 'manual' %}
+                    <span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:6px;font-size:12px;font-weight:600;">
+                        🔧 Механическая
+                    </span>
+                    {% elif student.gearbox_type == 'auto' %}
+                    <span style="background:#dbeafe;color:#1e40af;padding:2px 8px;border-radius:6px;font-size:12px;font-weight:600;">
+                        🤖 Автоматическая
+                    </span>
+                    {% else %}
+                    <span style="color:#94a3b8;">— Не выбрано —</span>
+                    {% endif %}
+                </p>
+                <p style="margin:0 0 8px 0;font-size:14px;">
+                    <strong>Преподаватель:</strong> {% if student.teacher %}{{ student.teacher.last_name }} {{ student.teacher.first_name|slice:":1" }}.{% else %}—{% endif %}
+                </p>
+                <p style="margin:0;font-size:14px;">
+                    <strong>Мастер:</strong> {% if student.master %}{{ student.master.last_name }} {{ student.master.first_name|slice:":1" }}.{% else %}—{% endif %}
+                </p>
+            </div>
+        </div>
+
+        <!-- 🔹 НИЖНИЙ РЯД: Зачёты + Даты -->
+        <div style="display:grid;grid-template-columns:2fr 1fr;gap:15px;margin-bottom:25px;">
+
+            <!-- 📋 Зачёты -->
+            <div style="background:#f8fafc;padding:15px;border-radius:10px;border:1px solid #e2e8f0;">
+                <h3 style="margin:0 0 12px 0;font-size:15px;color:#475569;font-weight:600;">📋 Зачёты</h3>
+                <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:12px;">
+                    {% for credit in credits_data %}
+                    <div style="text-align:center;position:relative;cursor:pointer;" onclick="toggleTooltip('tt-{{ credit.num }}')">
+                        <div style="font-weight:700;font-size:15px;color:#475569;">Зачёт №{{ credit.num }}</div>
+                        <div style="font-size:26px;margin:6px 0 2px 0;transition:transform 0.2s;line-height:1;" onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform='scale(1)'">
+                            {{ credit.display_icon }}
+                        </div>
+                        <div style="font-size:11px;color:#64748b;">
+                            {% if credit.display_status == 'passed' %}Сдал{% elif credit.display_status == 'failed' %}Не сдал{% else %}Не сдавал{% endif %}
+                        </div>
+
+                        <div id="tt-{{ credit.num }}" class="tooltip-box" style="display:none;position:absolute;top:100%;left:50%;transform:translateX(-50%);background:#1e293b;color:#fff;padding:10px 12px;border-radius:8px;font-size:12px;min-width:180px;z-index:50;margin-top:8px;box-shadow:0 4px 12px rgba(0,0,0,0.2);text-align:left;animation:fadeIn 0.2s;">
+                            <div style="font-weight:600;margin-bottom:6px;border-bottom:1px solid #334155;padding-bottom:4px;">Попытки:</div>
+                            {% if credit.attempts %}
+                                {% for att in credit.attempts %}
+                                <div style="padding:4px 0;border-bottom:1px solid #334155:last-child:none;">
+                                    <strong>№{{ att.attempt_num }}</strong> {{ att.icon }}<br>
+                                    <span style="color:#94a3b8;font-size:11px;">
+                                        {% if att.type == 'paid' %}Платная{% else %}Бесплатная{% endif %} • {% if att.date %}{{ att.date|date:"d.m.Y" }}{% else %}—{% endif %}
+                                    </span>
+                                </div>
+                                {% endfor %}
+                            {% else %}<div style="color:#94a3b8;padding:4px 0;">Нет попыток</div>{% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- 📅 Ключевые даты (исправлены цепочки фильтров) -->
+            <div style="background:#f8fafc;padding:15px;border-radius:10px;border:1px solid #e2e8f0;">
+                <h3 style="margin:0 0 12px 0;font-size:15px;color:#475569;font-weight:600;">📅 Даты</h3>
+                <div style="display:flex;flex-direction:column;gap:10px;font-size:14px;">
+                    <div>
+                        <strong style="color:#0f172a;">Договор:</strong><br>
+                        <span style="color:#64748b;font-size:13px;">
+                            {% if student.group.contract_start %}{{ student.group.contract_start|date:"d.m.Y" }}{% else %}—{% endif %} — {% if student.group.contract_end %}{{ student.group.contract_end|date:"d.m.Y" }}{% else %}—{% endif %}
+                        </span>
+                    </div>
+                    <div>
+                        <strong style="color:#0f172a;">ПДД (внутр.):</strong><br>
+                        <span style="color:#64748b;font-size:13px;">{% if student.group.exam_internal_theory_date %}{{ student.group.exam_internal_theory_date|date:"d.m.Y" }}{% else %}—{% endif %}</span>
+                    </div>
+                    <div>
+                        <strong style="color:#0f172a;">Вождение (внутр.):</strong><br>
+                        <span style="color:#64748b;font-size:13px;">{% if student.group.exam_internal_driving_date %}{{ student.group.exam_internal_driving_date|date:"d.m.Y" }}{% else %}—{% endif %}</span>
+                    </div>
+                    <div>
+                        <strong style="color:#0f172a;">Экзамен ГАИ:</strong><br>
+                        <span style="color:#64748b;font-size:13px;">{% if student.group.exam_gai_date %}{{ student.group.exam_gai_date|date:"d.m.Y" }}{% else %}—{% endif %}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ✅ Кнопки действий -->
+        <div style="display:flex;gap:10px;justify-content:flex-end;padding-top:15px;border-top:1px solid #f1f5f9;flex-wrap:wrap;">
+            <a href="{% url 'admin:students_student_change' student.pk %}" style="padding:10px 20px;background:#4facfe;color:white;border-radius:8px;text-decoration:none;font-size:14px;font-weight:500;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 4px 12px rgba(79,172,254,0.3)'" onmouseout="this.style.transform='none';this.style.boxShadow='none'">✏️ Редактировать</a>
+
+            <div style="position:relative;">
+                <button type="button" id="actions-trigger" style="padding:10px 20px;background:#f1f5f9;color:#475569;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:6px;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f1f5f9'"> Действия ▼</button>
+                <div id="actions-dropdown" style="position:absolute;right:0;top:calc(100% + 6px);background:white;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 4px 15px rgba(0,0,0,0.1);min-width:220px;z-index:1000;display:none;padding:6px 0;">
+                    <a href="{% url 'students:student_activate' student.id %}" style="display:block;padding:10px 16px;color:#16a34a;text-decoration:none;font-size:14px;" onmouseover="this.style.background='#f0fdf4'" onmouseout="this.style.background='transparent'">✅ Активировать</a>
+                    <div style="border-top:1px solid #f1f5f9;margin:4px 0;"></div>
+                    <a href="{% url 'students:transfer_student' student.pk %}" style="display:block;padding:10px 16px;color:#475569;text-decoration:none;font-size:14px;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">🔄 Перевести</a>
+                    <a href="{% url 'students:student_refuse' student.id %}" style="display:block;padding:10px 16px;color:#d97706;text-decoration:none;font-size:14px;" onmouseover="this.style.background='#fffbeb'" onmouseout="this.style.background='transparent'">🚫 Отказ</a>
+                    <a href="{% url 'students:student_suspend' student.id %}" style="display:block;padding:10px 16px;color:#7c3aed;text-decoration:none;font-size:14px;" onmouseover="this.style.background='#f5f3ff'" onmouseout="this.style.background='transparent'">⏸️ Приостановить</a>
+                    <a href="{% url 'students:student_dismissal' student.id %}" style="display:block;padding:10px 16px;color:#dc2626;text-decoration:none;font-size:14px;font-weight:500;" onmouseover="this.style.background='#fef2f2'" onmouseout="this.style.background='transparent'">❌ Отчислить</a>
+                </div>
+            </div>
+        </div>
+
+              <!-- 🔹 Полная история -->
+        <div style="margin-top:25px;border-top:2px solid #f1f5f9;padding-top:20px;">
+            <h3 style="margin:0 0 15px 0;font-size:16px;color:#1e293b;font-weight:600;">📜 Полная история</h3>
+            {% if activity_log %}
+            <div style="background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0;max-height:300px;overflow-y:auto;">
+                {% for event in activity_log reversed %}
+                <div style="padding:12px 15px;border-bottom:1px solid #e2e8f0;display:flex;gap:12px;align-items:flex-start;background:white;">
+                    <!-- Дата с защитой от ошибок -->
+                    <div style="min-width:85px;font-size:12px;color:#64748b;font-weight:600;background:#f1f5f9;padding:4px 8px;border-radius:6px;text-align:center;">
+                        {{ event.date|default:"—" }}
+                    </div>
+                    <div style="flex:1;">
+                        <div style="font-weight:600;color:#0f172a;margin-bottom:4px;font-size:14px;">
+                            {% if event.type == 'transfer' %}🔄{% elif event.type == 'credit_result' %}📋{% elif event.type == 'exam_result' %}🎓{% elif event.type == 'dismissal' %}❌{% elif event.type == 'refusal' %}🚫{% elif event.type == 'suspension' %}⏸️{% elif event.type == 'activation' %}✅{% elif event.type == 'teacher_change' %}👨‍🏫{% else %}📝{% endif %}
+                            {{ event.title|default:"Событие" }}
+                        </div>
+                        <div style="font-size:13px;color:#475569;line-height:1.4;">
+                            {% if event.type == 'transfer' %}{{ event.details.from_group|default:"—" }} → <strong>{{ event.details.to_group|default:"—" }}</strong>
+                            {% elif event.type == 'teacher_change' %}{{ event.details.from|default:"—" }} → <strong>{{ event.details.to|default:"—" }}</strong>
+                            {% elif event.type == 'credit_result' %}{{ event.details.result_icon|default:"" }} {{ event.details.result|default:"" }}{% if event.details.attempt_number is not None %} • Попытка №{{ event.details.attempt_number }}{% endif %}{% if event.details.attempt_type == 'paid' %} • Платная{% elif event.details.attempt_type == 'free' %} • Бесплатная{% endif %}
+                            {% elif event.type == 'dismissal' %}{% if event.details.order_number %}Приказ №{{ event.details.order_number }}{% endif %}{% if event.details.comment %} • {{ event.details.comment }}{% endif %}
+                            {% elif event.type in 'refusal,suspension,activation' %}{{ event.details.comment|default:"Без комментария" }}
+                            {% else %}{{ event.details|default:"—" }}{% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div style="text-align:center;padding:30px;color:#94a3b8;background:#f8fafc;border-radius:10px;border:1px dashed #cbd5e1;">История событий пуста</div>
+            {% endif %}
+        </div>
+
+    </div>
+</div>
+
+<style>
+    @keyframes fadeIn { from { opacity:0; transform:translateX(-50%) translateY(-5px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }
+    .tooltip-box::after { content:''; position:absolute; bottom:100%; left:50%; transform:translateX(-50%); border:6px solid transparent; border-bottom-color:#1e293b; }
+    #edu-history-menu::before { content:''; position:absolute; bottom:100%; right:12px; border:6px solid transparent; border-bottom-color:white; }
+    @media (max-width: 768px) { .student-card { padding:15px !important; } h2 { font-size:18px !important; } }
+    ::-webkit-scrollbar { width:6px; } ::-webkit-scrollbar-track { background:#f1f5f9; } ::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:3px; }
+</style>
+
+<script>
+    // Подсказки зачётов
+    function toggleTooltip(id) {
+        const el = document.getElementById(id);
+        const isVisible = el.style.display === 'block';
+        document.querySelectorAll('.tooltip-box').forEach(t => t.style.display = 'none');
+        if (!isVisible) el.style.display = 'block';
+    }
+    // Меню истории обучения
+    function toggleEduHistory() {
+        const menu = document.getElementById('edu-history-menu');
+        menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+    }
+    // Закрытие при клике вне
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('[onclick*="toggleTooltip"]') && !e.target.closest('[onclick*="toggleEduHistory"]')) {
+            document.querySelectorAll('.tooltip-box').forEach(t => t.style.display = 'none');
+            document.getElementById('edu-history-menu').style.display = 'none';
+        }
+    });
+    // Главное меню действий
+    document.addEventListener('DOMContentLoaded', function() {
+        const btn = document.getElementById('actions-trigger');
+        const menu = document.getElementById('actions-dropdown');
+        if (btn && menu) {
+            btn.addEventListener('click', e => { e.stopPropagation(); menu.style.display = menu.style.display === 'none' ? 'block' : 'none'; });
+            document.addEventListener('click', e => { if (!menu.contains(e.target) && e.target !== btn) menu.style.display = 'none'; });
+        }
+    });
+</script>
+{% endblock %}

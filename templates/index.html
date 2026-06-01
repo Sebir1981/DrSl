@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Главная</title>
+
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+
+<div class="login-container">
+    <h2>Введите логин и пароль</h2>
+
+    <form method="post">
+        {% csrf_token %}
+
+        <div class="input-group">
+            <input type="text" name="username" placeholder="Логин" required>
+        </div>
+
+        <div class="input-group">
+            <input type="password" name="password" placeholder="Пароль" required>
+        </div>
+
+        <button type="submit">Вход</button>
+    </form>
+
+    {% if form.errors %}
+        <div class="error">Неверный логин или пароль</div>
+    {% endif %}
+</div>
+
+</body>
+</html>

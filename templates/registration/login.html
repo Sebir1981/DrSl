@@ -1,0 +1,36 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔐 Вход в систему</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+    <div class="login-container">
+        <h2>🔐 Вход в систему</h2>
+
+        <form method="post" action="{% url 'home' %}">
+            {% csrf_token %}
+
+            {% if form.errors %}
+                <div class="error">Неверный логин или пароль</div>
+            {% endif %}
+
+            <div class="input-group">
+                {{ form.username }}  <!-- Django сам подставит input с name="username" -->
+            </div>
+
+            <div class="input-group">
+                {{ form.password }}  <!-- Django сам подставит input с name="password" -->
+            </div>
+
+            <!-- Скрытое поле для редиректа после успешного входа -->
+            <input type="hidden" name="next" value="{% if next %}{{ next }}{% else %}{% url 'vault:vault_list' %}{% endif %}">
+
+            <button type="submit">Войти</button>
+        </form>
+    </div>
+</body>
+</html>
