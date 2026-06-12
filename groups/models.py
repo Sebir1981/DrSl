@@ -13,6 +13,18 @@ class SchedulePlan(models.Model):
         ('custom', 'По указанию'),
     ]
 
+    # 🔹 НОВЫЕ ПОЛЯ ДЛЯ ЛОГА ДАТ
+    excluded_dates = models.JSONField(
+        default=list,
+        blank=True,
+        verbose_name="Исключенные даты (кроме)"
+    )
+    additional_dates = models.JSONField(
+        default=list,
+        blank=True,
+        verbose_name="Дополнительные даты"
+    )
+
     class Meta:
         verbose_name = "План-график"
         verbose_name_plural = "План-графики"

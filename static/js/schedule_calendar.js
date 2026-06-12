@@ -273,6 +273,80 @@ if (window.scheduleCalendarInstance) {
             }
         }
 
+                // 🔹 МЕТОД: Вычисление исключенных и дополнительных дней
+        calculateDateLogs() {
+            const startDate = document.getElementById('id_date_start')?.value;
+            const endDate = document.getElementById('id_date_end')?.value;
+            const scheduleType = document.getElementById('id_schedule_type')?.value || 'custom';
+
+            if (!startDate || !endDate) return;
+
+            const startObj = this.parseDate(startDate);
+            const endObj = this.parseDate(endDate);
+
+            // 1. Генерируем "ИДЕАЛЬНЫЙ" список (как должно быть по чет/нечет)
+            const idealDates = new Set();
+            let current = new Date(startObj);
+
+            while (current <= endObj) {
+                const dateStr = current.toISOString().split('T')[0];
+                const day = current.getDate();
+                const dayOfWeek = current.getDay(); // 0 - Вс, 6 - Сб
+                const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
+
+                let shouldBeScheduled = false;
+
+                if (scheduleType === 'odd') {
+                    if (day % 2 === 1 && !isWeekend) shouldBeScheduled = true;
+                } else if (scheduleType === 'even') {
+                    if (day % 2 === 0 && !isWeekend) shouldBeScheduled = true;
+                } else if (scheduleType === 'weekend') {
+                    if (isWeekend) shouldBeScheduled = true;
+                } else if (scheduleType === 'custom') {
+                    // Для custom идеального списка нет, считаем что все дни возможны
+                }
+
+                if (shouldBeScheduled) {
+                    idealDates.add(dateStr);
+                }
+
+                current.setDate(current.getDate() + 1);
+            }
+
+            // 2. Получаем "ФАКТИЧЕСКИЙ" список (что выбрано в календаре)
+            const actualDates = new Set();
+            document.querySelectorAll('.cal-day.is-scheduled').forEach(el => {
+                actualDates.add(el.dataset.date);
+            });
+
+            // 3. Вычисляем разницу
+            const excluded = []; // Было в ideal, но нет в actual
+            const additional = []; // Нет в ideal, но есть в actual
+
+            // Ищем исключенные (Ideal - Actual)
+            idealDates.forEach(date => {
+                if (!actualDates.has(date)) {
+                    excluded.push(date);
+                }
+            });
+
+            // Ищем дополнительные (Actual - Ideal)
+            actualDates.forEach(date => {
+                if (!idealDates.has(date)) {
+                    additional.push(date);
+                }
+            });
+
+            // 4. Сортируем и записываем в скрытые поля
+            excluded.sort();
+            additional.sort();
+
+            document.getElementById('id_excluded_dates').value = JSON.stringify(excluded);
+            document.getElementById('id_additional_dates').value = JSON.stringify(additional);
+
+            console.log('📝 Лог дат обновлен:', { excluded, additional });
+        }
+
         async fillFormFromGroup(groupId) {
             console.log('🔄 Загрузка данных для группы:', groupId);
             try {

@@ -99,9 +99,8 @@ def schedule_plan_create(request, plan_id=None):
                 if not plan:
                     schedule_plan.created_by = request.user
 
-                # 🔥 🔥 🔥 СОХРАНЕНИЕ CLASS_DAYS ИЗ POST 🔥 🔥
+                # 🔥 СОХРАНЕНИЕ CLASS_DAYS ИЗ POST
                 class_days_raw = request.POST.get('class_days', '{}')
-
                 if class_days_raw and class_days_raw != '{}':
                     try:
                         parsed_days = json.loads(class_days_raw)
@@ -111,10 +110,10 @@ def schedule_plan_create(request, plan_id=None):
                                 d_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
                                 if date_start <= d_obj <= date_end:
                                     schedule_plan.class_days[date_str] = day_data
-                            except:
+                            except (ValueError, TypeError):
                                 continue
-                    except Exception as e:
-                        print(f"❌ Ошибка JSON: {e}")
+                    except json.JSONDecodeError as e:
+                        print(f" Ошибка JSON class_days: {e}")
                         schedule_plan.class_days = {}
                 else:
                     schedule_plan.class_days = {}
@@ -126,26 +125,38 @@ def schedule_plan_create(request, plan_id=None):
                 else:
                     schedule_plan.med_teacher = None
 
-                # 🔹 🔥 🔥 СОХРАНЕНИЕ ВРЕМЕНИ ЗАНЯТИЙ (Утро/День/Вечер)  🔥 🔥
+                # 🔥 СОХРАНЕНИЕ ВРЕМЕНИ ЗАНЯТИЙ (Утро/День/Вечер)
                 time_slots = []
-                # Используем cleaned_data для безопасности
                 if form.cleaned_data.get('time_morning'): time_slots.append('morning')
                 if form.cleaned_data.get('time_day'): time_slots.append('day')
                 if form.cleaned_data.get('time_evening'): time_slots.append('evening')
 
-                # Добавляем time_slots в class_days
                 if isinstance(schedule_plan.class_days, dict):
                     schedule_plan.class_days['_time_slots'] = time_slots
                 else:
                     schedule_plan.class_days = {'_time_slots': time_slots}
+
+                # 🔹 🔥 🔥 НОВОЕ: СОХРАНЕНИЕ ЛОГОВ ДАТ (Исключенные / Дополнительные) 🔥 🔥 🔥
+                excluded_raw = request.POST.get('excluded_dates', '[]')
+                additional_raw = request.POST.get('additional_dates', '[]')
+
+                try:
+                    schedule_plan.excluded_dates = json.loads(excluded_raw) if excluded_raw else []
+                except json.JSONDecodeError:
+                    schedule_plan.excluded_dates = []
+
+                try:
+                    schedule_plan.additional_dates = json.loads(additional_raw) if additional_raw else []
+                except json.JSONDecodeError:
+                    schedule_plan.additional_dates = []
 
                 schedule_plan.save()
 
                 messages.success(request, '✅ План-график сохранён!')
                 return redirect('groups:schedule_plan_step2', plan_id=schedule_plan.pk)
         else:
-            print(f"❌ Ошибки формы: {form.errors}")
-            messages.error(request, f'❌ Ошибка в форме')
+            print(f" Ошибки формы: {form.errors}")
+            messages.error(request, '❌ Ошибка в форме')
     else:
         # GET-запрос
         initial = {}
@@ -179,15 +190,14 @@ def schedule_plan_create(request, plan_id=None):
         if isinstance(val, str):
             try:
                 return datetime.strptime(val, '%Y-%m-%d').date()
-            except:
+            except ValueError:
                 return None
         return val
 
     if request.method == 'POST' and form and form.is_bound:
         cal_start = form.cleaned_data.get('date_start') if form.is_valid() else _get_date_value(form.data, 'date_start')
         cal_end = form.cleaned_data.get('date_end') if form.is_valid() else _get_date_value(form.data, 'date_end')
-        cal_schedule_type = form.cleaned_data.get('schedule_type') if form.is_valid() else form.data.get(
-            'schedule_type')
+        cal_schedule_type = form.cleaned_data.get('schedule_type') if form.is_valid() else form.data.get('schedule_type')
     else:
         cal_start = plan.date_start if plan else (form.initial.get('date_start') if form else None)
         cal_end = plan.date_end if plan else (form.initial.get('date_end') if form else None)
@@ -246,11 +256,10 @@ def schedule_plan_create(request, plan_id=None):
         if isinstance(class_days, str):
             try:
                 class_days = json.loads(class_days)
-            except:
+            except json.JSONDecodeError:
                 class_days = {}
         time_slots = class_days.get('_time_slots', [])
     elif form:
-        # Для новых форм берём из initial
         if form.initial.get('time_morning'): time_slots.append('morning')
         if form.initial.get('time_day'): time_slots.append('day')
         if form.initial.get('time_evening'): time_slots.append('evening')
@@ -271,11 +280,9 @@ def schedule_plan_create(request, plan_id=None):
         'weekdays': ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'],
         'initial_location': initial_location,
         'class_days_json': class_days_json,
-        # 🔹 Передаём состояние чекбоксов времени в шаблон
         'time_morning_checked': 'morning' in time_slots,
         'time_day_checked': 'day' in time_slots,
         'time_evening_checked': 'evening' in time_slots,
-        # 🔹 Передаём слоты для календаря (У/Д/В)
         'calendar_time_slots': calendar_slots,
     }
     return render(request, 'groups/schedule_plan_form.html', context)
@@ -346,7 +353,7 @@ def schedule_plan_step2(request, plan_id):
     if isinstance(raw_days, str):
         try:
             class_days = json.loads(raw_days)
-        except:
+        except json.JSONDecodeError:
             class_days = {}
     elif isinstance(raw_days, dict):
         class_days = raw_days

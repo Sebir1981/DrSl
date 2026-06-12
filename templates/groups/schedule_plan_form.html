@@ -415,6 +415,10 @@ input:checked + .toggle-slider:before {
         <!-- Hidden JSON Input -->
         <input type="hidden" name="class_days" id="id_class_days" value='{{ class_days_json|default:"{}"|safe }}'>
 
+        <!-- 🔹 НОВЫЕ СКРЫТЫЕ ПОЛЯ ДЛЯ ЛОГОВ -->
+        <input type="hidden" name="excluded_dates" id="id_excluded_dates" value="[]">
+        <input type="hidden" name="additional_dates" id="id_additional_dates" value="[]">
+
         <!-- 🔹 Кнопка Далее -->
         <div style="display:flex; justify-content:flex-end; margin-top:24px;">
             <button type="submit" id="btn-next" class="btn-next-red"
@@ -764,6 +768,10 @@ document.addEventListener('DOMContentLoaded', function() {
     if (form && btnNext) {
         btnNext.addEventListener('click', function(e) {
             e.preventDefault();
+
+             if (window.scheduleCalendarInstance) {
+                window.scheduleCalendarInstance.calculateDateLogs();
+            }
 
             const scheduledDays = document.querySelectorAll('.cal-day.is-scheduled');
             const conflicts = [];
