@@ -97,7 +97,7 @@
     }
     .info-grid {
         display: grid;
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(4, 1fr);
         gap: 24px;
     }
     .info-column { display: flex; flex-direction: column; gap: 16px; }
@@ -208,50 +208,83 @@
         <a href="{% url 'groups:schedule_plans_list' %}" class="btn" style="background:#e2e8f0;color:#334155;">← Назад к списку</a>
     </div>
 
-    <div class="step2-container">
-        <div class="info-block">
-            <h2 class="info-title">
-                План-график выполнения единой программы подготовки водителей МТС категории "{{ plan.group.category.code|default:'B' }}"
-            </h2>
+    <div class="info-block">
+    <h2 class="info-title">
+        План-график выполнения единой программы подготовки водителей МТС категории "{{ plan.group.category.code|default:'B' }}"
+    </h2>
 
-            <div class="info-grid">
-                <div class="info-column">
-                    <div class="info-field">
-                        <span class="info-label">Учебная группа</span>
-                        <span class="info-value">{{ plan.group }}</span>
-                    </div>
-                    <div class="info-field">
-                        <span class="info-label">Аудитория</span>
-                        <span class="info-value"> {{ location|default:"—" }}</span>
-                    </div>
-                </div>
+    <div class="info-grid">
+        <div class="info-column">
+            <div class="info-field">
+                <span class="info-label">Учебная группа</span>
+                <span class="info-value">{{ plan.group }}</span>
+            </div>
+            <div class="info-field">
+                <span class="info-label">Аудитория</span>
+                <span class="info-value">{{ location|default:"—" }}</span>
+            </div>
+        </div>
 
-                <div class="info-column">
-                    <div class="info-field">
-                        <span class="info-label">Преподаватель</span>
-                        <span class="info-value">{{ plan.teacher }}</span>
-                    </div>
-                    <div class="info-field">
-                        <span class="info-label">Преподаватель медицины</span>
-                        <select name="med_teacher" class="info-select">
-                            <option value="">— Выберите —</option>
-                            {% for teacher in teachers %}
-                            <option value="{{ teacher.pk }}" {% if med_teacher_id == teacher.pk %}selected{% endif %}>
-                                {{ teacher.last_name }} {{ teacher.first_name }} {{ teacher.middle_name|default:'' }}
-                            </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                </div>
+        <div class="info-column">
+            <div class="info-field">
+                <span class="info-label">Преподаватель</span>
+                <span class="info-value">{{ plan.teacher }}</span>
+            </div>
+            <div class="info-field">
+                <span class="info-label">Преподаватель медицины</span>
+                <span class="info-value">{{ plan.med_teacher|default:"—" }}</span>
+            </div>
+        </div>
 
-                <div class="info-column">
-                    <div class="info-field">
-                        <span class="info-label">Период обучения</span>
-                        <span class="info-value">{{ plan.date_start|date:"d.m.Y" }} — {{ plan.date_end|date:"d.m.Y" }}</span>
-                    </div>
+        <div class="info-column">
+            <div class="info-field">
+                <span class="info-label">Период обучения</span>
+                <span class="info-value">{{ plan.date_start|date:"d.m.Y" }} — {{ plan.date_end|date:"d.m.Y" }}</span>
+            </div>
+            <div class="info-field">
+                <span class="info-label">Расписание занятий</span>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <input type="time" id="time-start" value="{{ time_start }}"
+                           style="padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 13px; width: 50px;">
+                    <span style="color: #64748b;">—</span>
+                    <input type="time" id="time-end" value="{{ time_end }}"
+                           style="padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 13px; width: 50px;">
                 </div>
             </div>
         </div>
+                <!--  4. КОНТЕЙНЕР: Часы и Категория (в едином стиле) -->
+        <div class="info-column">
+            <!-- Часов обучения -->
+             <div class="info-field">
+                <span class="info-label">Часов обучения</span>
+                <input type="number" id="total-hours-display" value="{{ required_hours|default:0 }}"
+                       style="width: 38%; height: 18px; padding: 4px 8px; border: 1px solid #cbd5e1; border-radius: 4px;
+                              font-size: 12px; font-weight: 600; color: #1e40af;
+                              background: #fff; text-align: center;">
+            </div>
+
+            <!-- Категория -->
+            <div class="info-field">
+                <span class="info-label" style="position: relative; top: -9px;">Категория</span>
+                                <select id="category-select" onchange="changeCategory()" style="width: 100%; height: 28px; padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 12px; background: #fff; box-sizing: border-box; margin-top: -9px;">
+                    {% for cat_code, cat_desc in categories %}
+                    <option value="{{ cat_code }}"
+                            data-pdd="{% if cat_code == 'B' %}100{% elif cat_code == 'C' %}120{% elif cat_code == 'D' %}150{% else %}100{% endif %}"
+                            data-ua="{% if cat_code == 'B' %}6{% elif cat_code == 'C' %}8{% elif cat_code == 'D' %}10{% else %}6{% endif %}"
+                            data-bd="{% if cat_code == 'B' %}38{% elif cat_code == 'C' %}40{% elif cat_code == 'D' %}42{% else %}38{% endif %}"
+                            data-podd="{% if cat_code == 'B' %}8{% elif cat_code == 'C' %}10{% elif cat_code == 'D' %}12{% else %}8{% endif %}"
+                            data-med="{% if cat_code == 'B' %}16{% elif cat_code == 'C' %}18{% elif cat_code == 'D' %}20{% else %}16{% endif %}"
+                            data-exam="2"
+                            {% if cat_code == current_category %}selected{% endif %}>
+                        {{ cat_code }} — {{ cat_desc }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+    </div>
+</div>
 
         <div class="schedule-year">{{ plan_year }} год</div>
 
@@ -389,7 +422,7 @@
     </tr>
 
             <script>
-document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function() {
     const subjects = ['pdd', 'ua', 'bd', 'podd', 'med', 'exam'];
 
     // 🔹 Функция пересчёта итогов
@@ -420,7 +453,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // Обновляем ячейку "Всего часов" для этого дня
             const dayTotalInput = document.querySelector(`.day-total[data-date="${date}"]`);
             if (dayTotalInput) {
-                dayTotalInput.value = daySum.toFixed(1);
+                dayTotalInput.value = Number.isInteger(daySum) ? daySum : daySum.toFixed(1);
 
                 // Визуальная индикация
                 if (daySum > 0) {
@@ -698,11 +731,15 @@ document.addEventListener('DOMContentLoaded', function() {
         const medTeacherSelect = document.querySelector('select[name="med_teacher"]');
         const medTeacherId = medTeacherSelect ? medTeacherSelect.value : '';
 
-        const data = {
-            plan_id: {{ plan.id }},
-            hours: {},
-            med_teacher: medTeacherId
-        };
+                const data = {
+                    plan_id: {{ plan.id }},
+                    hours: {},
+                    med_teacher: medTeacherId,
+                    // 🔹 ДОБАВЛЕНО:
+                    category: document.getElementById('category-select').value,
+                    time_start: document.getElementById('time-start').value,
+                    time_end: document.getElementById('time-end').value
+                };
 
         subjectsData.forEach(s => {
             data.hours[s.id] = {};
@@ -727,6 +764,52 @@ document.addEventListener('DOMContentLoaded', function() {
         updateTotalIndicator();
         validate();
     }, 100);
+});
+    // 🔹 Функция смены категории
+function changeCategory() {
+    const select = document.getElementById('category-select');
+    const option = select.options[select.selectedIndex];
+
+    // Обновляем totals
+    document.getElementById('pdd-total').value = option.dataset.pdd || 100;
+    document.getElementById('ua-total').value = option.dataset.ua || 6;
+    document.getElementById('bd-total').value = option.dataset.bd || 38;
+    document.getElementById('podd-total').value = option.dataset.podd || 8;
+    document.getElementById('med-total').value = option.dataset.med || 16;
+    document.getElementById('exam-total').value = option.dataset.exam || 2;
+
+    // Пересчитываем валидацию
+    if (typeof validate === 'function') validate();
+}
+
+// 🔹 Запоминание последнего значения в localStorage
+function saveLastValue(subject, date, value) {
+    const key = `schedule_hours_${subject}_${date}`;
+    localStorage.setItem(key, value);
+}
+
+// 🔹 Загрузка последних значений при инициализации
+function loadLastValues() {
+    document.querySelectorAll('.subject-hours').forEach(input => {
+        const key = `schedule_hours_${input.dataset.subject}_${input.dataset.date}`;
+        const lastValue = localStorage.getItem(key);
+        if (lastValue !== null && input.value === '') {
+            input.value = lastValue;
+        }
+    });
+}
+
+// 🔹 Добавляем слушатель на каждое поле для запоминания
+document.addEventListener('DOMContentLoaded', function() {
+    // Загружаем сохранённые значения
+    loadLastValues();
+
+    // Слушатель для запоминания
+    document.querySelectorAll('.subject-hours').forEach(input => {
+        input.addEventListener('change', function() {
+            saveLastValue(this.dataset.subject, this.dataset.date, this.value);
+        });
+    });
 });
 </script>
 {% endblock %}

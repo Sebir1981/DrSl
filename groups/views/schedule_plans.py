@@ -8,7 +8,9 @@ from django.contrib import messages
 from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse
 
+# ✅ ИСПРАВЛЕННЫЕ ИМПОРТЫ
 from groups.models import Group, SchedulePlan
+from reference.models import GroupCategory  # Категории берутся отсюда
 from groups.forms import SchedulePlanForm
 from teachers.models import Teacher
 from classrooms.models import Classroom
@@ -35,7 +37,7 @@ def _check_schedule_duplicates(group, date_start, date_end, exclude_plan_id=None
 
 
 # =============================================================================
-# 🔹 Список план-графиков
+#  Список план-графиков
 # =============================================================================
 @login_required
 def schedule_plans_list(request):
@@ -197,7 +199,8 @@ def schedule_plan_create(request, plan_id=None):
     if request.method == 'POST' and form and form.is_bound:
         cal_start = form.cleaned_data.get('date_start') if form.is_valid() else _get_date_value(form.data, 'date_start')
         cal_end = form.cleaned_data.get('date_end') if form.is_valid() else _get_date_value(form.data, 'date_end')
-        cal_schedule_type = form.cleaned_data.get('schedule_type') if form.is_valid() else form.data.get('schedule_type')
+        cal_schedule_type = form.cleaned_data.get('schedule_type') if form.is_valid() else form.data.get(
+            'schedule_type')
     else:
         cal_start = plan.date_start if plan else (form.initial.get('date_start') if form else None)
         cal_end = plan.date_end if plan else (form.initial.get('date_end') if form else None)
@@ -332,16 +335,28 @@ def schedule_plan_step2(request, plan_id):
         try:
             data = json.loads(request.body)
             hours_data = data.get('hours', {})
+            category_code = data.get('category')  # 🔹 Получаем категорию
+            time_start = data.get('time_start')  # 🔹 Получаем время начала
+            time_end = data.get('time_end')  # 🔹 Получаем время конца
 
             class_days = plan.class_days or {}
             if isinstance(class_days, str):
                 class_days = json.loads(class_days)
 
+            # Сохраняем часы по предметам
             for subject, dates in hours_data.items():
                 for date_str, val in dates.items():
                     if date_str not in class_days:
                         class_days[date_str] = {}
                     class_days[date_str][subject] = val
+
+            # 🔹 Сохраняем категорию и время в class_days
+            if category_code:
+                class_days['_category'] = category_code
+            if time_start:
+                class_days['_time_start'] = time_start
+            if time_end:
+                class_days['_time_end'] = time_end
 
             plan.class_days = class_days
             plan.save(update_fields=['class_days'])
@@ -360,6 +375,15 @@ def schedule_plan_step2(request, plan_id):
     else:
         class_days = {}
 
+    # 🔹 Получаем время занятий и категорию из сохраненных данных
+    time_start = class_days.get('_time_start', '09:00')
+    time_end = class_days.get('_time_end', '17:00')
+    saved_category = class_days.get('_category', '')
+
+    # Если категория не сохранена в class_days, берём из карточки группы
+    if not saved_category and plan.group and plan.group.category:
+        saved_category = plan.group.category.code
+
     days_by_month = defaultdict(list)
     ru_months = {
         'January': 'Январь', 'February': 'Февраль', 'March': 'Март',
@@ -369,6 +393,8 @@ def schedule_plan_step2(request, plan_id):
     }
 
     for date_str in sorted(class_days.keys()):
+        if date_str.startswith('_'):
+            continue
         try:
             date_obj = datetime.strptime(date_str, '%Y-%m-%d')
             month_name = ru_months.get(date_obj.strftime('%B'), date_obj.strftime('%B'))
@@ -388,6 +414,9 @@ def schedule_plan_step2(request, plan_id):
         except ValueError:
             continue
 
+    # 🔹 ЗАГРУЗКА КАТЕГОРИЙ ИЗ СПРАВОЧНИКА
+    categories = list(GroupCategory.objects.values_list('code', 'description'))
+
     context = {
         'plan': plan,
         'days_by_month': dict(days_by_month),
@@ -398,7 +427,11 @@ def schedule_plan_step2(request, plan_id):
         'podd_default': 8, 'med_default': 16, 'exam_default': 2,
         'location': plan.location or '',
         'teachers': Teacher.objects.filter(is_active=True).order_by('last_name', 'first_name'),
-        'med_teacher_id': getattr(plan, 'med_teacher_id', None),
+        'med_teacher': plan.med_teacher,
+        'time_start': time_start,
+        'time_end': time_end,
+        'categories': categories,  # 🔹 Передаём список категорий
+        'current_category': saved_category,  # 🔹 Передаём текущую категорию
     }
     return render(request, 'groups/schedule_plan_step2.html', context)
 

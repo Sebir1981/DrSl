@@ -1,7 +1,7 @@
 # 📦 Скомпилировано из: C:\django\DrSl
 # 📄 Расширения: .py, .html, .css, .js
-# 📄 Всего файлов: 129
-# 🚫 Пропущено служебных файлов: 1772
+# 📄 Всего файлов: 130
+# 🚫 Пропущено служебных файлов: 1778
 # ============================================================
 
 
@@ -636,7 +636,7 @@ LOGGING = {
 }# Игнорировать 404 для favicon
 import logging
 logging.getLogger('django.request').addFilter(
-    lambda r: not r.getPath().endswith('favicon.ico')
+    lambda r: not r.getMessage().endswith('favicon.ico')
 )
 
 
@@ -706,6 +706,7 @@ urlpatterns = [
     path('classrooms/', include('classrooms.urls')),
     path('teachers/', include('teachers.urls')),
     path('masters/', include('masters.urls')),
+    path('reference/', include('reference.urls')),
 ]
 
 
@@ -871,7 +872,7 @@ from django.db import models
 from django import forms
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
-from reference.models import GroupCategory, Credit  # ✅ Импортируем для autocomplete_fields
+from reference.models import GroupCategory, Credit
 from .models import Group, CreditResult, ExamResult
 from DrSl.widgets import RuDateWidget
 
@@ -882,10 +883,6 @@ from DrSl.widgets import RuDateWidget
 class BaseAdmin(admin.ModelAdmin):
     formfield_overrides = {
         models.DateField: {'widget': RuDateWidget()},
-        models.TimeField: {'widget': forms.TimeInput(attrs={
-            'type': 'time', 'step': '60',
-            'style': 'width: 90px; min-width: 90px; padding: 4px 6px;'
-        })},
     }
 
 
@@ -912,14 +909,16 @@ class GroupAdminForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        for field_name in ['duration', 'schedule_type', 'time_session']:
+        for field_name in ['duration', 'schedule_type']:
             if field_name in self.fields:
                 self.fields[field_name].choices = [
                     c for c in self.fields[field_name].choices if c[0] != ''
                 ]
-                if not self.instance.pk:
-                    if field_name == 'duration': self.fields[field_name].initial = 'standard'
-                    if field_name == 'schedule_type': self.fields[field_name].initial = 'directed'
+        if not self.instance.pk:
+            if 'duration' in self.fields:
+                self.fields['duration'].initial = 'standard'
+            if 'schedule_type' in self.fields:
+                self.fields['schedule_type'].initial = 'directed'
         if 'category' in self.fields:
             field = self.fields['category']
             field.widget.attrs['class'] = 'category-with-hint'
@@ -940,33 +939,41 @@ class GroupAdminForm(forms.ModelForm):
 @admin.register(Group)
 class GroupAdmin(BaseAdmin):
     form = GroupAdminForm
-    list_display = ('group_number', 'category', 'classroom', 'teacher', 'schedule_type', 'time_session', 'status',
-                    'contract_period')
-    list_filter = ('status', 'schedule_type', 'time_session', 'category')
+
+    # ✅ Убраны time_session, time_start, time_end
+    list_display = (
+        'group_number', 'category', 'classroom', 'teacher',
+        'schedule_type', 'status', 'contract_period'
+    )
+
+    # ✅ Убран time_session
+    list_filter = ('status', 'schedule_type', 'category')
+
     search_fields = ('group_number', 'category__code', 'teacher__last_name', 'classroom__classroom_number')
     autocomplete_fields = ('classroom', 'teacher')
-    readonly_fields = ('created_at', 'updated_at', 'contract_section_header', 'standard_time_display')
+
+    # ✅ Убран standard_time_display
+    readonly_fields = ('created_at', 'updated_at', 'contract_section_header')
 
     fieldsets = (
-        ('🔢 Идентификаторы', {'fields': ('group_number', 'category', 'classroom', 'teacher')}),
-
-        # 🔹 🔥 ОБНОВЛЕНО: Добавлены даты экзаменов в раздел Договора
+        ('🔢 Идентификаторы', {
+            'fields': ('group_number', 'category', 'classroom', 'teacher')
+        }),
         ('📅 Договор и экзамены', {
             'fields': (
                 'contract_section_header',
                 'contract_start',
                 'contract_end',
                 'status',
-                # ✅ Новые поля дат экзаменов
                 'exam_internal_theory_date',
                 'exam_internal_driving_date',
                 'exam_gai_date',
             ),
             'description': '📚 Даты внутренних экзаменов и сдачи в ГАИ'
         }),
-
+        # ✅ Убрано время из расписания
         ('🗓️ Расписание', {
-            'fields': ('schedule_type', 'time_session', 'duration', 'standard_time_display', 'time_start', 'time_end'),
+            'fields': ('schedule_type', 'duration'),
             'classes': ('collapse',)
         }),
         ('📊 Системное', {
@@ -978,21 +985,8 @@ class GroupAdmin(BaseAdmin):
     @admin.display(description="")
     def contract_section_header(self, obj):
         return mark_safe(
-            '<div style="font-weight:600; color:#475569; margin-bottom:8px; padding-bottom:4px; border-bottom:2px solid #e2e8f0;">Действие договора</div>')
-
-    @admin.display(description="⏱ Стандартное время")
-    def standard_time_display(self, obj):
-        sched = obj.schedule_type or ''
-        sess = obj.time_session or ''
-        if sched == 'weekend':
-            time_str = '13:30–18:20'
-        elif sess in ('morning', 'evening'):
-            time_str = '08:40–13:30' if sess == 'morning' else '17:30–21:15'
-        else:
-            return mark_safe('<span style="color:#94a3b8;">Выберите Смену или Тип расписания</span>')
-        start, end = time_str.split('–')
-        return mark_safe(
-            f'<strong>{time_str}</strong><button type="button" onclick="window.fillStandardTime(\'{start}\', \'{end}\')" style="margin-left:10px;padding:4px 10px;background:#4facfe;color:white;border:none;border-radius:4px;cursor:pointer;font-size:12px;">▶ Заполнить</button>')
+            '<div style="font-weight:600; color:#475569; margin-bottom:8px; '
+            'padding-bottom:4px; border-bottom:2px solid #e2e8f0;">Действие договора</div>')
 
     @admin.display(description="Период договора")
     def contract_period(self, obj):
@@ -1004,7 +998,6 @@ class GroupAdmin(BaseAdmin):
         js = (
             'js/date-mask.js?v=3',
             'js/category-hint.js',
-            'js/group-time-autofill.js?v=6',
         )
         css = {'all': ('css/date-fields.css',)}
 
@@ -1017,7 +1010,6 @@ class CreditResultAdmin(admin.ModelAdmin):
     list_display = ['student', 'credit', 'credit_date', 'chairman']
     list_filter = ['credit', 'chairman', 'student__group']
     search_fields = ['student__last_name', 'student__first_name', 'chairman__last_name']
-    # ✅ autocomplete_fields для 'credit' будет работать, т.к. Credit зарегистрирован в reference/admin.py
     autocomplete_fields = ['student', 'credit', 'chairman', 'member1', 'member2', 'member3']
     date_hierarchy = 'credit_date'
 
@@ -1051,16 +1043,15 @@ class GroupsConfig(AppConfig):
 # >>> Файл: forms.py | Путь: groups\forms.py
 #===========================================================
 
+# groups/forms.py
 from django import forms
 from .models import SchedulePlan, Group
 from teachers.models import Teacher
 from DrSl.validators import validate_date_range
 from DrSl.widgets import RuDateWidget
+import json
 
 
-# =========================================================
-# 📌 Базовая форма для всех моделей с датами
-# =========================================================
 class BaseDateForm(forms.ModelForm):
     class Meta:
         model = None
@@ -1077,9 +1068,6 @@ class BaseDateForm(forms.ModelForm):
                 field.widget.attrs.setdefault('max', '2040-12-31')
 
 
-# =========================================================
-# 📌 Форма админки Group
-# =========================================================
 class GroupAdminForm(BaseDateForm):
     contract_start = forms.DateField(
         label="Договор с", input_formats=['%d.%m.%Y'],
@@ -1098,39 +1086,76 @@ class GroupAdminForm(BaseDateForm):
         js = ('js/date-mask.js',)
 
 
-# =========================================================
-# ✅ НОВОЕ: Форма для План-графиков
-# =========================================================
+# =============================================================================
+# ✅ ФОРМА ДЛЯ ПЛАН-ГРАФИКОВ (исправленная)
+# =============================================================================
 class SchedulePlanForm(forms.ModelForm):
+    # 🔹 Преподаватель медицины (дополнительное поле)
+    med_teacher = forms.ModelChoiceField(
+        queryset=Teacher.objects.filter(is_active=True).order_by('last_name', 'first_name'),
+        required=False,
+        empty_label="— Не выбран —",
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+
+    # 🔹 Поля для времени занятий (НЕ в модели, обрабатываются вручную)
+    time_morning = forms.BooleanField(required=False, label='Утро')
+    time_day = forms.BooleanField(required=False, label='День')
+    time_evening = forms.BooleanField(required=False, label='Вечер')
+
     class Meta:
         model = SchedulePlan
-        fields = ['group', 'teacher', 'date_start', 'date_end', 'time_start', 'time_end', 'required_hours', 'schedule_type', 'location']
+        # 🔹 ВАЖНО: time_* поля НЕ включаем сюда, т.к. их нет в модели
+        fields = ['group', 'teacher', 'date_start', 'date_end',
+                  'med_teacher', 'schedule_type', 'location']
         widgets = {
             'group': forms.Select(attrs={'class': 'form-control'}),
             'teacher': forms.Select(attrs={'class': 'form-control'}),
+            'med_teacher': forms.Select(attrs={'class': 'form-control'}),
             'date_start': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
             'date_end': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
-            'time_start': forms.TimeInput(attrs={'type': 'time', 'class': 'form-control'}),
-            'time_end': forms.TimeInput(attrs={'type': 'time', 'class': 'form-control'}),
-            'required_hours': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.5', 'placeholder': '170'}),
             'schedule_type': forms.Select(attrs={'class': 'form-control'}),
             'location': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Адрес проведения'}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
         # 🔹 Фильтруем только активные группы
         self.fields['group'].queryset = Group.objects.filter(status='active').order_by('group_number')
+
+        # 🔹 Загружаем значения времени при редактировании
+        if self.instance and self.instance.pk and self.instance.class_days:
+            class_days = self.instance.class_days
+            if isinstance(class_days, str):
+                try:
+                    class_days = json.loads(class_days)
+                except:
+                    class_days = {}
+
+            # Извлекаем time_slots из class_days
+            time_slots = class_days.get('_time_slots', [])
+
+            # Устанавливаем initial значения для чекбоксов
+            if 'time_morning' not in self.initial:
+                self.initial['time_morning'] = 'morning' in time_slots
+            if 'time_day' not in self.initial:
+                self.initial['time_day'] = 'day' in time_slots
+            if 'time_evening' not in self.initial:
+                self.initial['time_evening'] = 'evening' in time_slots
+
+    def clean(self):
+        cleaned_data = super().clean()
+        # Здесь можно добавить валидацию, если нужно
+        return cleaned_data
 
 
 #===========================================================
 # >>> Файл: models.py | Путь: groups\models.py
 #===========================================================
 
-# groups/models.py
 from django.db import models
 from django.core.validators import RegexValidator
-from django.utils import timezone
 from teachers.models import Teacher
 
 
@@ -1144,11 +1169,22 @@ class SchedulePlan(models.Model):
         ('custom', 'По указанию'),
     ]
 
+    # 🔹 НОВЫЕ ПОЛЯ ДЛЯ ЛОГА ДАТ
+    excluded_dates = models.JSONField(
+        default=list,
+        blank=True,
+        verbose_name="Исключенные даты (кроме)"
+    )
+    additional_dates = models.JSONField(
+        default=list,
+        blank=True,
+        verbose_name="Дополнительные даты"
+    )
+
     class Meta:
         verbose_name = "План-график"
         verbose_name_plural = "План-графики"
         ordering = ['-created_at']
-        # 🔹 НОВОЕ: Запрет дубликатов для одной группы с пересекающимися датами
         constraints = [
             models.UniqueConstraint(
                 fields=['group', 'date_start', 'date_end'],
@@ -1161,8 +1197,6 @@ class SchedulePlan(models.Model):
     group = models.ForeignKey('Group', on_delete=models.CASCADE, verbose_name="Учебная группа",
                               limit_choices_to={'status': 'active'})
     teacher = models.ForeignKey(Teacher, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Преподаватель")
-
-    #  НОВОЕ: Преподаватель медицины
     med_teacher = models.ForeignKey(
         Teacher,
         on_delete=models.SET_NULL,
@@ -1172,11 +1206,10 @@ class SchedulePlan(models.Model):
         verbose_name='Преподаватель медицины'
     )
 
-    # 🔹 Даты и время
+    # 🔹 Даты (время убрано полностью)
     date_start = models.DateField("Начало периода")
     date_end = models.DateField("Конец периода")
-    time_start = models.TimeField("Время начала", default="09:00")
-    time_end = models.TimeField("Время окончания", default="12:00")
+
     required_hours = models.PositiveIntegerField(
         default=170,
         verbose_name="Количество часов"
@@ -1186,7 +1219,7 @@ class SchedulePlan(models.Model):
     schedule_type = models.CharField("Тип расписания", max_length=20, choices=SCHEDULE_TYPE_CHOICES, default='custom')
     location = models.CharField("Место проведения", max_length=255, blank=True)
 
-    # 🔹 Дни занятий (хранятся как JSON: {"2026-06-01": {"start": "09:00", "end": "12:00"}, ...})
+    # 🔹 Дни занятий (JSON: {"2026-06-01": {"start": "08:40", "end": "13:30", "pdd": 4, ...}, ...})
     class_days = models.JSONField("Дни занятий", default=dict, blank=True)
 
     #  Системные поля
@@ -1194,16 +1227,10 @@ class SchedulePlan(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     created_by = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True)
 
-    class Meta:
-        verbose_name = "План-график"
-        verbose_name_plural = "План-графики"
-        ordering = ['-created_at']
-
     def __str__(self):
         return f"План-график: {self.group.group_number} ({self.get_schedule_type_display()})"
 
     def save(self, *args, **kwargs):
-        # 🔹 Автозаполнение заголовка
         if not self.title and self.group and self.group.category:
             self.title = f'План-график выполнения единой программы подготовки водителей МТС категории "{self.group.category}"'
         super().save(*args, **kwargs)
@@ -1242,7 +1269,7 @@ class Group(models.Model):
     contract_start = models.DateField("Начало договора", null=True, blank=True)
     contract_end = models.DateField("Окончание договора", null=True, blank=True)
 
-    # 🔹 Даты экзаменов (НОВОЕ)
+    # 🔹 Даты экзаменов
     exam_internal_theory_date = models.DateField("📚 Внутренний экзамен: ПДД", null=True, blank=True)
     exam_internal_driving_date = models.DateField("🚗 Внутренний экзамен: Вождение", null=True, blank=True)
     exam_gai_date = models.DateField("🏁 Экзамен в ГАИ", null=True, blank=True)
@@ -1251,11 +1278,11 @@ class Group(models.Model):
     STATUS_CHOICES = [
         ('active', '🟢 Активна'),
         ('paused', '🟡 Приостановлена'),
-        ('closed', '🔒 Закрыта'),
+        ('closed', ' Закрыта'),
     ]
     status = models.CharField("Статус", max_length=20, choices=STATUS_CHOICES, default='active')
 
-    # 🔹 Расписание
+    # 🔹 Расписание (Время убрано, оставлен только Тип)
     SCHEDULE_TYPE_CHOICES = [
         ('odd', '📅 Нечётные дни (пн-пт)'),
         ('even', '📅 Чётные дни (пн-пт)'),
@@ -1264,9 +1291,6 @@ class Group(models.Model):
     ]
     schedule_type = models.CharField("Тип расписания", max_length=15, choices=SCHEDULE_TYPE_CHOICES, blank=True,
                                      default='directed')
-
-    TIME_SESSION_CHOICES = [('morning', '🌅 Утренняя'), ('evening', '🌆 Вечерняя')]
-    time_session = models.CharField("Смена", max_length=10, choices=TIME_SESSION_CHOICES, blank=True, null=True)
 
     DURATION_CHOICES = [('standard', 'Стандартный'), ('accelerated', 'Ускоренный')]
     duration = models.CharField(
@@ -1277,13 +1301,8 @@ class Group(models.Model):
         blank=True, null=True
     )
 
-    time_start = models.TimeField("Время начала", blank=True, null=True)
-    time_end = models.TimeField("Время окончания", blank=True, null=True)
-
-    # 🔹 JSON-поля
+    # 🔹 JSON-поля и комментарии
     schedule_exceptions = models.JSONField("Исключения из расписания", blank=True, default=list)
-
-    # 🔹 Комментарии
     comments = models.TextField("Комментарии", blank=True, help_text="Внутренние заметки по группе")
 
     # 🔹 Системные поля
@@ -1294,16 +1313,6 @@ class Group(models.Model):
     def __str__(self):
         cat = self.category.code if self.category else "Без категории"
         return f"{self.group_number} ({cat})"
-
-    @property
-    def standard_time_range(self):
-        if self.schedule_type == 'weekend':
-            return '10:00–16:00' if self.duration == 'accelerated' else '13:30–18:20'
-        if self.duration == 'accelerated':
-            return '09:00–14:00' if self.time_session == 'morning' else (
-                '18:00–22:00' if self.time_session == 'evening' else '—')
-        return '08:40–13:30' if self.time_session == 'morning' else (
-            '17:30–21:15' if self.time_session == 'evening' else '—')
 
     @property
     def contract_period(self):
@@ -1318,7 +1327,7 @@ class Group(models.Model):
 
 
 # =============================================================================
-# 🔹 Результаты зачётов (с комиссией и статусом)
+# 🔹 Результаты зачётов
 # =============================================================================
 class CreditResult(models.Model):
     STATUS_CHOICES = [('passed', '✅ Сдал'), ('failed', ' Не сдал')]
@@ -1328,11 +1337,8 @@ class CreditResult(models.Model):
     credit = models.ForeignKey('reference.Credit', on_delete=models.CASCADE, verbose_name="Зачёт",
                                related_name='results')
     credit_date = models.DateField("Дата зачёта")
-
-    #  Статус сдачи (обязательное поле)
     status = models.CharField("Статус", max_length=10, choices=STATUS_CHOICES, default='failed')
 
-    # 🔹 Комиссия (4 человека)
     chairman = models.ForeignKey('teachers.Teacher', on_delete=models.SET_NULL, null=True, blank=True,
                                  verbose_name="Председатель комиссии", related_name='chairman_credits')
     member1 = models.ForeignKey('teachers.Teacher', on_delete=models.SET_NULL, null=True, blank=True,
@@ -1349,10 +1355,9 @@ class CreditResult(models.Model):
         verbose_name = "Результат зачёта"
         verbose_name_plural = "📋 Результаты зачётов"
         ordering = ['-credit_date']
-        # ✅ unique_together удалён — разрешены пересдачи
 
     def __str__(self):
-        status_icon = '✅' if self.status == 'passed' else '❌'
+        status_icon = '✅' if self.status == 'passed' else ''
         return f"{self.student.full_name} — Зачёт №{self.credit.number}: {status_icon}"
 
 
@@ -1360,7 +1365,7 @@ class CreditResult(models.Model):
 # 🔹 Результаты экзаменов
 # =============================================================================
 class ExamResult(models.Model):
-    EXAM_TYPE_CHOICES = [('theory', '📚 Теория'), ('driving', '🚗 Вождение')]
+    EXAM_TYPE_CHOICES = [('theory', ' Теория'), ('driving', '🚗 Вождение')]
     ATTEMPT_TYPE_CHOICES = [('free', 'Бесплатная'), ('paid', 'Платная')]
     STATUS_CHOICES = [('passed', '✅ Сдал'), ('failed', '❌ Не сдал')]
 
@@ -1466,6 +1471,7 @@ urlpatterns = [
     # 🔹 API
     path('api/instructor/availability/', views.check_instructor_availability, name='check_instructor_availability'),
     path('api/groups/<int:group_id>/data/', views.group_api_data, name='group_api_data'),
+    path('api/teacher-schedule/', views.get_teacher_schedules, name='get_teacher_schedules'),
 ]
 
 
@@ -1480,6 +1486,7 @@ urlpatterns = [
 
 from .dashboard import groups_dashboard
 from .groups import group_list, group_detail
+from .api import group_api_data, check_instructor_availability, get_teacher_schedules
 from .credits import (
     credits_exams_dashboard,
     credits_exams_add,
@@ -1509,6 +1516,7 @@ __all__ = [
     'schedule_plan_delete',  # 🔹 Добавили в список
     'group_api_data',
     'check_instructor_availability',
+    'get_teacher_schedules',
 ]
 
 
@@ -1517,27 +1525,16 @@ __all__ = [
 #===========================================================
 
 # groups/views/api.py
+import json
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
-
 from groups.models import Group, SchedulePlan
-
 
 @login_required
 def group_api_data(request, group_id):
     """API: данные группы для автозаполнения форм"""
     group = get_object_or_404(Group, pk=group_id, status='active')
-
-    # 🔹 Вычисляем standard_time_range
-    standard_time = group.standard_time_range if hasattr(group, 'standard_time_range') else None
-    time_start = None
-    time_end = None
-    if standard_time and '–' in standard_time:
-        try:
-            time_start, time_end = standard_time.split('–')
-        except:
-            pass
 
     data = {
         'teacher_id': group.teacher_id,
@@ -1547,10 +1544,8 @@ def group_api_data(request, group_id):
         'schedule_type': getattr(group, 'schedule_type', 'custom'),
         'location': group.classroom.address if group.classroom else '',
         'classroom_id': group.classroom_id if group.classroom else None,
-        'time_start': time_start or (group.time_start.strftime('%H:%M') if group.time_start else '08:40'),
-        'time_end': time_end or (group.time_end.strftime('%H:%M') if group.time_end else '13:30'),
-        'standard_time_range': standard_time,
-        'category': str(group.category) if group.category else None,
+        'category': str(group.category) if group.category else None,  # ✅ Категория (название)
+        'category_id': group.category_id if group.category else None,  # ✅ ID категории
         'duration': group.get_duration_display() if group.duration else '—',
     }
     return JsonResponse(data)
@@ -1596,6 +1591,117 @@ def check_instructor_availability(request):
             'conflicts': conflict_details
         })
     return JsonResponse({'available': True})
+
+
+# groups/views/api.py
+import json
+from django.contrib.auth.decorators import login_required
+from django.http import JsonResponse
+from groups.models import SchedulePlan
+
+
+@login_required
+def get_teacher_schedules(request):
+    """Возвращает индикаторы занятости преподавателей (У/Д/В)"""
+    teacher_id = request.GET.get('teacher_id')
+    med_teacher_id = request.GET.get('med_teacher_id')
+    date_start = request.GET.get('date_start')
+    date_end = request.GET.get('date_end')
+    exclude_plan_id = request.GET.get('exclude_plan_id')
+
+    if not date_start or not date_end:
+        return JsonResponse({})
+
+    schedule_map = {}
+
+    def process_plans(plans_qs, is_med_teacher=False, exclude_med_days=False):
+        for plan in plans_qs:
+            class_days = plan.class_days or {}
+            if isinstance(class_days, str):
+                try:
+                    class_days = json.loads(class_days)
+                except:
+                    continue
+
+            plan_time_slots = class_days.get('_time_slots', [])
+            plan_indicators = []
+            if 'morning' in plan_time_slots: plan_indicators.append('У')
+            if 'day' in plan_time_slots: plan_indicators.append('Д')
+            if 'evening' in plan_time_slots: plan_indicators.append('В')
+            if not plan_indicators:
+                plan_indicators = ['Д']
+
+            for date_str, day_data in class_days.items():
+                if date_str.startswith('_'): continue
+                if not (date_start <= date_str <= date_end):
+                    continue
+
+                # 🔹 Для мед. преподавателя: учитываем ТОЛЬКО дни с флагом med=true
+                if is_med_teacher:
+                    if not (isinstance(day_data, dict) and day_data.get('med')):
+                        continue  # Пропускаем дни без флага "Медицина"
+
+                # 🔹 Для основного преподавателя: исключаем дни с флагом med=true
+                if exclude_med_days:
+                    if isinstance(day_data, dict) and day_data.get('med'):
+                        continue  # Пропускаем дни с флагом "Медицина"
+
+                final_indicators = []
+                start_time = day_data.get('start', '') if isinstance(day_data, dict) else ''
+
+                if start_time:
+                    try:
+                        h, m = map(int, start_time.split(':'))
+                        minutes = h * 60 + m
+                        if minutes < 810:
+                            final_indicators = ['У']
+                        elif minutes < 1050:
+                            final_indicators = ['Д']
+                        else:
+                            final_indicators = ['В']
+                    except:
+                        final_indicators = ['Д']
+                else:
+                    final_indicators = plan_indicators
+
+                if date_str not in schedule_map:
+                    schedule_map[date_str] = []
+
+                for ind in final_indicators:
+                    # 🔹 Проверяем, нет ли уже такого индикатора
+                    existing = [x for x in schedule_map.get(date_str, []) if isinstance(x, dict) and x.get('ind') == ind]
+                    if not existing:
+                        # 🔹 Добавляем объект с полной информацией
+                        schedule_map[date_str].append({
+                            'ind': ind,
+                            'group': str(plan.group) if plan.group else 'Не указано',
+                            'location': plan.location or 'Не указано',
+                            'is_med': is_med_teacher  # 🔹 Помечаем, что это медицина
+                        })
+
+    # 🔹 Ищем планы основного преподавателя (исключаем дни с мед. флагом)
+    if teacher_id:
+        qs = SchedulePlan.objects.filter(
+            teacher_id=teacher_id,
+            date_start__lte=date_end,
+            date_end__gte=date_start
+        )
+        if exclude_plan_id and exclude_plan_id.isdigit():
+            qs = qs.exclude(pk=int(exclude_plan_id))
+        process_plans(qs, is_med_teacher=False, exclude_med_days=True)
+
+    # 🔹 Ищем планы мед. преподавателя (только дни с мед. флагом)
+    if med_teacher_id:
+        qs = SchedulePlan.objects.filter(
+            med_teacher_id=med_teacher_id,
+            date_start__lte=date_end,
+            date_end__gte=date_start
+        )
+        if exclude_plan_id and exclude_plan_id.isdigit():
+            qs = qs.exclude(pk=int(exclude_plan_id))
+        process_plans(qs, is_med_teacher=True, exclude_med_days=False)
+
+    return JsonResponse(schedule_map)
 
 
 #===========================================================
@@ -2123,6 +2229,7 @@ from django.contrib import messages
 from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse
 
+from reference.models import Group, SchedulePlan, GroupCategory
 from groups.models import Group, SchedulePlan
 from groups.forms import SchedulePlanForm
 from teachers.models import Teacher
@@ -2130,7 +2237,7 @@ from classrooms.models import Classroom
 
 
 # =============================================================================
-#  Вспомогательная функция: проверка на дубликаты
+# 🔹 Вспомогательная функция: проверка на дубликаты
 # =============================================================================
 def _check_schedule_duplicates(group, date_start, date_end, exclude_plan_id=None):
     """
@@ -2183,8 +2290,6 @@ def schedule_plan_create(request, plan_id=None):
             date_start = form.cleaned_data['date_start']
             date_end = form.cleaned_data['date_end']
             schedule_type = form.cleaned_data.get('schedule_type', 'custom')
-            time_start = form.cleaned_data.get('time_start')
-            time_end = form.cleaned_data.get('time_end')
 
             # 🔹 ПРОВЕРКА НА ДУБЛИКАТЫ
             duplicates = _check_schedule_duplicates(
@@ -2216,45 +2321,64 @@ def schedule_plan_create(request, plan_id=None):
                 if not plan:
                     schedule_plan.created_by = request.user
 
-                # 🔥 🔥 🔥 ПРИНУДИТЕЛЬНОЕ СОХРАНЕНИЕ CLASS_DAYS ИЗ POST 🔥 🔥
+                # 🔥 СОХРАНЕНИЕ CLASS_DAYS ИЗ POST
                 class_days_raw = request.POST.get('class_days', '{}')
-                print(f"🔍 POST class_days: {class_days_raw[:200]}...")
-
                 if class_days_raw and class_days_raw != '{}':
                     try:
                         parsed_days = json.loads(class_days_raw)
-                        print(f"✅ Распарсено {len(parsed_days)} дней из POST")
-
-                        # Фильтруем только дни внутри периода
                         schedule_plan.class_days = {}
                         for date_str, day_data in parsed_days.items():
                             try:
                                 d_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
                                 if date_start <= d_obj <= date_end:
                                     schedule_plan.class_days[date_str] = day_data
-                            except:
+                            except (ValueError, TypeError):
                                 continue
-
-                        print(f"💾 Сохранено {len(schedule_plan.class_days)} дней в БД")
-                    except Exception as e:
-                        print(f"❌ Ошибка JSON: {e}")
+                    except json.JSONDecodeError as e:
+                        print(f" Ошибка JSON class_days: {e}")
                         schedule_plan.class_days = {}
                 else:
-                    print("⚠️ class_days пустой в POST")
                     schedule_plan.class_days = {}
 
-                schedule_plan.save()
+                # 🔹 Сохранение преподавателя медицины
+                med_teacher_id = request.POST.get('med_teacher')
+                if med_teacher_id and med_teacher_id.isdigit():
+                    schedule_plan.med_teacher_id = int(med_teacher_id)
+                else:
+                    schedule_plan.med_teacher = None
 
-                # 🔥 Проверяем, что сохранилось
-                print(f"✅ В БД записано: {len(schedule_plan.class_days)} дней")
-                if schedule_plan.class_days:
-                    print(f"📅 Пример дат: {list(schedule_plan.class_days.keys())[:5]}")
+                # 🔥 СОХРАНЕНИЕ ВРЕМЕНИ ЗАНЯТИЙ (Утро/День/Вечер)
+                time_slots = []
+                if form.cleaned_data.get('time_morning'): time_slots.append('morning')
+                if form.cleaned_data.get('time_day'): time_slots.append('day')
+                if form.cleaned_data.get('time_evening'): time_slots.append('evening')
+
+                if isinstance(schedule_plan.class_days, dict):
+                    schedule_plan.class_days['_time_slots'] = time_slots
+                else:
+                    schedule_plan.class_days = {'_time_slots': time_slots}
+
+                # 🔹 🔥 🔥 НОВОЕ: СОХРАНЕНИЕ ЛОГОВ ДАТ (Исключенные / Дополнительные) 🔥 🔥 🔥
+                excluded_raw = request.POST.get('excluded_dates', '[]')
+                additional_raw = request.POST.get('additional_dates', '[]')
+
+                try:
+                    schedule_plan.excluded_dates = json.loads(excluded_raw) if excluded_raw else []
+                except json.JSONDecodeError:
+                    schedule_plan.excluded_dates = []
+
+                try:
+                    schedule_plan.additional_dates = json.loads(additional_raw) if additional_raw else []
+                except json.JSONDecodeError:
+                    schedule_plan.additional_dates = []
+
+                schedule_plan.save()
 
                 messages.success(request, '✅ План-график сохранён!')
                 return redirect('groups:schedule_plan_step2', plan_id=schedule_plan.pk)
         else:
-            print(f"❌ Ошибки формы: {form.errors}")
-            messages.error(request, f'❌ Ошибка в форме')
+            print(f" Ошибки формы: {form.errors}")
+            messages.error(request, '❌ Ошибка в форме')
     else:
         # GET-запрос
         initial = {}
@@ -2264,11 +2388,9 @@ def schedule_plan_create(request, plan_id=None):
                 'teacher': plan.teacher_id,
                 'date_start': plan.date_start,
                 'date_end': plan.date_end,
-                'time_start': plan.time_start,
-                'time_end': plan.time_end,
                 'schedule_type': plan.schedule_type,
                 'location': plan.location,
-                'required_hours': plan.required_hours,
+                'med_teacher': plan.med_teacher_id,
             })
         elif request.GET.get('group'):
             try:
@@ -2290,15 +2412,14 @@ def schedule_plan_create(request, plan_id=None):
         if isinstance(val, str):
             try:
                 return datetime.strptime(val, '%Y-%m-%d').date()
-            except:
+            except ValueError:
                 return None
         return val
 
     if request.method == 'POST' and form and form.is_bound:
         cal_start = form.cleaned_data.get('date_start') if form.is_valid() else _get_date_value(form.data, 'date_start')
         cal_end = form.cleaned_data.get('date_end') if form.is_valid() else _get_date_value(form.data, 'date_end')
-        cal_schedule_type = form.cleaned_data.get('schedule_type') if form.is_valid() else form.data.get(
-            'schedule_type')
+        cal_schedule_type = form.cleaned_data.get('schedule_type') if form.is_valid() else form.data.get('schedule_type')
     else:
         cal_start = plan.date_start if plan else (form.initial.get('date_start') if form else None)
         cal_end = plan.date_end if plan else (form.initial.get('date_end') if form else None)
@@ -2334,8 +2455,6 @@ def schedule_plan_create(request, plan_id=None):
                 'day_num': current.day,
                 'month': current.strftime('%B'),
                 'is_scheduled': is_scheduled,
-                'time_start': day_info.get('start', ''),
-                'time_end': day_info.get('end', ''),
                 'is_weekend': current.weekday() >= 5,
                 'has_conflict': False,
             })
@@ -2352,6 +2471,27 @@ def schedule_plan_create(request, plan_id=None):
         elif isinstance(plan.class_days, str):
             class_days_json = plan.class_days
 
+    # 🔹 Извлекаем время занятий для отображения в чекбоксах И для календаря
+    time_slots = []
+    if plan and plan.class_days:
+        class_days = plan.class_days
+        if isinstance(class_days, str):
+            try:
+                class_days = json.loads(class_days)
+            except json.JSONDecodeError:
+                class_days = {}
+        time_slots = class_days.get('_time_slots', [])
+    elif form:
+        if form.initial.get('time_morning'): time_slots.append('morning')
+        if form.initial.get('time_day'): time_slots.append('day')
+        if form.initial.get('time_evening'): time_slots.append('evening')
+
+    # 🔹 Преобразуем morning/day/evening в У/Д/В для календаря
+    calendar_slots = []
+    if 'morning' in time_slots: calendar_slots.append('У')
+    if 'day' in time_slots: calendar_slots.append('Д')
+    if 'evening' in time_slots: calendar_slots.append('В')
+
     context = {
         'form': form,
         'plan': plan,
@@ -2362,8 +2502,13 @@ def schedule_plan_create(request, plan_id=None):
         'weekdays': ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'],
         'initial_location': initial_location,
         'class_days_json': class_days_json,
+        'time_morning_checked': 'morning' in time_slots,
+        'time_day_checked': 'day' in time_slots,
+        'time_evening_checked': 'evening' in time_slots,
+        'calendar_time_slots': calendar_slots,
     }
     return render(request, 'groups/schedule_plan_form.html', context)
+
 
 # =============================================================================
 # 🔹 AJAX: обновление дня в календаре
@@ -2387,10 +2532,8 @@ def schedule_plan_ajax_update_day(request, plan_id):
         if action == 'remove':
             class_days.pop(date_str, None)
         elif action in ['add', 'update']:
-            start = data.get('start') or data.get('time_start')
-            end = data.get('end') or data.get('time_end')
-            if start and end:
-                class_days[date_str] = {'start': start, 'end': end}
+            if date_str:
+                class_days[date_str] = {'scheduled': True}
 
         plan.class_days = class_days
         plan.save(update_fields=['class_days', 'updated_at'])
@@ -2407,7 +2550,6 @@ def schedule_plan_step2(request, plan_id):
     """Шаг 2: Распределение часов по датам"""
     plan = get_object_or_404(SchedulePlan, pk=plan_id)
 
-    # 🔹 POST: сохранение распределения часов
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
@@ -2417,7 +2559,6 @@ def schedule_plan_step2(request, plan_id):
             if isinstance(class_days, str):
                 class_days = json.loads(class_days)
 
-            # Обновляем часы по предметам
             for subject, dates in hours_data.items():
                 for date_str, val in dates.items():
                     if date_str not in class_days:
@@ -2430,19 +2571,16 @@ def schedule_plan_step2(request, plan_id):
         except Exception as e:
             return JsonResponse({'success': False, 'error': str(e)}, status=400)
 
-    # 🔹 GET: подготовка данных для отображения
     raw_days = plan.class_days
     if isinstance(raw_days, str):
         try:
             class_days = json.loads(raw_days)
-        except:
+        except json.JSONDecodeError:
             class_days = {}
     elif isinstance(raw_days, dict):
         class_days = raw_days
     else:
         class_days = {}
-
-    print(f"🔍 DEBUG step2: В таблице отобразится дней: {len(class_days)}")
 
     days_by_month = defaultdict(list)
     ru_months = {
@@ -2452,28 +2590,15 @@ def schedule_plan_step2(request, plan_id):
         'October': 'Октябрь', 'November': 'Ноябрь', 'December': 'Декабрь'
     }
 
-    # 🔥 СТРОГО: Проходим только по сохранённым (выделенным) датам
     for date_str in sorted(class_days.keys()):
         try:
             date_obj = datetime.strptime(date_str, '%Y-%m-%d')
             month_name = ru_months.get(date_obj.strftime('%B'), date_obj.strftime('%B'))
-
             day_data = class_days.get(date_str, {})
-
-            # Расчёт длительности дня (Всего часов)
-            duration = 0
-            if day_data.get('start') and day_data.get('end'):
-                try:
-                    s = datetime.strptime(day_data['start'], '%H:%M')
-                    e = datetime.strptime(day_data['end'], '%H:%M')
-                    duration = round((e - s).seconds / 3600)
-                except:
-                    pass
 
             day_info = {
                 'day_num': date_obj.strftime('%d'),
                 'raw_date': date_str,
-                'duration': duration,
                 'pdd': day_data.get('pdd', ''),
                 'ua': day_data.get('ua', ''),
                 'bd': day_data.get('bd', ''),
@@ -2482,7 +2607,6 @@ def schedule_plan_step2(request, plan_id):
                 'exam': day_data.get('exam', ''),
             }
             days_by_month[month_name].append(day_info)
-
         except ValueError:
             continue
 
@@ -2494,13 +2618,13 @@ def schedule_plan_step2(request, plan_id):
         'title': 'Подтверждение план-графика',
         'pdd_default': 100, 'ua_default': 6, 'bd_default': 38,
         'podd_default': 8, 'med_default': 16, 'exam_default': 2,
-        'time_start': plan.time_start.strftime('%H:%M') if plan.time_start else '08:40',
-        'time_end': plan.time_end.strftime('%H:%M') if plan.time_end else '13:30',
         'location': plan.location or '',
         'teachers': Teacher.objects.filter(is_active=True).order_by('last_name', 'first_name'),
         'med_teacher_id': getattr(plan, 'med_teacher_id', None),
     }
     return render(request, 'groups/schedule_plan_step2.html', context)
+
+
 # =============================================================================
 # 🔹 Удаление план-графика
 # =============================================================================
@@ -2704,9 +2828,8 @@ def master_list(request):
 # >>> Файл: admin.py | Путь: reference\admin.py
 #===========================================================
 
-# reference/admin.py
 from django.contrib import admin
-from .models import GroupCategory, Credit
+from .models import GroupCategory, Credit, LessonTopic  # 🔹 Добавили LessonTopic
 
 
 @admin.register(GroupCategory)
@@ -2726,6 +2849,20 @@ class CreditAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+# 🔹 НОВОЕ: Админка для тем занятий
+@admin.register(LessonTopic)
+class LessonTopicAdmin(admin.ModelAdmin):
+    list_display = ('category', 'topic_number', 'hours', 'content_preview')
+    list_filter = ('category',)
+    search_fields = ('content', 'topic_number')
+    ordering = ('category', 'topic_number')
+
+    def content_preview(self, obj):
+        return obj.content[:60] + "..." if len(obj.content) > 60 else obj.content
+
+    content_preview.short_description = "Содержание"
 
 
 #===========================================================
@@ -2779,6 +2916,42 @@ class Credit(models.Model):
         return f"{self.number}. {self.topic}"
 
 
+# 🔹 НОВОЕ: Модель для тем занятий
+class LessonTopic(models.Model):
+    CATEGORY_CHOICES = [
+        ('pdd', 'Правила дорожного движения (ПДД)'),
+        ('outs_bd', 'Основы управления транспортным средством и безопасность движения (ОУТС и БД)'),
+        ('podd', 'Правовые основы дорожного движения (ПОДД)'),
+        ('mp', 'Первая помощь пострадавшим при дорожно-транспортных происшествиях (МП)'),
+        ('ua', 'Устройство и техническое обслуживание автомобилей категории «B» (УА)'),
+    ]
+
+    category = models.CharField(
+        max_length=20,
+        choices=CATEGORY_CHOICES,
+        verbose_name="Справочник"
+    )
+    hours = models.DecimalField(
+        max_digits=4,
+        decimal_places=1,
+        verbose_name="Количество часов"
+    )
+    topic_number = models.PositiveIntegerField(
+        verbose_name="Тема №"
+    )
+    content = models.TextField(
+        verbose_name="Содержание темы"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Тема занятия"
+        verbose_name_plural = "📚 Темы занятий"
+        ordering = ['category', 'topic_number']
+
+    def __str__(self):
+        return f"{self.get_category_display()} — Тема №{self.topic_number}"
 
 
 #===========================================================
@@ -2844,6 +3017,346 @@ class Credit(models.Model):
 
 
 #===========================================================
+# >>> Файл: topic_list.html | Путь: reference\templates\reference\topic_list.html
+#===========================================================
+
+{% extends "base.html" %}
+{% block title %}{{ title }} — Справочники{% endblock %}
+
+{% block content %}
+<!-- 🔹 CSS СТИЛИ ДЛЯ ПРАВКИ ВЫСОТЫ -->
+<style>
+.topics-container {
+    /* Используем flex для управления выравниванием */
+    display: flex;
+    gap: 20px;
+    align-items: flex-start; /* ✅ ВАЖНО: Запрещаем растяжение по высоте */
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+/* 🔹 Боковое меню категорий */
+.categories-sidebar {
+    /* Фиксированная ширина, но автоматическая высота */
+    width: 280px;
+    flex-shrink: 0;
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+
+    /* Липкое позиционирование при скролле */
+    position: sticky;
+    top: 20px;
+
+    /* Запрет растягивания на всю высоту соседа */
+    height: auto !important;
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
+}
+
+/* 🔹 Ссылки категорий */
+.category-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.category-item {
+    padding: 12px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    text-decoration: none;
+    color: inherit;
+    border: 2px solid transparent;
+    flex-wrap: wrap; /* Позволяет перенос, если текст длинный */
+}
+
+.category-item:hover {
+    background: #f8fafc;
+    transform: translateX(4px);
+}
+
+.category-item.active {
+    background: #dbeafe;
+    border-color: #3b82f6;
+    color: #1e40af;
+    font-weight: 600;
+}
+
+.category-badge {
+    background: #e2e8f0;
+    color: #64748b;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+/* 🔹 Основная область с таблицей */
+.main-content {
+    flex: 1;
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    min-width: 0; /* Предотвращает переполнение */
+}
+
+/* 🔹 Форма добавления */
+.quick-add-form {
+    background: #f8fafc;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 20px;
+    display: grid;
+    grid-template-columns: 10% 10% 1fr auto;
+    gap: 12px;
+    align-items: end;
+}
+
+.form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.form-field label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #64748b;
+}
+
+.form-field input {
+    padding: 8px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    font-size: 14px;
+}
+
+.btn-add {
+    padding: 8px 20px;
+    background: #10b981;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    height: 38px;
+}
+
+.btn-add:hover {
+    background: #059669;
+    transform: translateY(-1px);
+}
+
+/* 🔹 Таблица тем */
+.topics-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    table-layout: fixed; /* Фиксированные пропорции колонок */
+}
+
+.topics-table th {
+    background: #f8fafc;
+    padding: 12px;
+    text-align: left;
+    font-weight: 600;
+    color: #475569;
+    border-bottom: 2px solid #e2e8f0;
+}
+
+.topics-table td {
+    padding: 12px;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: middle;
+}
+
+.topics-table tr:hover {
+    background: #f8fafc;
+}
+
+.topic-number {
+    font-weight: 700;
+    color: #1e293b;
+    width: 60px;
+    text-align: center;
+}
+
+.topic-hours {
+    text-align: center;
+    width: 80px;
+}
+
+.topic-content {
+    color: #334155;
+    line-height: 1.5;
+    word-break: break-word;
+}
+
+.topic-actions {
+    width: 60px;
+    text-align: right;
+}
+
+.btn-icon {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 4px;
+    transition: all 0.2s;
+    font-size: 16px;
+}
+
+.btn-icon:hover {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+/* 🔹 Адаптивность */
+@media (max-width: 900px) {
+    .topics-container {
+        flex-direction: column;
+    }
+    .categories-sidebar {
+        width: 100%;
+        position: static;
+        margin-bottom: 20px;
+    }
+    .category-nav {
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+    .quick-add-form {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+
+<div class="step2-container" style="padding: 24px;">
+    <h2 class="info-title" style="margin: 0 0 24px 0; font-size: 22px; font-weight: 700; color: #1e293b; text-align: center;"> Темы занятий</h2>
+
+    <div class="topics-container">
+        <!-- 🔹 Боковое меню категорий (ЛЕВАЯ КОЛОНКА) -->
+        <aside class="categories-sidebar">
+            <div style="font-size: 13px; font-weight: 600; color: #64748b; margin-bottom: 12px; padding: 0 4px;">
+                📁 Справочники
+            </div>
+            <nav class="category-nav">
+                {% for cat in categories_with_counts %}
+                <a href="?category={{ cat.code }}"
+                   class="category-item {% if current_category == cat.code %}active{% endif %}">
+                    <span>{{ cat.name }}</span>
+                    <span class="category-badge">{{ cat.count }}</span>
+                </a>
+                {% endfor %}
+            </nav>
+        </aside>
+
+        <!-- 🔹 Основная область (ПРАВАЯ КОЛОНКА) -->
+        <main class="main-content">
+            <h2 style="margin: 0 0 20px 0; font-size: 18px; color: #1e293b;">
+                {% for cat in categories_with_counts %}
+                    {% if cat.code == current_category %}{{ cat.name }}{% endif %}
+                {% endfor %}
+            </h2>
+
+            <!-- 🔹 Компактная форма добавления -->
+            <form method="post" class="quick-add-form" id="quickAddForm">
+                {% csrf_token %}
+                <div class="form-field">
+                    <label>Тема №</label>
+                    <input type="number" name="topic_number" required
+                           placeholder="1" min="1"
+                           style="width: 100%;">
+                </div>
+                <div class="form-field">
+                    <label>Часов</label>
+                    <input type="number" name="hours" required
+                           placeholder="2" step="0.5" min="0.5"
+                           style="width: 100%;">
+                </div>
+                <div class="form-field">
+                    <label>Содержание темы</label>
+                    <input type="text" name="content" required
+                           placeholder="Введите название темы..."
+                           style="width: 100%;">
+                </div>
+                <button type="submit" class="btn-add"> Добавить</button>
+            </form>
+
+            <!-- 🔹 Таблица тем -->
+            <table class="topics-table">
+                <thead>
+                    <tr>
+                        <th style="width: 60px; text-align: center;">№</th>
+                        <th style="width: 80px; text-align: center;">Часов</th>
+                        <th>Содержание темы</th>
+                        <th style="width: 60px;"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for topic in topics %}
+                    <tr data-topic-id="{{ topic.id }}">
+                        <td class="topic-number">{{ topic.topic_number }}</td>
+                        <td class="topic-hours">
+                            <strong style="color: #059669;">{{ topic.hours|floatformat:"-1" }}</strong>
+                        </td>
+                        <td class="topic-content">{{ topic.content }}</td>
+                        <td class="topic-actions">
+                            <button class="btn-icon" onclick="deleteTopic({{ topic.id }})"
+                                    title="Удалить тему">🗑️</button>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" style="text-align: center; padding: 40px; color: #94a3b8;">
+                            📭 В этом справочнике пока нет тем.<br>
+                            <small>Добавьте первую тему используя форму выше</small>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </main>
+    </div>
+</div>
+
+<script>
+function deleteTopic(topicId) {
+    if (confirm('Удалить эту тему?')) {
+        // Используем window.location для простоты редиректа
+        window.location.href = `/reference/delete/${topicId}/?category={{ current_category }}`;
+    }
+}
+
+//  Автофокус на поле содержания при загрузке
+document.addEventListener('DOMContentLoaded', function() {
+    const contentInput = document.querySelector('input[name="content"]');
+    if (contentInput && {{ topics|length }} === 0) {
+        contentInput.focus();
+    }
+
+    // 🔹 Отправка по Enter в поле содержания
+    contentInput?.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            document.getElementById('quickAddForm').submit();
+        }
+    });
+});
+</script>
+{% endblock %}
+
+
+#===========================================================
 # >>> Файл: tests.py | Путь: reference\tests.py
 #===========================================================
 
@@ -2854,13 +3367,78 @@ from django.test import TestCase
 
 
 #===========================================================
+# >>> Файл: urls.py | Путь: reference\urls.py
+#===========================================================
+
+# reference/urls.py
+from django.urls import path
+from . import views
+
+app_name = 'reference'
+
+urlpatterns = [
+    path('', views.topic_list, name='topic_list'),
+    path('delete/<int:topic_id>/', views.topic_delete, name='topic_delete'),
+]
+
+
+#===========================================================
 # >>> Файл: views.py | Путь: reference\views.py
 #===========================================================
 
-from django.shortcuts import render
+# reference/views.py
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from django.urls import reverse
+from .models import LessonTopic
 
-# Create your views here.
 
+@login_required
+def topic_list(request):
+    category = request.GET.get('category', 'pdd')
+    valid_categories = dict(LessonTopic.CATEGORY_CHOICES).keys()
+    if category not in valid_categories:
+        category = 'pdd'
+
+    topics = LessonTopic.objects.filter(category=category).order_by('topic_number')
+
+    #  ПОДСЧЁТ ЗАПИСЕЙ ДЛЯ ВСЕХ КАТЕГОРИЙ (чтобы badge не были 0)
+    categories_with_counts = []
+    for code, name in LessonTopic.CATEGORY_CHOICES:
+        count = LessonTopic.objects.filter(category=code).count()
+        categories_with_counts.append({'code': code, 'name': name, 'count': count})
+
+    if request.method == 'POST':
+        if 'topic_number' in request.POST:
+            try:
+                LessonTopic.objects.create(
+                    category=category,
+                    topic_number=int(request.POST['topic_number']),
+                    hours=float(request.POST['hours']),
+                    content=request.POST['content']
+                )
+                messages.success(request, '✅ Тема добавлена')
+            except Exception as e:
+                messages.error(request, f'❌ Ошибка: {e}')
+            return redirect(f'{reverse("reference:topic_list")}?category={category}')
+
+    context = {
+        'topics': topics,
+        'current_category': category,
+        'categories_with_counts': categories_with_counts,  # 🔹 Передаём готовый список
+        'title': 'Темы занятий'
+    }
+    return render(request, 'reference/topic_list.html', context)
+
+
+@login_required
+def topic_delete(request, topic_id):
+    topic = get_object_or_404(LessonTopic, pk=topic_id)
+    category = topic.category
+    topic.delete()
+    messages.success(request, '🗑️ Тема удалена')
+    return redirect(f'{reverse("reference:topic_list")}?category={category}')
 
 
 #===========================================================
@@ -3723,96 +4301,6 @@ input.ru-date-input {
 
 
 #===========================================================
-# >>> Файл: group-time-autofill.js | Путь: static\js\group-time-autofill.js
-#===========================================================
-
-// static/js/group-time-autofill.js v7
-(function() {
-    'use strict';
-    console.log('🚀 group-time-autofill.js v7 загружен');
-
-    const TIME_MAP = {
-        'weekday:morning': '08:40–13:30',
-        'weekday:evening': '17:30–21:15',
-        'weekend:any': '13:30–18:20'
-    };
-
-    window.fillStandardTime = function(start, end) {
-        const s = document.getElementById('id_time_start');
-        const e = document.getElementById('id_time_end');
-        if (s && e) {
-            s.value = start; e.value = end;
-            console.log('✅ Время подставлено:', start, '-', end);
-        }
-    };
-
-    function getVal(id) {
-        const el = document.getElementById(id);
-        return el ? el.value.trim() : '';
-    }
-
-    function update() {
-        const sched = getVal('id_schedule_type');
-        const sess = getVal('id_time_session');
-
-        // Проверяем, изменились ли значения реально
-        const currentKey = `${sched}|${sess}`;
-        if (window._lastCalc === currentKey) return; // Без изменений — не перерисовываем
-        window._lastCalc = currentKey;
-
-        console.log('🔄 Пересчёт по:', { schedule_type: sched, time_session: sess });
-
-        let key = null;
-        if (sched === 'weekend') key = 'weekend:any';
-        else if (sess === 'morning' || sess === 'evening') key = `weekday:${sess}`;
-
-        const timeStr = TIME_MAP[key] || null;
-        const box = document.querySelector('.field-standard_time_display .readonly') ||
-                    document.querySelector('.field-standard_time_display > div');
-
-        if (!box) return;
-
-        if (!timeStr) {
-            box.innerHTML = '<span style="color:#94a3b8;">Выберите Смену или Тип расписания</span>';
-        } else {
-            const [s, e] = timeStr.split('–');
-            box.innerHTML = `
-                <strong>${timeStr}</strong>
-                <button type="button" onclick="window.fillStandardTime('${s}', '${e}')"
-                        style="margin-left:10px;padding:4px 10px;background:#4facfe;color:white;border:none;border-radius:4px;cursor:pointer;font-size:12px;">
-                    ▶ Заполнить
-                </button>
-            `;
-            console.log('✅ Обновлено:', timeStr);
-        }
-    }
-
-    // 🔹 Прямая привязка событий
-    function bindEvents() {
-        const fields = ['id_schedule_type', 'id_time_session', 'id_duration'];
-        fields.forEach(id => {
-            const el = document.getElementById(id);
-            if (el) {
-                el.onchange = update;
-                el.oninput = update; // Для некоторых браузеров/мобильных
-                console.log(`🔗 Слушаю изменения: ${id}`);
-            }
-        });
-    }
-
-    // 🔹 Запуск после полной отрисовки
-    document.addEventListener('DOMContentLoaded', () => {
-        setTimeout(bindEvents, 300);
-        setTimeout(bindEvents, 1000);
-        setTimeout(update, 500);
-    });
-
-    // 🔹 Фолбэк: лёгкий polling (проверяет значения каждые 500мс, обновляет ТОЛЬКО при изменении)
-    setInterval(update, 500);
-})();
-
-
-#===========================================================
 # >>> Файл: phone-mask.js | Путь: static\js\phone-mask.js
 #===========================================================
 
@@ -3888,18 +4376,18 @@ if (window.scheduleCalendarInstance) {
     class ScheduleCalendar {
         constructor() {
             this.currentDayEl = null;
+            this.teacherScheduleData = {}; // Здесь храним ДАННЫЕ ДЛЯ КАЛЕНДАРЯ (все вместе)
+            this.mainTeacherData = {};     // Отдельно для основного
+            this.medTeacherData = {};      // Отдельно для медика
             this.init();
         }
 
-        // 🔹 Безопасный парсер дат: поддерживает ГГГГ-ММ-ДД и ДД.ММ.ГГГГ
         parseDate(dateStr) {
             if (!dateStr) return null;
-            // Если уже в формате ГГГГ-ММ-ДД
             if (dateStr.includes('-')) {
                 const [y, m, d] = dateStr.split('-');
                 return new Date(y, m - 1, d);
             }
-            // Если в формате ДД.ММ.ГГГГ
             if (dateStr.includes('.')) {
                 const [d, m, y] = dateStr.split('.');
                 return new Date(y, m - 1, d);
@@ -3915,7 +4403,6 @@ if (window.scheduleCalendarInstance) {
             this.loadAndGenerate();
         }
 
-        // 🔹 Загрузка и генерация календаря при открытии страницы
         loadAndGenerate() {
             const dateStartEl = document.getElementById('id_date_start');
             const dateEndEl = document.getElementById('id_date_end');
@@ -3928,66 +4415,29 @@ if (window.scheduleCalendarInstance) {
 
             if (dateStart && dateEnd) {
                 console.log('📅 Автозапуск генерации:', dateStart, dateEnd, scheduleType);
-
                 let savedDays = {};
                 if (hiddenInput?.value && hiddenInput.value !== '{}') {
                     try { savedDays = JSON.parse(hiddenInput.value); } catch(e) {}
                 }
-
                 this.generateCalendar(dateStart, dateEnd, scheduleType, savedDays);
             }
         }
 
-        updateTimeInCalendar() {
-            const newStart = document.getElementById('id_time_start')?.value || '09:00';
-            const newEnd = document.getElementById('id_time_end')?.value || '14:00';
-            const timeHTML = `
-                <span class="t-start">${newStart}</span>
-                <span class="t-sep">–</span>
-                <span class="t-end">${newEnd}</span>
-            `;
-
-            document.querySelectorAll('.cal-day.is-scheduled').forEach(el => {
-                const timeContainer = el.querySelector('.cal-time');
-                if (timeContainer) timeContainer.innerHTML = timeHTML;
-                el.dataset.start = newStart;
-                el.dataset.end = newEnd;
-            });
-
-            this.updateHoursSummary();
-            this.updateJSON();
-            console.log(`⏰ Время обновлено: ${newStart}–${newEnd}`);
-        }
-
         bindModalEnter() {
-            const modalStart = document.getElementById('m-start');
-            const modalEnd = document.getElementById('m-end');
-
             const handleEnter = (e, isEndField = false) => {
                 if (e.key === 'Enter') {
                     e.preventDefault();
-                    if (isEndField) {
-                        this.saveModal();
-                    } else {
-                        const endField = document.getElementById('m-end');
-                        if (endField) endField.focus();
-                    }
+                    if (isEndField) this.saveModal();
                 }
             };
-
-            if (modalStart) modalStart.addEventListener('keydown', (e) => handleEnter(e, false));
-            if (modalEnd) modalEnd.addEventListener('keydown', (e) => handleEnter(e, true));
+            document.getElementById('m-slot-v')?.addEventListener('keydown', (e) => handleEnter(e, true));
         }
 
         bindEvents() {
             const modal = document.getElementById('day-modal');
             const delBtn = document.getElementById('m-del');
             if (delBtn) delBtn.addEventListener('click', () => this.deleteDay());
-            if (modal) {
-                modal.addEventListener('click', (e) => {
-                    if (e.target === modal) this.closeModal();
-                });
-            }
+            if (modal) modal.addEventListener('click', (e) => { if (e.target === modal) this.closeModal(); });
 
             const groupSelect = document.getElementById('id_group');
             if (groupSelect) {
@@ -3996,9 +4446,7 @@ if (window.scheduleCalendarInstance) {
                     if (groupId) this.fillFormFromGroup(groupId);
                 });
             }
-
             this.bindPeriodChange();
-            this.bindTimeChange();
         }
 
         bindPeriodChange() {
@@ -4010,72 +4458,56 @@ if (window.scheduleCalendarInstance) {
                 const start = dateStart?.value;
                 const end = dateEnd?.value;
                 const type = scheduleType?.value;
-
                 if (start && end) {
                     console.log('🔄 Пересоздание календаря:', start, end, type);
-
                     const classDaysInput = document.getElementById('id_class_days');
                     if (classDaysInput && type && type !== 'custom') {
                         classDaysInput.value = '{}';
-                        console.log('🧹 Очищено hidden field class_days');
                     }
-
                     this.generateCalendar(start, end, type || 'custom', {});
                 }
             };
-
             if (dateStart) dateStart.addEventListener('change', updateCalendar);
             if (dateEnd) dateEnd.addEventListener('change', updateCalendar);
             if (scheduleType) scheduleType.addEventListener('change', updateCalendar);
-        }
-
-        bindTimeChange() {
-            const timeStart = document.getElementById('id_time_start');
-            const timeEnd = document.getElementById('id_time_end');
-
-            const updateTimeInCalendar = () => {
-                const newStart = timeStart?.value || '09:00';
-                const newEnd = timeEnd?.value || '14:00';
-                const timeHTML = `
-                    <span class="t-start">${newStart}</span>
-                    <span class="t-sep">–</span>
-                    <span class="t-end">${newEnd}</span>
-                `;
-
-                document.querySelectorAll('.cal-day.is-scheduled').forEach(el => {
-                    const timeContainer = el.querySelector('.cal-time');
-                    if (timeContainer) timeContainer.innerHTML = timeHTML;
-                    el.dataset.start = newStart;
-                    el.dataset.end = newEnd;
-                });
-
-                this.updateHoursSummary();
-                this.updateJSON();
-                console.log(`⏰ Время обновлено: ${newStart}–${newEnd}`);
-            };
-
-            if (timeStart) timeStart.addEventListener('change', updateTimeInCalendar);
-            if (timeEnd) timeEnd.addEventListener('change', updateTimeInCalendar);
         }
 
         openDayModal(el) {
             this.currentDayEl = el;
             const date = el.dataset.date;
             const isScheduled = el.dataset.scheduled === 'true';
-
-            const dayStart = el.dataset.start;
-            const dayEnd = el.dataset.end;
-            const formStart = document.getElementById('id_time_start')?.value || '09:00';
-            const formEnd = document.getElementById('id_time_end')?.value || '14:00';
-
-            const startTime = isScheduled && dayStart ? dayStart : formStart;
-            const endTime = isScheduled && dayEnd ? dayEnd : formEnd;
+            const dayData = el.dataset.daydata ? JSON.parse(el.dataset.daydata) : {};
 
             document.getElementById('m-title').textContent = `📅 ${date}`;
             document.getElementById('m-date').value = date;
-            document.getElementById('m-start').value = startTime;
-            document.getElementById('m-end').value = endTime;
             document.getElementById('m-del').style.display = isScheduled ? 'inline-block' : 'none';
+
+            // 🔹 Получаем слоты: либо из дня, либо пустой массив
+            let selectedSlots = dayData.slots || [];
+
+            //  Определяем, используется ли дефолтное значение
+            const useDefault = selectedSlots.length === 0 || dayData._useDefault === true;
+
+            // Если используется дефолт — берём актуальные значения из шапки
+            if (useDefault) {
+                selectedSlots = [];
+                if (document.getElementById('id_time_morning')?.checked) selectedSlots.push('У');
+                if (document.getElementById('id_time_day')?.checked) selectedSlots.push('Д');
+                if (document.getElementById('id_time_evening')?.checked) selectedSlots.push('В');
+            }
+
+            // Устанавливаем чекбоксы в модальном окне
+            document.getElementById('m-slot-u').checked = selectedSlots.includes('У');
+            document.getElementById('m-slot-d').checked = selectedSlots.includes('Д');
+            document.getElementById('m-slot-v').checked = selectedSlots.includes('В');
+            document.getElementById('m-med-toggle').checked = dayData.med || false;
+
+            // Проверка конфликтов (безопасная) - ИСПРАВЛЕНО: выбираем правильный массив данных
+            const teacherSlots = dayData.med ? this.medTeacherData : this.mainTeacherData;
+            const relevantData = (teacherSlots[date] || []).map(item => typeof item === 'object' ? item.ind : item);
+
+            const hasConflict = selectedSlots.some(s => relevantData.includes(s));
+            document.getElementById('m-conflict-warn').style.display = hasConflict ? 'block' : 'none';
 
             document.getElementById('day-modal').style.display = 'flex';
         }
@@ -4087,28 +4519,29 @@ if (window.scheduleCalendarInstance) {
 
         saveModal() {
             if (!this.currentDayEl) return;
-            const start = document.getElementById('m-start').value;
-            const end = document.getElementById('m-end').value;
 
-            if (!start || !end) { alert('⚠️ Укажите время'); return; }
-            if (start >= end) { alert('⚠️ Время окончания должно быть позже начала'); return; }
+            const slots = [];
+            if (document.getElementById('m-slot-u').checked) slots.push('У');
+            if (document.getElementById('m-slot-d').checked) slots.push('Д');
+            if (document.getElementById('m-slot-v').checked) slots.push('В');
 
-            this.currentDayEl.classList.add('is-scheduled');
-            this.currentDayEl.dataset.scheduled = 'true';
-            this.currentDayEl.dataset.start = start;
-            this.currentDayEl.dataset.end = end;
+            const isMed = document.getElementById('m-med-toggle').checked;
 
-            const timeContainer = this.currentDayEl.querySelector('.cal-time');
-            if (timeContainer) {
-                timeContainer.innerHTML = `
-                    <span class="t-start">${start}</span>
-                    <span class="t-sep">–</span>
-                    <span class="t-end">${end}</span>
-                `;
-            }
+            // 🔹 При ручном сохранении сбрасываем флаг _useDefault
+            const dayData = {
+                slots: [...slots],
+                med: isMed,
+                scheduled: slots.length > 0,
+                _useDefault: false
+            };
 
+            this.currentDayEl.dataset.scheduled = slots.length > 0 ? 'true' : 'false';
+            if (slots.length > 0) this.currentDayEl.classList.add('is-scheduled');
+            else this.currentDayEl.classList.remove('is-scheduled');
+
+            this.currentDayEl.dataset.daydata = JSON.stringify(dayData);
+            this.updateCellVisuals(this.currentDayEl, dayData);
             this.updateJSON();
-            this.updateHoursSummary();
             this.closeModal();
         }
 
@@ -4116,98 +4549,188 @@ if (window.scheduleCalendarInstance) {
             if (!this.currentDayEl) return;
             this.currentDayEl.classList.remove('is-scheduled');
             this.currentDayEl.dataset.scheduled = 'false';
-            this.currentDayEl.dataset.start = '';
-            this.currentDayEl.dataset.end = '';
-
-            const timeContainer = this.currentDayEl.querySelector('.cal-time');
-            if (timeContainer) timeContainer.innerHTML = '';
-
+            this.currentDayEl.dataset.daydata = JSON.stringify({slots:[], med:false, scheduled:false, _useDefault: true});
+            this.updateCellVisuals(this.currentDayEl, {slots:[], med:false});
             this.updateJSON();
-            this.updateHoursSummary();
             this.closeModal();
+        }
+
+        updateCellVisuals(el, dayData) {
+            console.log(`🎨 updateCellVisuals: ${el.dataset.date}`, {
+                slots: dayData.slots,
+                med: dayData.med
+            });
+
+            const slots = dayData.slots || [];
+            const dateStr = el.dataset.date;
+
+            // Левая часть: Слоты У/Д/В (выбранные пользователем)
+            let slotsHtml = '';
+            if (slots.length > 0) {
+                slotsHtml = `<div style="display:flex;gap:2px;margin-top:2px;justify-content:flex-start;flex-wrap:wrap;">
+                    ${slots.map(ind => {
+                        const styles = { 'У': { bg: '#fef3c7', cl: '#b45309' }, 'Д': { bg: '#dbeafe', cl: '#1d4ed8' }, 'В': { bg: '#ede9fe', cl: '#7c3aed' } };
+                        const s = styles[ind] || styles['Д'];
+                        return `<span style="font-size:10px;font-weight:700;color:${s.cl};background:${s.bg};padding:2px 6px;border-radius:4px;line-height:1.2;">${ind}</span>`;
+                    }).join('')}
+                </div>`;
+            }
+
+            // Правая часть: Индикаторы преподавателей (что показывает календарь)
+            // Используем объединенные данные, чтобы видеть всё
+            let teacherIndicatorsHtml = '';
+            if (this.teacherScheduleData[dateStr]) {
+                 teacherIndicatorsHtml = `<div style="display:flex;gap:2px;margin-top:2px;justify-content:flex-end;flex-wrap:wrap;">
+                    ${this.teacherScheduleData[dateStr].map(item => {
+                        const ind = typeof item === 'object' ? item.ind : item;
+                        const isMed = typeof item === 'object' ? (item.is_med || false) : false;
+                        const styles = { 'У': { bg: '#fef3c7', cl: '#b45309' }, 'Д': { bg: '#dbeafe', cl: '#1d4ed8' }, 'В': { bg: '#ede9fe', cl: '#7c3aed' } };
+                        const s = styles[ind] || styles['Д'];
+                        const medBadge = isMed ? ' <span style="color:#22c55e;font-weight:800;">✚</span>' : '';
+                        return `<span style="font-size:9px;font-weight:600;color:${s.cl};background:${s.bg};padding:1px 4px;border-radius:4px;line-height:1.2;opacity:0.8;">${ind}${medBadge}</span>`;
+                    }).join('')}
+                </div>`;
+            }
+
+            // Медицина
+            let medHtml = '';
+            if (dayData.med) {
+                el.classList.add('is-med');
+                medHtml = `<div class="med-indicator">✚</div>`;
+            } else {
+                el.classList.remove('is-med');
+                const existingMed = el.querySelector('.med-indicator');
+                if (existingMed) existingMed.remove();
+            }
+
+            // 🔹 ПРОВЕРКА КОНФЛИКТОВ: ИСПРАВЛЕННАЯ ЛОГИКА
+            let hasConflict = false;
+
+            if (dayData.med) {
+                // Если это день медицины, сравниваем только с массивом медика
+                const medSlots = (this.medTeacherData[dateStr] || []).map(item => typeof item === 'object' ? item.ind : item);
+                hasConflict = slots.some(s => medSlots.includes(s));
+            } else {
+                // Если обычный день, сравниваем только с массивом основного
+                const mainSlots = (this.mainTeacherData[dateStr] || []).map(item => typeof item === 'object' ? item.ind : item);
+                hasConflict = slots.some(s => mainSlots.includes(s));
+            }
+
+            if (hasConflict) el.classList.add('is-conflict');
+            else el.classList.remove('is-conflict');
+
+            // Обновляем HTML
+            el.innerHTML = `
+                <span class="cal-num">${el.dataset.date.split('-')[2]}</span>
+                ${medHtml}
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-top:2px;">
+                    ${slotsHtml}
+                    ${teacherIndicatorsHtml}
+                </div>
+            `;
         }
 
         updateJSON() {
             const days = {};
             document.querySelectorAll('.cal-day.is-scheduled').forEach(el => {
-                if (el.dataset.start && el.dataset.end) {
-                    days[el.dataset.date] = {
-                        start: el.dataset.start,
-                        end: el.dataset.end
-                    };
-                }
+                const data = JSON.parse(el.dataset.daydata || '{}');
+                data.scheduled = true;
+                days[el.dataset.date] = data;
             });
 
             const hiddenInput = document.getElementById('id_class_days');
             if (hiddenInput) {
-                const jsonStr = JSON.stringify(days);
-                hiddenInput.value = jsonStr;
-                console.log('💾 updateJSON(): сохранено', Object.keys(days).length, 'дней');
+                hiddenInput.value = JSON.stringify(days);
             }
         }
 
-        // 🔥 Итоги в формате "Чч ММмин" + индикатор нехватки/излишка
-        updateHoursSummary() {
-            let totalMinutes = 0;
+                // 🔹 МЕТОД: Вычисление исключенных и дополнительных дней
+        calculateDateLogs() {
+            const startDate = document.getElementById('id_date_start')?.value;
+            const endDate = document.getElementById('id_date_end')?.value;
+            const scheduleType = document.getElementById('id_schedule_type')?.value || 'custom';
+
+            if (!startDate || !endDate) return;
+
+            const startObj = this.parseDate(startDate);
+            const endObj = this.parseDate(endDate);
+
+            // 1. Генерируем "ИДЕАЛЬНЫЙ" список (как должно быть по чет/нечет)
+            const idealDates = new Set();
+            let current = new Date(startObj);
+
+            while (current <= endObj) {
+                const dateStr = current.toISOString().split('T')[0];
+                const day = current.getDate();
+                const dayOfWeek = current.getDay(); // 0 - Вс, 6 - Сб
+                const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
+
+                let shouldBeScheduled = false;
+
+                if (scheduleType === 'odd') {
+                    if (day % 2 === 1 && !isWeekend) shouldBeScheduled = true;
+                } else if (scheduleType === 'even') {
+                    if (day % 2 === 0 && !isWeekend) shouldBeScheduled = true;
+                } else if (scheduleType === 'weekend') {
+                    if (isWeekend) shouldBeScheduled = true;
+                } else if (scheduleType === 'custom') {
+                    // Для custom идеального списка нет, считаем что все дни возможны
+                }
+
+                if (shouldBeScheduled) {
+                    idealDates.add(dateStr);
+                }
+
+                current.setDate(current.getDate() + 1);
+            }
+
+            // 2. Получаем "ФАКТИЧЕСКИЙ" список (что выбрано в календаре)
+            const actualDates = new Set();
             document.querySelectorAll('.cal-day.is-scheduled').forEach(el => {
-                const start = el.dataset.start;
-                const end = el.dataset.end;
-                if (start && end) {
-                    const [sh, sm] = start.split(':').map(Number);
-                    const [eh, em] = end.split(':').map(Number);
-                    totalMinutes += (eh * 60 + em) - (sh * 60 + sm);
+                actualDates.add(el.dataset.date);
+            });
+
+            // 3. Вычисляем разницу
+            const excluded = []; // Было в ideal, но нет в actual
+            const additional = []; // Нет в ideal, но есть в actual
+
+            // Ищем исключенные (Ideal - Actual)
+            idealDates.forEach(date => {
+                if (!actualDates.has(date)) {
+                    excluded.push(date);
                 }
             });
 
-            const requiredHours = parseFloat(document.getElementById('id_required_hours')?.value || 0);
-            const requiredMinutes = Math.round(requiredHours * 60);
-
-            const diffMinutes = totalMinutes - requiredMinutes;
-            const absDiff = Math.abs(diffMinutes);
-            const diffH = Math.floor(absDiff / 60);
-            const diffM = absDiff % 60;
-            const diffStr = `${diffH}ч ${String(diffM).padStart(2, '0')}мин`;
-
-            const totalH = Math.floor(totalMinutes / 60);
-            const totalM = totalMinutes % 60;
-            const totalStr = `${totalH}ч ${String(totalM).padStart(2, '0')}мин`;
-
-            // Обновляем итог
-            const totalEl = document.getElementById('total-hours');
-            if (totalEl) totalEl.textContent = totalStr;
-
-            // Обновляем индикатор разницы
-            const diffEl = document.getElementById('hours-diff-indicator');
-            if (diffEl) {
-                if (absDiff <= 5) {
-                    diffEl.textContent = '✅ Всё точно';
-                    diffEl.className = 'diff-badge diff-ok';
-                } else if (diffMinutes > 0) {
-                    diffEl.textContent = `⚡ Излишек: +${diffStr}`;
-                    diffEl.className = 'diff-badge diff-excess';
-                } else {
-                    diffEl.textContent = `⚠️ Не хватает: -${diffStr}`;
-                    diffEl.className = 'diff-badge diff-short';
+            // Ищем дополнительные (Actual - Ideal)
+            actualDates.forEach(date => {
+                if (!idealDates.has(date)) {
+                    additional.push(date);
                 }
-            }
+            });
+
+            // 4. Сортируем и записываем в скрытые поля
+            excluded.sort();
+            additional.sort();
+
+            document.getElementById('id_excluded_dates').value = JSON.stringify(excluded);
+            document.getElementById('id_additional_dates').value = JSON.stringify(additional);
+
+            console.log('📝 Лог дат обновлен:', { excluded, additional });
         }
 
         async fillFormFromGroup(groupId) {
-            console.log(' Загрузка данных для группы:', groupId);
+            console.log('🔄 Загрузка данных для группы:', groupId);
             try {
-                const response = await fetch(`/groups/api/groups/${groupId}/data/`, {
-                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
-                });
+                const response = await fetch(`/groups/api/groups/${groupId}/data/`, { headers: { 'X-Requested-With': 'XMLHttpRequest' }});
                 if (!response.ok) throw new Error('Network response was not ok');
                 const data = await response.json();
 
                 this.setField('id_teacher', data.teacher_id);
                 this.setField('id_date_start', data.contract_start);
                 this.setField('id_date_end', data.contract_end);
-                this.setField('id_time_start', data.time_start);
-                this.setField('id_time_end', data.time_end);
                 this.setField('id_schedule_type', data.schedule_type);
                 this.setField('id_duration_display', data.duration);
+                this.setField('id_category_display', data.category);
 
                 if (data.location) {
                     const classroomSelect = document.getElementById('id_classroom');
@@ -4218,17 +4741,9 @@ if (window.scheduleCalendarInstance) {
 
                 if (data.contract_start && data.contract_end) {
                     setTimeout(() => {
-                        this.generateCalendar(
-                            data.contract_start,
-                            data.contract_end,
-                            data.schedule_type || 'custom',
-                            null,
-                            data.time_start,
-                            data.time_end
-                        );
+                        this.generateCalendar(data.contract_start, data.contract_end, data.schedule_type || 'custom', null);
                     }, 200);
                 }
-
             } catch (error) {
                 console.error('❌ Ошибка загрузки данных группы:', error);
             }
@@ -4236,16 +4751,11 @@ if (window.scheduleCalendarInstance) {
 
         setField(fieldId, value) {
             const field = document.getElementById(fieldId);
-            if (field && value !== undefined && value !== null) {
-                field.value = value;
-            }
+            if (field && value !== undefined && value !== null) { field.value = value; }
         }
 
-        // 🔥 🔥 🔥 ГЛАВНЫЙ МЕТОД: генерация календаря 🔥 🔥 🔥
-        generateCalendar(dateStart, dateEnd, scheduleType, savedDays = null, timeStart = null, timeEnd = null) {
-            console.log('🔹 Генерация календаря:', dateStart, dateEnd, scheduleType, { timeStart, timeEnd });
-
-            // 🔥 Безопасное преобразование дат
+        generateCalendar(dateStart, dateEnd, scheduleType, savedDays = null) {
+            console.log('🔹 Генерация календаря:', dateStart, dateEnd, scheduleType);
             const startObj = this.parseDate(dateStart);
             const endObj = this.parseDate(dateEnd);
 
@@ -4258,28 +4768,15 @@ if (window.scheduleCalendarInstance) {
             if (!container) return false;
             container.innerHTML = '';
 
-            const monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
-                               'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+            const monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
             const dayNames = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
-
-            const defaultStart = timeStart?.substring(0, 5) ||
-                                document.getElementById('id_time_start')?.value?.substring(0, 5) ||
-                                '09:00';
-            const defaultEnd = timeEnd?.substring(0, 5) ||
-                              document.getElementById('id_time_end')?.value?.substring(0, 5) ||
-                              '14:00';
-
-            console.log(`⏰ Используемое время: ${defaultStart}–${defaultEnd}`);
 
             if (!savedDays) {
                 const hiddenInput = document.getElementById('id_class_days');
-                if (hiddenInput?.value) {
-                    try { savedDays = JSON.parse(hiddenInput.value); } catch(e) { savedDays = {}; }
-                }
+                if (hiddenInput?.value) { try { savedDays = JSON.parse(hiddenInput.value); } catch(e) { savedDays = {}; } }
             }
             if (!savedDays) savedDays = {};
 
-            // Строки для сравнения (без проблем с часовыми поясами)
             const startStr = dateStart.includes('-') ? dateStart : dateStart.split('.').reverse().join('-');
             const endStr = dateEnd.includes('-') ? dateEnd : dateEnd.split('.').reverse().join('-');
 
@@ -4292,7 +4789,6 @@ if (window.scheduleCalendarInstance) {
 
                 const monthDiv = document.createElement('div');
                 monthDiv.className = 'calendar-month';
-
                 const titleDiv = document.createElement('div');
                 titleDiv.className = 'cal-month-title';
                 titleDiv.textContent = `${monthNames[month]} ${year}`;
@@ -4300,7 +4796,6 @@ if (window.scheduleCalendarInstance) {
 
                 const gridDiv = document.createElement('div');
                 gridDiv.className = 'calendar-grid';
-
                 dayNames.forEach(name => {
                     const header = document.createElement('div');
                     header.className = 'cal-head';
@@ -4310,7 +4805,6 @@ if (window.scheduleCalendarInstance) {
 
                 const firstDayDate = new Date(year, month, 1);
                 let startDayOfWeek = firstDayDate.getDay() || 7;
-
                 for (let i = 1; i < startDayOfWeek; i++) {
                     const emptyEl = document.createElement('div');
                     emptyEl.className = 'cal-day cal-empty';
@@ -4324,81 +4818,144 @@ if (window.scheduleCalendarInstance) {
 
                     const dayOfWeek = thisDate.getDay();
                     const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
-
-                    // 🔥 СТРОГОЕ СРАВНЕНИЕ ЧЕРЕЗ СТРОКИ
                     const isInPeriod = dateStr >= startStr && dateStr <= endStr;
 
-                    let isScheduled = false;
-                    let dayStartTime = defaultStart;
-                    let dayEndTime = defaultEnd;
-
                     const isSaved = savedDays[dateStr];
+                    const dayData = isSaved ? {...isSaved} : {};
 
-                    // 🔥 Логика планирования ТОЛЬКО внутри периода
-                    if (isInPeriod) {
-                        if (scheduleType === 'odd') {
-                            // Нечётные дни, НО НЕ выходные
-                            if (day % 2 === 1 && !isWeekend) {
-                                isScheduled = true;
-                                if (isSaved && isSaved.start && isSaved.end) {
-                                    dayStartTime = isSaved.start;
-                                    dayEndTime = isSaved.end;
-                                }
-                            }
-                        } else if (scheduleType === 'even') {
-                            // Чётные дни, НО НЕ выходные
-                            if (day % 2 === 0 && !isWeekend) {
-                                isScheduled = true;
-                                if (isSaved && isSaved.start && isSaved.end) {
-                                    dayStartTime = isSaved.start;
-                                    dayEndTime = isSaved.end;
-                                }
-                            }
-                        } else if (scheduleType === 'weekend') {
-                            // Только выходные
-                            if (isWeekend) {
-                                isScheduled = true;
-                                if (isSaved && isSaved.start && isSaved.end) {
-                                    dayStartTime = isSaved.start;
-                                    dayEndTime = isSaved.end;
-                                }
-                            }
-                        } else if (scheduleType === 'custom') {
-                            // Только сохранённые дни
-                            if (isSaved) {
-                                isScheduled = true;
-                                dayStartTime = isSaved.start || defaultStart;
-                                dayEndTime = isSaved.end || defaultEnd;
-                            }
-                        }
+                    if (!dayData.slots || dayData.slots.length === 0) {
+                        dayData._useDefault = true;
                     }
 
-                    const timeHTML = (isScheduled && isInPeriod) ? `
-                        <span class="t-start">${dayStartTime}</span>
-                        <span class="t-sep">–</span>
-                        <span class="t-end">${dayEndTime}</span>
-                    ` : '';
+                    let isScheduled = false;
+                    const slots = dayData.slots || [];
+                    if (slots.length > 0) {
+                        isScheduled = true;
+                    } else if (isInPeriod) {
+                        if (scheduleType === 'odd') { if (day % 2 === 1 && !isWeekend) isScheduled = true; }
+                        else if (scheduleType === 'even') { if (day % 2 === 0 && !isWeekend) isScheduled = true; }
+                        else if (scheduleType === 'weekend') { if (isWeekend) isScheduled = true; }
+                    }
+
+                    // Получаем данные
+                    const allSlots = this.teacherScheduleData[dateStr] || [];
+
+                    // 🔹 РАЗДЕЛЯЕМ ДАННЫЕ ДЛЯ ПРОВЕРКИ
+                    const mainSlots = allSlots.filter(slot => {
+                        const isMed = typeof slot === 'object' ? (slot.is_med || false) : false;
+                        return !isMed;
+                    }).map(item => typeof item === 'object' ? item.ind : item);
+
+                    const medSlots = allSlots.filter(slot => {
+                        const isMed = typeof slot === 'object' ? (slot.is_med || false) : false;
+                        return isMed;
+                    }).map(item => typeof item === 'object' ? item.ind : item);
+
+                    //  ОПРЕДЕЛЯЕМ КОНФЛИКТ
+                    let hasConflict = false;
+                    // Если день уже помечен как мед (или в нём есть мед. слоты), проверяем мед. массив
+                    const isMedDay = dayData.med || false;
+
+                    if (isMedDay) {
+                         hasConflict = slots.some(s => medSlots.includes(s));
+                    } else {
+                         hasConflict = slots.some(s => mainSlots.includes(s));
+                    }
+
+                    if (hasConflict && isMedDay) {
+                        console.log(`⚠️ Конфликт МЕД: ${dateStr}`, slots, medSlots);
+                    } else if (hasConflict && !isMedDay) {
+                         console.log(`⚠️ Конфликт ОСН: ${dateStr}`, slots, mainSlots);
+                    }
 
                     const dayEl = document.createElement('div');
                     let classes = 'cal-day';
                     if (!isInPeriod) classes += ' is-inactive';
                     else if (isScheduled) classes += ' is-scheduled';
                     else if (isWeekend) classes += ' is-weekend';
+                    if (dayData.med) classes += ' is-med';
+                    if (hasConflict) classes += ' is-conflict';
 
                     dayEl.className = classes;
                     dayEl.dataset.date = dateStr;
                     dayEl.dataset.scheduled = (isScheduled && isInPeriod) ? 'true' : 'false';
-                    dayEl.dataset.start = (isScheduled && isInPeriod) ? dayStartTime : '';
-                    dayEl.dataset.end = (isScheduled && isInPeriod) ? dayEndTime : '';
+                    dayEl.dataset.daydata = JSON.stringify(dayData);
 
                     if (isInPeriod) {
                         dayEl.onclick = () => window.scheduleCalendarInstance.openDayModal(dayEl);
                     }
 
+                    // 🔹 Формируем HTML
+                    let slotsHtml = '';
+                    if (slots.length > 0) {
+                        slotsHtml = `<div style="display:flex;gap:2px;margin-top:2px;justify-content:flex-start;flex-wrap:wrap;">
+                            ${slots.map(ind => {
+                                const styles = { 'У': { bg: '#fef3c7', cl: '#b45309' }, 'Д': { bg: '#dbeafe', cl: '#1d4ed8' }, 'В': { bg: '#ede9fe', cl: '#7c3aed' } };
+                                const s = styles[ind] || styles['Д'];
+                                return `<span style="font-size:10px;font-weight:700;color:${s.cl};background:${s.bg};padding:2px 6px;border-radius:4px;line-height:1.2;">${ind}</span>`;
+                            }).join('')}
+                        </div>`;
+                    }
+
+                    let teacherIndicatorsHtml = '';
+                    if (allSlots.length > 0) {
+                        teacherIndicatorsHtml = `<div style="display:flex;gap:2px;margin-top:2px;justify-content:flex-end;flex-wrap:wrap;">
+                            ${allSlots.map(item => {
+                                const ind = typeof item === 'object' ? item.ind : item;
+                                const isMed = typeof item === 'object' ? (item.is_med || false) : false;
+                                const styles = { 'У': { bg: '#fef3c7', cl: '#b45309' }, 'Д': { bg: '#dbeafe', cl: '#1d4ed8' }, 'В': { bg: '#ede9fe', cl: '#7c3aed' } };
+                                const s = styles[ind] || styles['Д'];
+                                const medBadge = isMed ? ' <span style="color:#22c55e;font-weight:800;">✚</span>' : '';
+                                return `<span style="font-size:9px;font-weight:600;color:${s.cl};background:${s.bg};padding:1px 4px;border-radius:4px;line-height:1.2;opacity:0.8;">${ind}${medBadge}</span>`;
+                            }).join('')}
+                        </div>`;
+                    }
+
+                    let tooltipContent = '';
+                    if (allSlots.length > 0) {
+                        tooltipContent = allSlots.map(item => {
+                            const ind = typeof item === 'object' ? item.ind : item;
+                            const group = typeof item === 'object' ? item.group : 'Не указано';
+                            const location = typeof item === 'object' ? item.location : 'Не указано';
+                            const isMed = typeof item === 'object' ? (item.is_med || false) : false;
+                            const medBadge = isMed ? ' <span style="color:#22c55e;font-weight:800;">✚</span>' : '';
+                            return `<div style="margin-bottom:4px; border-bottom:1px solid #eee; padding-bottom:4px;">
+                                <strong>⏰ ${ind}${medBadge}</strong><br>
+                                 ${group}<br>
+                                📍 ${location}
+                            </div>`;
+                        }).join('');
+                    }
+
+                    let tooltipHtml = '';
+                    if (tooltipContent) {
+                        tooltipHtml = `<div class="cal-day-tooltip" style="display:none; position:absolute; bottom:100%; left:50%; transform:translateX(-50%); background:white; border:1px solid #cbd5e1; border-radius:8px; padding:8px; box-shadow:0 4px 12px rgba(0,0,0,0.15); z-index:100; width:200px; font-size:12px; text-align:left; pointer-events:none; margin-bottom:5px;">
+                            ${tooltipContent}
+                        </div>`;
+                    }
+
+                    let medHtml = dayData.med ? `<div class="med-indicator">✚</div>` : '';
+
                     dayEl.innerHTML = `
+                        ${tooltipHtml}
                         <span class="cal-num">${day}</span>
-                        <div class="cal-time">${timeHTML}</div>
+                        ${medHtml}
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:2px;">
+                            ${slotsHtml}
+                            ${teacherIndicatorsHtml}
+                        </div>
                     `;
+
+                    if (tooltipContent) {
+                        dayEl.addEventListener('mouseenter', function() {
+                            const tip = this.querySelector('.cal-day-tooltip');
+                            if (tip) tip.style.display = 'block';
+                        });
+                        dayEl.addEventListener('mouseleave', function() {
+                            const tip = this.querySelector('.cal-day-tooltip');
+                            if (tip) tip.style.display = 'none';
+                        });
+                    }
 
                     gridDiv.appendChild(dayEl);
                 }
@@ -4411,10 +4968,6 @@ if (window.scheduleCalendarInstance) {
             const warningEl = document.querySelector('.calendar-warning');
             if (warningEl) warningEl.style.display = 'none';
 
-            const hoursSummary = document.getElementById('hours-summary');
-            if (hoursSummary) hoursSummary.style.display = 'block';
-
-            this.updateHoursSummary();
             this.updateJSON();
             this.showSuccessMessage();
             console.log('✅ Календарь сгенерирован');
@@ -4425,18 +4978,13 @@ if (window.scheduleCalendarInstance) {
             const successDiv = document.createElement('div');
             successDiv.className = 'auto-fill-message';
             successDiv.style.cssText = 'background:#dcfce7; border:1px solid #16a34a; border-radius:8px; padding:12px; margin:15px 0; color:#166534; text-align:center;';
-            successDiv.innerHTML = '✅ Календарь сгенерирован! Выберите дни и установите время.';
-
+            successDiv.innerHTML = '✅ Календарь сгенерирован!';
             const oldSuccess = document.querySelector('.auto-fill-message');
             if (oldSuccess) oldSuccess.remove();
-
             const warningEl = document.querySelector('.calendar-warning');
             const calendarSection = document.querySelector('.calendar-section');
-            if (warningEl && warningEl.parentNode) {
-                warningEl.parentNode.insertBefore(successDiv, warningEl);
-            } else if (calendarSection) {
-                calendarSection.insertBefore(successDiv, calendarSection.firstChild);
-            }
+            if (warningEl && warningEl.parentNode) warningEl.parentNode.insertBefore(successDiv, warningEl);
+            else if (calendarSection) calendarSection.insertBefore(successDiv, calendarSection.firstChild);
         }
 
         checkAutoFill() {
@@ -4445,28 +4993,16 @@ if (window.scheduleCalendarInstance) {
             if (groupId) {
                 setTimeout(() => {
                     const groupSelect = document.getElementById('id_group');
-                    if (groupSelect) {
-                        groupSelect.value = groupId;
-                        this.fillFormFromGroup(groupId);
-                    }
+                    if (groupSelect) { groupSelect.value = groupId; this.fillFormFromGroup(groupId); }
                 }, 300);
             }
         }
     }
 
-    document.addEventListener('DOMContentLoaded', () => {
-        window.scheduleCalendarInstance = new ScheduleCalendar();
-    });
-
-    window.openDayModal = (el) => {
-        if (window.scheduleCalendarInstance) window.scheduleCalendarInstance.openDayModal(el);
-    };
-    window.closeModal = () => {
-        if (window.scheduleCalendarInstance) window.scheduleCalendarInstance.closeModal();
-    };
-    window.saveModal = () => {
-        if (window.scheduleCalendarInstance) window.scheduleCalendarInstance.saveModal();
-    };
+    document.addEventListener('DOMContentLoaded', () => { window.scheduleCalendarInstance = new ScheduleCalendar(); });
+    window.openDayModal = (el) => { if (window.scheduleCalendarInstance) window.scheduleCalendarInstance.openDayModal(el); };
+    window.closeModal = () => { if (window.scheduleCalendarInstance) window.scheduleCalendarInstance.closeModal(); };
+    window.saveModal = () => { if (window.scheduleCalendarInstance) window.scheduleCalendarInstance.saveModal(); };
 }
 
 
@@ -7518,97 +8054,205 @@ document.getElementById('credit_id').addEventListener('change', function() {
 <!-- 🔹 Подключение внешнего файла стилей календаря -->
 <link rel="stylesheet" href="{% static 'css/calendar.css' %}">
 
-<!-- 🔹 Стили остаются только для самой формы (layout) -->
+<!-- 🔹 Стили формы -->
 <style>
-        .diff-badge {
-            display: inline-block;
-            padding: 8px 16px;
-            border-radius: 8px;
-            font-weight: 600;
-            font-size: 15px;
-            transition: all 0.2s;
-        }
-        .diff-ok { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
-        .diff-excess { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
-        .diff-short { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+/* 🔹 ЖЕСТКАЯ СЕТКА ДЛЯ ВЕРХНЕЙ ЧАСТИ */
+.top-form-grid {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 24px !important;
+    margin-bottom: 24px !important;
+}
 
-        .plan-form-container {
-        background: white;
-        border-radius: 16px;
-        padding: 24px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.05);
-        max-width: 1200px;
-        margin: 0 auto;
-        box-sizing: border-box;
-    }
-    .plan-form-container * { box-sizing: border-box; }
+/* 🔹 СТРОКА С ДАТАМИ (С, ПО, СРОК) */
+.period-dates-row {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr 110px !important;
+    gap: 12px !important;
+    align-items: end !important;
+}
 
-    .form-row {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-        gap: 20px;
-        margin-bottom: 20px;
-    }
+/*  НИЖНЯЯ СТРОКА (МЕСТО, КАТЕГОРИЯ, РАСПИСАНИЕ, ВРЕМЯ) */
+.bottom-form-row {
+    display: grid !important;
+    grid-template-columns: 2fr 0.5fr 1fr 1.5fr !important;
+    gap: 20px !important;
+    margin-bottom: 24px !important;
+    align-items: start !important;
+}
 
-    .form-group { display: flex; flex-direction: column; gap: 6px; }
-    .form-group label { font-size: 13px; font-weight: 600; color: #475569; }
-    .form-group input, .form-group select {
-        width: 100%;
-        padding: 10px 12px;
-        border: 1px solid #cbd5e1;
-        border-radius: 8px;
-        font-size: 14px;
-        background: #fff;
-        transition: border-color 0.2s, box-shadow 0.2s;
-    }
-    .form-group input:focus, .form-group select:focus {
-        outline: none;
-        border-color: #4facfe;
-        box-shadow: 0 0 0 3px rgba(79,172,254,0.15);
-    }
+/* 🔹 БАЗОВЫЕ СТИЛИ ПОЛЕЙ */
+.form-group {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 6px !important;
+    min-width: 0 !important;
+}
 
-    /* 🔹 Компактная строка с датами и временем */
-    .range-row {
-        display: flex;
-        gap: 20px;
-        align-items: flex-end;
-        flex-wrap: nowrap;
-        width: 100%;
-        margin-bottom: 20px;
-    }
-    .range-row .form-group {
-        flex: 0 0 auto;
-        min-width: auto;
-    }
-    .range-row .field-date { width: 255px; }
-    .range-row .field-duration { width: 170px; }
-    .range-row .field-time { width: 200px; }
-    .range-row .field-hours { width: 115px; }
+.form-group label {
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    color: #475569 !important;
+    white-space: nowrap !important;
+}
 
-    @media (max-width: 768px) {
-        .form-row { grid-template-columns: 1fr; }
-        .range-row {
-            width: 100%;
-            flex-direction: column;
-            align-items: stretch;
-            flex-wrap: wrap;
-        }
-        .range-row .form-group { width: 100% !important; }
-    }
+.form-group input,
+.form-group select {
+    width: 100% !important;
+    padding: 10px 12px !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 8px !important;
+    font-size: 14px !important;
+    background: #fff !important;
+    box-sizing: border-box !important;
+    height: 42px !important;
+}
 
-    .next-button { display: flex; justify-content: flex-end; margin-top: 24px; }
-    .next-button button {
-        padding: 12px 32px;
-        background: #4facfe;
-        color: white;
-        border: none;
-        border-radius: 8px;
-        font-size: 15px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-    .next-button button:hover { background: #3b82f6; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(59,130,246,0.3); }
+/* 🔹 СТРОКА: Преподаватель + Переключатель */
+.teacher-row {
+    display: flex !important;
+    gap: 12px !important;
+    align-items: center !important;
+}
+.teacher-row .teacher-field {
+    flex: 5 !important;
+    min-width: 0 !important;
+}
+.teacher-row .toggle-field {
+    flex: 1 !important;
+    min-width: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding-bottom: 0 !important;
+    margin-top: 20px;
+}
+
+/*  IOS-STYLE TOGGLE SWITCH */
+.toggle-switch {
+    position: relative !important;
+    width: 64px !important;
+    height: 34px !important;
+    flex-shrink: 0 !important;
+    display: block !important;
+}
+.toggle-switch input {
+    opacity: 0 !important;
+    width: 0 !important;
+    height: 0 !important;
+}
+.toggle-slider {
+    position: absolute !important;
+    cursor: pointer !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    background-color: #cbd5e1 !important;
+    transition: .3s !important;
+    border-radius: 24px !important;
+}
+.toggle-slider:before {
+    position: absolute !important;
+    content: "" !important;
+    height: 28px !important;
+    width: 28px !important;
+    left: 4px !important;
+    bottom: 3px !important;
+    background-color: white !important;
+    transition: .3s !important;
+    border-radius: 50% !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2) !important;
+}
+input:checked + .toggle-slider {
+    background-color: #4facfe !important;
+}
+input:checked + .toggle-slider:before {
+    transform: translateX(28px) !important;
+}
+.toggle-label {
+    font-size: 11px !important;
+    color: #64748b !important;
+    text-align: center !important;
+    margin-top: 4px !important;
+    white-space: nowrap !important;
+}
+
+/* 🔹 ЧЕКБОКСЫ ВРЕМЕНИ - ЦЕНТРИРОВАНИЕ */
+.time-checkboxes {
+    display: flex !important;
+    gap: 12px !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    padding-top: 0 !important;
+    margin-top: 10px !important;
+    height: 32px !important;
+}
+.time-checkboxes label {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    cursor: pointer !important;
+    font-size: 13px !important;
+    white-space: nowrap !important;
+}
+
+/* 🔹 АДАПТИВНОСТЬ */
+@media (max-width: 900px) {
+    .top-form-grid { grid-template-columns: 1fr !important; }
+    .bottom-form-row { grid-template-columns: 1fr !important; }
+    .period-dates-row { grid-template-columns: 1fr 1fr !important; }
+    .period-dates-row > div:last-child { grid-column: span 2 !important; }
+    .teacher-row { flex-direction: column !important; align-items: stretch !important; }
+    .teacher-row .teacher-field,
+    .teacher-row .toggle-field { flex: none !important; }
+}
+
+/* 🔹 Tooltip для календаря */
+.cal-day {
+    position: relative;
+    z-index: 1;
+}
+.cal-day:hover {
+    z-index: 10;
+}
+
+.cal-day.is-med {
+    border: 2px solid #22c55e !important;
+    background: #f0fdf4 !important;
+}
+.cal-day.is-med .cal-num {
+    color: #15803d !important;
+    font-weight: 700;
+}
+.med-indicator {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    font-size: 11px;
+    color: #15803d;
+    font-weight: 800;
+    pointer-events: none;
+}
+
+/* 🔹 Стили для слотов в модальном окне */
+.modal-slots { display: flex; gap: 12px; justify-content: center; margin: 12px 0; padding: 10px; background: #f8fafc; border-radius: 8px; }
+.modal-slots label { display: flex; align-items: center; gap: 6px; cursor: pointer; font-weight: 600; color: #334155; }
+.modal-slots input[type="checkbox"] { transform: scale(1.3); cursor: pointer; }
+
+/* 🔹 Выделение конфликтов */
+.cal-day.is-conflict { border: 2px solid #ef4444 !important; background: #fef2f2 !important; }
+.cal-day.is-conflict .cal-num { color: #b91c1c !important; font-weight: 800; }
+
+/* 🔹 Красная кнопка Далее */
+.btn-next-red { background: #ef4444 !important; }
+.btn-next-red:hover { background: #dc2626 !important; box-shadow: 0 4px 12px rgba(239,68,68,0.3) !important; }
+
+/* 🔹 Модальное окно предупреждения о конфликтах */
+#conflict-warning-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; display: flex; justify-content: center; align-items: center; }
+.conflict-box { background: white; padding: 24px; border-radius: 12px; width: 400px; max-width: 90%; box-shadow: 0 10px 40px rgba(0,0,0,0.2); }
+.conflict-list { max-height: 150px; overflow-y: auto; background: #fef2f2; padding: 10px; border-radius: 6px; margin: 10px 0; font-size: 13px; color: #991b1b; }
 </style>
 {% endblock %}
 
@@ -7618,116 +8262,153 @@ document.getElementById('credit_id').addEventListener('change', function() {
     <a href="{% url 'groups:schedule_plans_list' %}" class="btn" style="background:#e2e8f0;color:#334155;">← Назад к списку</a>
 </div>
 
-<!-- ✅ ОДИН тег form, без дублирования! -->
-<form method="post" id="schedule-form" class="plan-form-container">
+<!-- ✅ ЕДИНАЯ форма -->
+<form method="post" id="schedule-form" class="plan-form-container" data-plan-id="{{ plan.id|default:'' }}">
     {% csrf_token %}
 
-    <!-- 🔹 Блок отображения сообщений Django -->
+    <!-- Messages Block -->
     {% if messages %}
     <div style="margin-bottom: 20px;">
         {% for message in messages %}
-        <div style="
-            padding: 12px 16px;
-            border-radius: 8px;
-            margin-bottom: 8px;
-            font-size: 14px;
-            font-weight: 500;
-            {% if message.tags == 'error' %}
-                background: #fef2f2;
-                border: 1px solid #fecaca;
-                color: #dc2626;
-            {% elif message.tags == 'success' %}
-                background: #dcfce7;
-                border: 1px solid #86efac;
-                color: #166534;
-            {% else %}
-                background: #fef3c7;
-                border: 1px solid #fcd34d;
-                color: #92400e;
-            {% endif %}
-        ">
+        <div style="padding: 12px 16px; border-radius: 8px; margin-bottom: 8px; font-size: 14px; font-weight: 500;
+            {% if message.tags == 'error' %}background: #fef2f2; border: 1px solid #fecaca; color: #dc2626;
+            {% elif message.tags == 'success' %}background: #dcfce7; border: 1px solid #86efac; color: #166534;
+            {% else %}background: #fef3c7; border: 1px solid #fcd34d; color: #92400e;{% endif %}">
             {{ message }}
         </div>
         {% endfor %}
     </div>
     {% endif %}
 
-    <!-- 🔹 Ряд 1: Группа + Преподаватель -->
-    <div class="form-row">
-        <div class="form-group">
-            <label for="{{ form.group.id_for_label }}">Учебная группа №</label>
-            {{ form.group }}
-        </div>
-        <div class="form-group">
-            <label for="{{ form.teacher.id_for_label }}">Преподаватель</label>
-            {{ form.teacher }}
-        </div>
-    </div>
+   <!-- 🔹 ВЕРХНЯЯ ЧАСТЬ: 2 КОЛОНКИ -->
+    <div class="top-form-grid">
 
-    <!-- 🔹 Ряд 2: Период + Срок + Время + Часы -->
-    <div class="range-row">
-        <div class="form-group field-date">
-            <label>Период: с</label>
-            <!-- ✅ ИСПРАВЛЕНО: Явно указываем value в формате YYYY-MM-DD -->
-            <input type="date" name="date_start" id="id_date_start" class="form-control" required
-                   value="{% if plan.date_start %}{{ plan.date_start|date:'Y-m-d' }}{% elif form.initial.date_start %}{{ form.initial.date_start|date:'Y-m-d' }}{% endif %}">
-        </div>
-        <div class="form-group field-date">
-            <label>по</label>
-            <!-- ✅ ИСПРАВЛЕНО: Явно указываем value в формате YYYY-MM-DD -->
-            <input type="date" name="date_end" id="id_date_end" class="form-control" required
-                   value="{% if plan.date_end %}{{ plan.date_end|date:'Y-m-d' }}{% elif form.initial.date_end %}{{ form.initial.date_end|date:'Y-m-d' }}{% endif %}">
-        </div>
-        <div class="form-group field-duration">
-            <label>Срок обучения</label>
-            <input type="text" id="id_duration_display" readonly placeholder="—"
-                   style="width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:14px; background:#f8fafc; color:#475569; cursor:default;">
-        </div>
-        <div class="form-group field-time">
-            <label>Время занятий</label>
-            <div style="display:flex; gap:6px; align-items:center;">
-                <!-- ✅ Поля времени: используем |date:'H:i' вместо |time:'H:i' -->
-                <input type="time" name="time_start" id="id_time_start"
-                       value="{% if plan.time_start %}{{ plan.time_start|date:'H:i' }}{% elif form.initial.time_start %}{{ form.initial.time_start|date:'H:i' }}{% else %}08:40{% endif %}"
-                       class="form-control" step="60">
-                <span style="color:#94a3b8; font-size:12px;">—</span>
-                <input type="time" name="time_end" id="id_time_end"
-                       value="{% if plan.time_end %}{{ plan.time_end|date:'H:i' }}{% elif form.initial.time_end %}{{ form.initial.time_end|date:'H:i' }}{% else %}14:00{% endif %}"
-                       class="form-control" step="60">
+        <!-- ЛЕВАЯ КОЛОНКА: Группа + Периоды -->
+        <div style="display:flex; flex-direction:column; gap:15px;">
+            <!-- Учебная группа -->
+            <div class="form-group">
+                <label for="{{ form.group.id_for_label }}">Учебная группа №</label>
+                {{ form.group }}
+            </div>
+
+            <!-- Период: с, по, Срок -->
+            <div class="period-dates-row">
+                <div class="form-group">
+                    <label>Период: с</label>
+                    <input type="date" name="date_start" id="id_date_start" required
+                        value="{% if plan.date_start %}{{ plan.date_start|date:'Y-m-d' }}{% elif form.initial.date_start %}{{ form.initial.date_start|date:'Y-m-d' }}{% endif %}">
+                </div>
+                <div class="form-group">
+                    <label>по</label>
+                    <input type="date" name="date_end" id="id_date_end" required
+                        value="{% if plan.date_end %}{{ plan.date_end|date:'Y-m-d' }}{% elif form.initial.date_end %}{{ form.initial.date_end|date:'Y-m-d' }}{% endif %}">
+                </div>
+                <div class="form-group">
+                    <label>Срок обучения</label>
+                    <!-- ✅ ТЕПЕРЬ БЕРЁТ ДАННЫЕ ИЗ duration (Стандартный/Ускоренный) -->
+                    <input type="text" id="id_duration_display" readonly placeholder="—"
+                        style="background:#f8fafc; color:#475569; cursor:default;"
+                        value="{{ plan.group.duration|default:'' }}">
+                </div>
             </div>
         </div>
-        <div class="form-group field-hours">
-            <label for="{{ form.required_hours.id_for_label }}">Кол-во часов</label>
-            {{ form.required_hours }}
+
+        <!-- 🔹 ПРАВАЯ КОЛОНКА: Преподаватели + Переключатели (в одну строку) -->
+        <div style="display:flex; flex-direction:column; gap:15px;">
+
+            <!-- 1. Основной преподаватель + Переключатель -->
+            <div class="teacher-row">
+                <div class="form-group teacher-field">
+                    <label for="{{ form.teacher.id_for_label }}">Преподаватель</label>
+                    {{ form.teacher }}
+                </div>
+                <div class="form-group toggle-field">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="toggle-main-teacher">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- 2. Преподаватель медицины + Переключатель -->
+            <div class="teacher-row">
+                <div class="form-group teacher-field">
+                    <label for="{{ form.med_teacher.id_for_label }}">Преподаватель медицины</label>
+                    {{ form.med_teacher }}
+                </div>
+                <div class="form-group toggle-field">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="toggle-med-teacher">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+            </div>
         </div>
     </div>
 
-    <!-- 🔹 Ряд 3: Расписание + Место -->
-    <div class="form-row">
-        <div class="form-group">
-            <label for="{{ form.schedule_type.id_for_label }}">Расписание</label>
-            {{ form.schedule_type }}
-        </div>
+    <!-- 🔹 СРЕДНЯЯ ЧАСТЬ: Место, Категория, Расписание, Время -->
+    <div class="bottom-form-row">
+
+        <!-- Место проведения -->
         <div class="form-group">
             <label for="id_classroom">Место проведения</label>
-            <select id="id_classroom" name="classroom" class="form-control"
-                    style="width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:14px; background:#fff;"
-                    onchange="document.getElementById('id_location').value = this.value;">
+            <select id="id_classroom" name="classroom" onchange="document.getElementById('id_location').value = this.value;">
                 <option value="">— Выберите адрес —</option>
                 {% for classroom in classrooms %}
-                <option value="{{ classroom.address }}"
-                        {% if initial_location == classroom.address %}selected{% endif %}>
+                <option value="{{ classroom.address }}" {% if initial_location == classroom.address %}selected{% endif %}>
                     {{ classroom.classroom_number }} — {{ classroom.address }}
                 </option>
                 {% empty %}
-                <option value="" disabled>📭 Аудитории не найдены</option>
+                <option value="" disabled> Аудитории не найдены</option>
                 {% endfor %}
             </select>
             <input type="hidden" name="location" id="id_location" value="{{ initial_location|default:'' }}">
         </div>
+
+        <!-- Категория -->
+        <div class="form-group">
+            <label>Категория</label>
+            <input type="text" id="id_category_display" readonly placeholder="—"
+                style="background:#f8fafc; color:#475569; cursor:default; text-align:center;"
+                value="{% if plan.group and plan.group.category %}{{ plan.group.category|default:'' }}{% endif %}">
+            <input type="hidden" name="category" id="id_category_value" value="{{ plan.group.category_id|default:'' }}">
+        </div>
+
+        <!-- Расписание -->
+        <div class="form-group">
+            <label for="{{ form.schedule_type.id_for_label }}">Расписание</label>
+            {{ form.schedule_type }}
+        </div>
+
+        <!-- 🔹 Время занятий (с id атрибутами) -->
+        <div class="form-group">
+            <label>Время занятий:</label>
+            <div class="time-checkboxes">
+                <label>
+                    <input type="checkbox" name="time_morning" value="morning" id="id_time_morning"
+                           {% if form.time_morning.value or time_morning_checked %}checked{% endif %}
+                           style="transform:scale(1.2);">
+                     Утро
+                </label>
+                <label>
+                    <input type="checkbox" name="time_day" value="day" id="id_time_day"
+                           {% if form.time_day.value or time_day_checked %}checked{% endif %}
+                           style="transform:scale(1.2);">
+                    ☀️ День
+                </label>
+                <label>
+                    <input type="checkbox" name="time_evening" value="evening" id="id_time_evening"
+                           {% if form.time_evening.value or time_evening_checked %}checked{% endif %}
+                           style="transform:scale(1.2);">
+                     Вечер
+                </label>
+            </div>
+        </div>
     </div>
 
-    <!-- 🔹 КАЛЕНДАРЬ -->
+    <!-- ================================================================== -->
+    <!-- CALENDAR SECTION -->
+    <!-- ================================================================== -->
     <div class="calendar-section">
         <div class="calendar-header">
             <div class="calendar-title">📅 Выберите дни занятий (кликните на дату)</div>
@@ -7743,237 +8424,568 @@ document.getElementById('credit_id').addEventListener('change', function() {
             Выберите группу для автозаполнения
         </div>
 
-        <!-- 🔹 Блок "Итого часов" -->
-        <div class="hours-summary-container" style="background:#f8fafc; border:2px solid #cbd5e1; border-radius:12px; padding:16px 24px; margin:20px 0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:20px;">
-            <div>
-                <div style="font-size:13px; color:#64748b; margin-bottom:4px;">📊 Итого по расписанию:</div>
-                <div id="total-hours" style="font-size:26px; font-weight:700; color:#0f172a;">0ч 00мин</div>
-            </div>
+        <!-- 🔹 Модальное окно редактирования дня -->
+        <div id="day-modal" class="modal-bg" style="display:none;">
+            <div class="modal-box" style="background:white; border-radius:12px; padding:20px; width:340px; max-width:90%; box-shadow:0 8px 30px rgba(0,0,0,0.2);">
+                <h4 id="m-title" style="margin:0 0 15px 0; color:#1e293b;">📅 Редактировать день</h4>
+                <input type="hidden" id="m-date">
 
-            <div style="text-align:center;">
-                <div style="font-size:13px; color:#64748b; margin-bottom:4px;">Статус:</div>
-                <div id="hours-diff-indicator" class="diff-badge" style="background:#f1f5f9; color:#64748b;">⏳ Расчёт...</div>
-            </div>
+                <!-- У/Д/В Слоты -->
+                <div class="modal-slots">
+                    <label><input type="checkbox" id="m-slot-u" value="У">  Утро</label>
+                    <label><input type="checkbox" id="m-slot-d" value="Д"> ☀️ День</label>
+                    <label><input type="checkbox" id="m-slot-v" value="В"> 🌆 Вечер</label>
+                </div>
 
-            <div style="text-align:right;">
-                <div style="font-size:13px; color:#64748b; margin-bottom:4px;">Требуется по программе:</div>
-                <div style="font-size:22px; font-weight:600; color:#475569;">{{ form.required_hours.value|default:170 }} ч.</div>
+                <!-- Медицина -->
+                <div style="margin: 10px 0; padding: 10px; background: #f0fdf4; border-radius: 8px; border: 1px solid #bbf7d0; display:flex; align-items:center; justify-content:space-between;">
+                    <span style="font-size:13px; color:#166534; font-weight:600;"> Медицина</span>
+                    <label class="toggle-switch" style="position:relative; width:40px; height:22px; display:block; flex-shrink:0;">
+                        <input type="checkbox" id="m-med-toggle" style="opacity:0;width:0;height:0;">
+                        <span class="toggle-slider" style="position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background-color:#cbd5e1;transition:.3s;border-radius:24px;"></span>
+                    </label>
+                </div>
+
+                <!-- Предупреждение о конфликте -->
+                <div id="m-conflict-warn" style="display:none; color:#dc2626; font-size:12px; font-weight:600; background:#fef2f2; padding:8px; border-radius:6px; margin-top:8px; border:1px solid #fecaca;">
+                    ️ Пересечение с другими группами!
+                </div>
+
+                <div class="m-btns" style="display:flex; gap:8px; justify-content:flex-end; margin-top:15px;">
+                    <button id="m-del" class="btn-del" style="display:none; background:#fee2e2; color:#dc2626; border:none; padding:8px 12px; border-radius:6px; cursor:pointer;" type="button">🗑️</button>
+                    <button onclick="window.scheduleCalendarInstance?.closeModal()" class="btn-cancel" style="background:#e2e8f0; color:#334155; border:none; padding:8px 16px; border-radius:6px; cursor:pointer;" type="button">Отмена</button>
+                    <button onclick="window.scheduleCalendarInstance?.saveModal()" class="btn-ok" style="background:#4facfe; color:white; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-weight:600;" type="button">Сохранить</button>
+                </div>
             </div>
         </div>
 
+        <!-- Hidden JSON Input -->
+        <input type="hidden" name="class_days" id="id_class_days" value='{{ class_days_json|default:"{}"|safe }}'>
 
-    <!-- 🔹 Модальное окно редактирования дня -->
-    <div id="day-modal" class="modal-bg" style="display:none;">
-        <div class="modal-box">
-            <h4 id="m-title" style="margin:0 0 15px 0; color:#1e293b;">Редактировать день</h4>
-            <input type="hidden" id="m-date">
-            <label class="m-label">Время начала</label>
-            <input type="time" id="m-start" class="m-input" step="60">
-            <label class="m-label">Время окончания</label>
-            <input type="time" id="m-end" class="m-input" step="60">
-            <div class="m-btns">
-                <button id="m-del" class="btn-del" style="display:none;" type="button">🗑️ Удалить</button>
-                <button onclick="window.scheduleCalendarInstance.closeModal()" class="btn-cancel" type="button">Отмена</button>
-                <button onclick="window.scheduleCalendarInstance.saveModal()" class="btn-ok" type="button">Сохранить</button>
-            </div>
+        <!-- 🔹 НОВЫЕ СКРЫТЫЕ ПОЛЯ ДЛЯ ЛОГОВ -->
+        <input type="hidden" name="excluded_dates" id="id_excluded_dates" value="[]">
+        <input type="hidden" name="additional_dates" id="id_additional_dates" value="[]">
+
+        <!-- 🔹 Кнопка Далее -->
+        <div style="display:flex; justify-content:flex-end; margin-top:24px;">
+            <button type="submit" id="btn-next" class="btn-next-red"
+                style="padding:14px 40px; color:white; border:none; border-radius:12px; font-size:18px; font-weight:700; cursor:pointer; transition:all 0.2s;">
+                Далее →
+            </button>
         </div>
     </div>
 
-    <!-- 🔹 Модальное окно проверки часов -->
-    <div id="hours-warning-modal" class="modal-bg" style="display:none;">
-        <div class="modal-box">
-            <h4 style="margin:0 0 15px 0; color:#dc2626;">⚠️ Расхождение в часах</h4>
-            <div id="hours-diff-text" style="margin-bottom:20px; color:#475569; line-height:1.5;">
-                <div style="margin-bottom:5px;">📊 Итого в календаре: <strong class="total-hours">0 ч.</strong></div>
-                <div style="margin-bottom:5px;">🔹 Требуется: <strong class="required-hours">0 ч.</strong></div>
-                <div style="color:#dc2626; margin-top:10px;">⚖️ Разница: на <strong class="diff-value">0 мин.</strong></div>
-            </div>
-            <div class="m-btns">
-                <button type="button" onclick="document.getElementById('hours-warning-modal').style.display='none'" class="btn-cancel">🔙 Назад</button>
-                <button type="submit" id="btn-force-submit" class="btn-ok">✅ Продолжить</button>
+    <!-- 🔹 Модальное окно предупреждения о конфликтах -->
+    <div id="conflict-warning-modal" style="display:none;">
+        <div class="conflict-box">
+            <h4 style="margin:0 0 10px 0; color:#dc2626;">⚠️ Обнаружены пересечения графиков</h4>
+            <p style="font-size:14px; color:#475569; margin-bottom:10px;">Преподаватель уже занят в следующие дни:</p>
+            <div id="conflict-dates-list" class="conflict-list"></div>
+            <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:15px;">
+                <button type="button" id="btn-cancel-submit" style="background:#e2e8f0; color:#334155; border:none; padding:10px 20px; border-radius:8px; cursor:pointer;">🔙 Назад</button>
+                <button type="button" id="btn-force-submit" style="background:#ef4444; color:white; border:none; padding:10px 20px; border-radius:8px; cursor:pointer; font-weight:600;">✅ Всё равно сохранить</button>
             </div>
         </div>
-    </div>
-
-    <!-- 🔹 Скрытое поле для JSON -->
-    <input type="hidden" name="class_days" id="id_class_days" value='{{ class_days_json|default:"{}"|safe }}'>
-
-    <!-- 🔹 Кнопка Далее -->
-    <div class="next-button">
-        <button type="submit" id="btn-next">Далее →</button>
     </div>
 </form>
-{% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'js/schedule_calendar.js' %}?v=8" defer></script>
+<script src="{% static 'js/schedule_calendar.js' %}?v=26" defer></script>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('🔹 DOM загружен, инициализация календаря...');
+// 🔹 ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ДЛЯ ЗАНЯТОСТИ
+window.teacherScheduleData = {};        // Для основного преподавателя
+window.medTeacherScheduleData = {};     // Для преподавателя медицины
 
-    function waitForCalendar() {
-        if (window.scheduleCalendarInstance) {
-            initCalendar();
+// 🔹 СЛОВАРЬ ПЕРЕВОДА: Срок обучения (Технический код -> Русский текст)
+const DURATION_TYPE_MAP = {
+    'standard': 'Стандартный',
+    'accelerated': 'Ускоренный',
+    'std': 'Стандартный',
+    'acc': 'Ускоренный',
+    '1': 'Стандартный',
+    '2': 'Ускоренный',
+    'even': 'Стандартный', // Если вдруг перепутали поля
+    'odd': 'Ускоренный'    // Если вдруг перепутали поля
+};
+
+function formatDuration(val) {
+    if (!val) return '';
+    // Если значение уже на русском, возвращаем как есть
+    if (['Стандартный', 'Ускоренный', 'Стандарт', 'Ускоренный'].some(t => val.includes(t))) return val;
+    // Иначе переводим из технического кода
+    return DURATION_TYPE_MAP[val.toLowerCase()] || val;
+}
+
+// 🔹 ГЛОБАЛЬНАЯ функция обновления времени (с проверкой конфликтов)
+window.updateCellsFromHeader = function() {
+    console.log('🎯 updateCellsFromHeader: Обновление времени...');
+
+    // 1. Собираем выбранные слоты из шапки
+    const defaultSlots = [];
+    const morning = document.getElementById('id_time_morning') || document.querySelector('[name="time_morning"]');
+    const day = document.getElementById('id_time_day') || document.querySelector('[name="time_day"]');
+    const evening = document.getElementById('id_time_evening') || document.querySelector('[name="time_evening"]');
+
+    if (morning?.checked) defaultSlots.push('У');
+    if (day?.checked) defaultSlots.push('Д');
+    if (evening?.checked) defaultSlots.push('В');
+
+    console.log('🔄 Новые слоты:', defaultSlots);
+
+    if (!window.scheduleCalendarInstance) return;
+
+    // 2. Находим ТОЛЬКО запланированные дни (синие ячейки)
+    document.querySelectorAll('.cal-day.is-scheduled').forEach(el => {
+        const dayData = JSON.parse(el.dataset.daydata || '{}');
+
+        // Пропускаем дни, у которых есть индивидуальные настройки (не _useDefault)
+        if (dayData._useDefault === false) return;
+
+        // 3. Обновляем слоты в данных ячейки
+        dayData.slots = [...defaultSlots];
+        el.dataset.daydata = JSON.stringify(dayData);
+
+        // 4. ПЕРЕРИСОВКА: Теперь updateCellVisuals сам выберет правильные данные для проверки
+        window.scheduleCalendarInstance.updateCellVisuals(el, dayData);
+    });
+
+    // 5. Обновляем скрытое поле JSON
+    window.scheduleCalendarInstance.updateJSON();
+    console.log('💾 JSON обновлён');
+};
+
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🔹 DOM загружен');
+
+    // 🔹 Заполнение полей при загрузке (для редактирования)
+    function fillFieldsFromPlan() {
+        const setVal = (id, val) => {
+            const el = document.getElementById(id);
+            if (el && val && val !== 'None') el.value = val;
+        };
+
+        // 🔹 Срок обучения (из карточки группы: Стандартный/Ускоренный)
+        {% if plan.group.duration %}
+        try {
+            const rawDuration = "{{ plan.group.duration|default:'' }}";
+            setVal('id_duration_display', formatDuration(rawDuration));
+            console.log('✅ Срок обучения:', formatDuration(rawDuration));
+        } catch(e) {
+            console.error('❌ Ошибка заполнения срока:', e);
+        }
+        {% endif %}
+
+        // 🔹 Категория (из Django context)
+        {% if plan.group and plan.group.category %}
+        try {
+            const catVal = "{{ plan.group.category|escapejs }}";
+            const catIdVal = "{{ plan.group.category_id|default:'' }}";
+            setVal('id_category_display', catVal);
+            setVal('id_category_value', catIdVal);
+            console.log('✅ Категория:', catVal);
+        } catch(e) {
+            console.error('❌ Ошибка заполнения категории:', e);
+        }
+        {% endif %}
+
+        // 🔹 Место проведения
+        {% if plan.location %}
+        try {
+            const locVal = "{{ plan.location|escapejs }}";
+            setVal('id_location', locVal);
+            const classroomSel = document.getElementById('id_classroom');
+            if (classroomSel) classroomSel.value = locVal;
+            console.log('✅ Место проведения:', locVal);
+        } catch(e) {
+            console.error('❌ Ошибка заполнения места:', e);
+        }
+        {% endif %}
+
+        console.log('✅ Поля заполнены из плана');
+    }
+
+    // 🔹 Вызываем при загрузке
+    setTimeout(fillFieldsFromPlan, 100);
+
+    const toggleMain = document.getElementById('toggle-main-teacher');
+    const toggleMed = document.getElementById('toggle-med-teacher');
+    const form = document.getElementById('schedule-form');
+    const planId = form?.dataset?.planId || '';
+    const btnNext = document.getElementById('btn-next');
+
+    // 🔹 Функция для получения слотов из шапки
+    function getDefaultSlotsFromHeader() {
+        const slots = [];
+        const morning = document.getElementById('id_time_morning') || document.querySelector('[name="time_morning"]');
+        const day = document.getElementById('id_time_day') || document.querySelector('[name="time_day"]');
+        const evening = document.getElementById('id_time_evening') || document.querySelector('[name="time_evening"]');
+
+        if (morning?.checked) slots.push('У');
+        if (day?.checked) slots.push('Д');
+        if (evening?.checked) slots.push('В');
+        return slots;
+    }
+
+    // 🔹 Простое добавление слушателей к чекбоксам времени
+    console.log('🔍 Поиск чекбоксов времени...');
+
+    ['id_time_morning', 'id_time_day', 'id_time_evening'].forEach(id => {
+        // Ищем по id или по name
+        const checkbox = document.getElementById(id) || document.querySelector(`[name="${id.replace('id_', '')}"]`);
+
+        if (checkbox) {
+            console.log(`✅ Найдён чекбокс ${id}, добавляю слушатель...`);
+            checkbox.addEventListener('change', window.updateCellsFromHeader);
+            console.log(`✅ Слушатель добавлен на ${id}`);
         } else {
-            setTimeout(waitForCalendar, 100);
+            console.warn(`⚠️ Чекбокс ${id} не найден`);
+        }
+    });
+
+    // 🔹 АВТОЗАПОЛНЕНИЕ при выборе группы
+    const groupSelect = document.getElementById('id_group');
+    if (groupSelect) {
+        groupSelect.addEventListener('change', function() {
+            const groupId = this.value;
+            if (!groupId) return;
+
+            fetch(`/groups/api/groups/${groupId}/data/`)
+                .then(r => r.json())
+                .then(data => {
+                    const setVal = (id, val) => {
+                        const el = document.getElementById(id);
+                        if (el) el.value = val || '';
+                    };
+
+                    setVal('id_teacher', data.teacher_id);
+                    setVal('id_date_start', data.contract_start);
+                    setVal('id_date_end', data.contract_end);
+
+                    // ✅ ИСПРАВЛЕНО: Переводим 'standard'/'accelerated' в русский текст
+                    setVal('id_duration_display', formatDuration(data.duration));
+
+                    setVal('id_category_display', data.category);
+                    setVal('id_category_value', data.category_id);
+
+                    // В селект расписания оставляем техническое значение (odd/even), чтобы календарь работал
+                    setVal('id_schedule_type', data.schedule_type);
+
+                    if (data.location) {
+                        const sel = document.getElementById('id_classroom');
+                        if (sel) sel.value = data.location;
+                        document.getElementById('id_location').value = data.location;
+                    }
+
+                    setTimeout(() => {
+                        const start = document.getElementById('id_date_start').value;
+                        const end = document.getElementById('id_date_end').value;
+                        const type = document.getElementById('id_schedule_type').value;
+                        if (start && end && window.scheduleCalendarInstance) {
+                            // Объединяем данные занятости для календаря
+                            window.scheduleCalendarInstance.teacherScheduleData = {
+                                ...window.teacherScheduleData,
+                                ...window.medTeacherScheduleData
+                            };
+                            window.scheduleCalendarInstance.generateCalendar(start, end, type || 'custom');
+                        }
+                    }, 300);
+
+                    fetchTeacherSchedules();
+                })
+                .catch(err => console.error('❌ Ошибка автозаполнения:', err));
+        });
+    }
+
+    // 🔹 ЗАГРУЗКА ЗАНЯТОСТИ (раздельно для основного и мед. преподавателя)
+    async function fetchTeacherSchedules() {
+        console.log('🔍 fetchTeacherSchedules вызвана');
+        console.log('  showMain:', toggleMain?.checked);
+        console.log('  teacherId:', document.getElementById('id_teacher')?.value);
+        console.log('  showMed:', toggleMed?.checked);
+        console.log('  medTeacherId:', document.getElementById('id_med_teacher')?.value);
+
+        const startDate = document.getElementById('id_date_start')?.value;
+        const endDate = document.getElementById('id_date_end')?.value;
+        const teacherId = document.getElementById('id_teacher')?.value;
+        const medTeacherId = document.getElementById('id_med_teacher')?.value;
+
+        const showMain = toggleMain?.checked;
+        const showMed = toggleMed?.checked;
+
+        if (!startDate || !endDate || (!showMain && !showMed)) {
+            window.teacherScheduleData = {};
+            window.medTeacherScheduleData = {};
+            // 🔹 Обновляем класс календаря
+            if (window.scheduleCalendarInstance) {
+                window.scheduleCalendarInstance.teacherScheduleData = {};
+            }
+            redrawCalendar();
+            return;
+        }
+
+        // 🔹 Загружаем отдельно для основного преподавателя
+        if (showMain && teacherId) {
+            const params = new URLSearchParams();
+            params.append('date_start', startDate);
+            params.append('date_end', endDate);
+            params.set('teacher_id', teacherId);
+            if (planId) params.append('exclude_plan_id', planId);
+
+            try {
+                const res = await fetch(`/groups/api/teacher-schedule/?${params.toString()}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    // 🔹 Фильтруем: оставляем только НЕ медицинские дни
+                    window.teacherScheduleData = {};
+                    Object.keys(data).forEach(date => {
+                        window.teacherScheduleData[date] = data[date].filter(slot => !slot.is_med);
+                    });
+                    console.log(' Загружена занятость основного:', window.teacherScheduleData);
+                }
+            } catch(e) { console.error('❌ Ошибка загрузки занятости основного:', e); }
+        } else {
+            window.teacherScheduleData = {};
+        }
+
+        // 🔹 Загружаем отдельно для мед. преподавателя
+        if (showMed && medTeacherId) {
+            const params = new URLSearchParams();
+            params.append('date_start', startDate);
+            params.append('date_end', endDate);
+            params.set('med_teacher_id', medTeacherId);
+            if (planId) params.append('exclude_plan_id', planId);
+
+            try {
+                const res = await fetch(`/groups/api/teacher-schedule/?${params.toString()}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    // 🔹 Фильтруем: оставляем только медицинские дни
+                    window.medTeacherScheduleData = {};
+                    Object.keys(data).forEach(date => {
+                        window.medTeacherScheduleData[date] = data[date].filter(slot => slot.is_med);
+                    });
+                    console.log('📊 Загружена занятость мед.:', window.medTeacherScheduleData);
+                }
+            } catch(e) { console.error('❌ Ошибка загрузки занятости мед.:', e); }
+        } else {
+            window.medTeacherScheduleData = {};
+        }
+
+           // 🔹 Синхронизируем данные с классом календаря
+    if (window.scheduleCalendarInstance) {
+        // Заполняем общие данные для отображения
+        window.scheduleCalendarInstance.teacherScheduleData = {
+            ...window.teacherScheduleData,
+            ...window.medTeacherScheduleData
+        };
+        // ✅ ВАЖНО: Заполняем отдельные данные для проверки конфликтов
+        window.scheduleCalendarInstance.mainTeacherData = window.teacherScheduleData;
+        window.scheduleCalendarInstance.medTeacherData = window.medTeacherScheduleData;
+
+        console.log('🔄 Данные синхронизированы с календарём');
+    }
+
+        redrawCalendar();
+    }
+
+    // 🔹 Перерисовка календаря с обновлёнными данными
+    function redrawCalendar() {
+        const start = document.getElementById('id_date_start')?.value;
+        const end = document.getElementById('id_date_end')?.value;
+        const type = document.getElementById('id_schedule_type')?.value;
+
+        if (start && end && window.scheduleCalendarInstance) {
+            // Объединяем данные занятости для календаря
+            window.scheduleCalendarInstance.teacherScheduleData = {
+                ...window.teacherScheduleData,
+                ...window.medTeacherScheduleData
+            };
+            window.scheduleCalendarInstance.generateCalendar(start, end, type || 'custom');
         }
     }
 
-    function initCalendar() {
-        const instance = window.scheduleCalendarInstance;
+    // 🔹 Слушатели для переключателей занятости
+    [toggleMain, toggleMed].forEach(t => t?.addEventListener('change', fetchTeacherSchedules));
+    ['id_teacher', 'id_med_teacher', 'id_date_start', 'id_date_end'].forEach(id => {
+        document.getElementById(id)?.addEventListener('change', fetchTeacherSchedules);
+    });
 
-        // 🔹 АВТОЗАГРУЗКА КАЛЕНДАРЯ ПРИ РЕДАКТИРОВАНИИ
-        const dateStart = document.getElementById('id_date_start')?.value;
-        const dateEnd = document.getElementById('id_date_end')?.value;
-        const scheduleType = document.getElementById('id_schedule_type')?.value;
+    // 🔹 ПРОВЕРКА КОНФЛИКТОВ при отправке формы
+    if (form && btnNext) {
+        btnNext.addEventListener('click', function(e) {
+            e.preventDefault();
+
+             if (window.scheduleCalendarInstance) {
+                window.scheduleCalendarInstance.calculateDateLogs();
+            }
+
+            const scheduledDays = document.querySelectorAll('.cal-day.is-scheduled');
+            const conflicts = [];
+
+            scheduledDays.forEach(el => {
+                const dayData = JSON.parse(el.dataset.daydata || '{}');
+                const dateStr = el.dataset.date;
+                const slots = dayData.slots || [];
+
+                // 🔹 Определяем, это день с медициной или нет
+                const isMedDay = dayData.med || false;
+
+                // 🔹 Получаем занятость соответствующего преподавателя
+                const teacherSlots = isMedDay
+                    ? (window.medTeacherScheduleData[dateStr] || [])
+                    : (window.teacherScheduleData[dateStr] || []);
+
+                // 🔹 Проверяем конфликты
+                const dayConflicts = slots.filter(s =>
+                    teacherSlots.some(slot => {
+                        const slotInd = typeof slot === 'object' ? slot.ind : slot;
+                        return s === slotInd;
+                    })
+                );
+
+                if (dayConflicts.length > 0) {
+                    conflicts.push({
+                        date: dateStr,
+                        slots: dayConflicts,
+                        group: teacherSlots.find(slot => typeof slot === 'object')?.group || 'Неизвестная группа',
+                        location: teacherSlots.find(slot => typeof slot === 'object')?.location || 'Неизвестный адрес'
+                    });
+                }
+            });
+
+            if (conflicts.length > 0) {
+                // 🔹 Показываем модальное окно
+                const listEl = document.getElementById('conflict-dates-list');
+                listEl.innerHTML = conflicts.map(c =>
+                    `<div style="margin-bottom:8px; padding:8px; background:white; border-radius:4px; border-left:3px solid #ef4444;">
+                        <strong>📅 ${c.date}</strong><br>
+                        <span style="color:#dc2626;">(${c.slots.join(', ')})</span><br>
+                        <small> ${c.group}<br>📍 ${c.location}</small>
+                    </div>`
+                ).join('');
+
+                document.getElementById('conflict-warning-modal').style.display = 'flex';
+            } else {
+                // 🔹 Если конфликтов нет — отправляем форму
+                form.submit();
+            }
+        });
+
+        // 🔹 Кнопка "Назад"
+        document.getElementById('btn-cancel-submit')?.addEventListener('click', function() {
+            document.getElementById('conflict-warning-modal').style.display = 'none';
+        });
+
+        // 🔹 Кнопка "Всё равно сохранить"
+        document.getElementById('btn-force-submit')?.addEventListener('click', function() {
+            document.getElementById('conflict-warning-modal').style.display = 'none';
+            form.submit();
+        });
+    }
+
+    // 🔹 ИНИЦИАЛИЗАЦИЯ КАЛЕНДАРЯ
+    function initCalendar() {
+        console.log(' Инициализация календаря...');
+        const start = document.getElementById('id_date_start')?.value;
+        const end = document.getElementById('id_date_end')?.value;
+        const type = document.getElementById('id_schedule_type')?.value;
         const classDaysInput = document.getElementById('id_class_days')?.value;
 
-        // 🔹 НОВОЕ: берём время из полей формы
-        const timeStart = document.getElementById('id_time_start')?.value;
-        const timeEnd = document.getElementById('id_time_end')?.value;
-
-        console.log('📅 Даты из формы:', { dateStart, dateEnd, scheduleType });
-        console.log('⏰ Время из формы:', { timeStart, timeEnd });
-        console.log('💾 class_days:', classDaysInput);
-
-        // 🔹 Если даты есть — запускаем генерацию
-        if (dateStart && dateEnd) {
-            console.log('✅ Запуск генерации календаря...');
-
-            // Парсим сохраненные дни
+        if (start && end && window.scheduleCalendarInstance) {
             let savedDays = {};
             if (classDaysInput && classDaysInput !== '{}') {
                 try {
                     savedDays = JSON.parse(classDaysInput);
-                    console.log('💾 Загружено сохраненных дней:', Object.keys(savedDays).length);
+                    console.log('💾 Загружено дней:', Object.keys(savedDays).length);
+
+                    // Добавляем слоты по умолчанию для дней без индивидуальных настроек
+                    const defaultSlots = {{ calendar_time_slots|default:'[]'|safe }};
+                    console.log('📋 Слоты по умолчанию:', defaultSlots);
+
+                    Object.keys(savedDays).forEach(date => {
+                        if (!savedDays[date].slots || savedDays[date].slots.length === 0) {
+                            savedDays[date].slots = defaultSlots;
+                            savedDays[date]._useDefault = true;
+                        }
+                    });
                 } catch(e) {
                     console.error('❌ Ошибка парсинга class_days:', e);
                 }
             }
 
-            // 🔹 Генерируем календарь с передачей времени
-            setTimeout(() => {
-                instance.generateCalendar(
-                    dateStart,
-                    dateEnd,
-                    scheduleType || 'custom',
-                    Object.keys(savedDays).length > 0 ? savedDays : null,
-                    timeStart,  // 🔹 НОВОЕ
-                    timeEnd     // 🔹 НОВОЕ
-                );
-            }, 300);
-        } else {
-            console.log('⚠️ Календарь не сгенерирован: нет дат');
-        }
-    }
-
-    waitForCalendar();
-
-    // 🔹 Функция перевода 0.8 часа в "48 мин."
-    function formatHoursDiff(decimalHours) {
-        var totalMinutes = Math.round(Math.abs(decimalHours) * 60);
-        var h = Math.floor(totalMinutes / 60);
-        var m = totalMinutes % 60;
-        var result = [];
-        if (h > 0) result.push(h + " ч.");
-        if (m > 0) result.push(m + " мин.");
-        return result.join(" ") || "менее 1 мин.";
-    }
-
-    // 🔹 Обработчики Enter для полей
-    ['id_date_start', 'id_date_end'].forEach(function(id) {
-        var el = document.getElementById(id);
-        if (el) {
-            el.addEventListener('keydown', function(e) {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    if (window.scheduleCalendarInstance) {
-                        var start = document.getElementById('id_date_start')?.value;
-                        var end = document.getElementById('id_date_end')?.value;
-                        var type = document.getElementById('id_schedule_type')?.value;
-                        if (start && end) {
-                            window.scheduleCalendarInstance.generateCalendar(start, end, type || 'custom');
-                        }
-                    }
-                }
-            });
-        }
-    });
-
-    ['id_time_start', 'id_time_end'].forEach(function(id) {
-        var el = document.getElementById(id);
-        if (el) {
-            el.setAttribute('step', '60');
-            el.addEventListener('keydown', function(e) {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    if (window.scheduleCalendarInstance) {
-                        window.scheduleCalendarInstance.updateTimeInCalendar();
-                    }
-                }
-            });
-        }
-    });
-
-    // 🔹 ПРОВЕРКА ЧАСОВ ПРИ ОТПРАВКЕ
-    var form = document.getElementById('schedule-form');
-    if (form) {
-        form.addEventListener('submit', function(e) {
-            if (e.submitter && e.submitter.id === 'btn-force-submit') {
-                return true;
-            }
-            e.preventDefault();
-
-            // 🔹 ВАЖНО: Обновляем class_days перед отправкой!
+            // 🔹 Синхронизируем данные с классом календаря
             if (window.scheduleCalendarInstance) {
-                window.scheduleCalendarInstance.updateJSON();
-                console.log('💾 class_days обновлён перед отправкой:', document.getElementById('id_class_days').value);
+                window.scheduleCalendarInstance.teacherScheduleData = {
+                    ...window.teacherScheduleData,
+                    ...window.medTeacherScheduleData
+                };
             }
 
-            var totalHoursEl = document.getElementById('total-hours');
-            var requiredInput = document.getElementById('id_required_hours');
-            var totalHours = totalHoursEl ? parseFloat(totalHoursEl.textContent) : 0;
-            var requiredHours = requiredInput ? parseFloat(requiredInput.value) : 170;
-            var diff = totalHours - requiredHours;
-            var absDiff = Math.abs(diff);
+            window.scheduleCalendarInstance.generateCalendar(
+                start, end, type || 'custom',
+                Object.keys(savedDays).length > 0 ? savedDays : null
+            );
+            console.log('✅ Календарь инициализирован');
+        } else {
+            console.warn('⚠️ Календарь не инициализирован');
+        }
+    }
 
-            if (absDiff <= 0.083) {
-                form.submit();
+    // 🔹 ПЕРЕОПРЕДЕЛЕНИЕ openDayModal для синхронизации с шапкой
+    if (window.scheduleCalendarInstance) {
+        const originalOpenDayModal = window.scheduleCalendarInstance.openDayModal.bind(window.scheduleCalendarInstance);
+        window.scheduleCalendarInstance.openDayModal = function(el) {
+            originalOpenDayModal(el);
+
+            const dayData = el.dataset.daydata ? JSON.parse(el.dataset.daydata) : {};
+            let selectedSlots = dayData.slots || [];
+
+            // Если ячейка использует дефолтные слоты — берём актуальные из шапки
+            if (dayData._useDefault || selectedSlots.length === 0) {
+                selectedSlots = getDefaultSlotsFromHeader();
+            }
+
+            document.getElementById('m-slot-u').checked = selectedSlots.includes('У');
+            document.getElementById('m-slot-d').checked = selectedSlots.includes('Д');
+            document.getElementById('m-slot-v').checked = selectedSlots.includes('В');
+
+            // 🔹 Проверка конфликтов: выбираем правильные данные
+            const isMedDay = dayData.med || false;
+            const conflictData = isMedDay ? window.medTeacherScheduleData : window.teacherScheduleData;
+            const teacherSlots = conflictData[el.dataset.date] || [];
+            const hasConflict = selectedSlots.some(s => teacherSlots.some(slot => {
+                const slotInd = typeof slot === 'object' ? slot.ind : slot;
+                return s === slotInd;
+            }));
+            document.getElementById('m-conflict-warn').style.display = hasConflict ? 'block' : 'none';
+        };
+    }
+
+    // 🔹 ЗАПУСК при загрузке
+    if (window.scheduleCalendarInstance) {
+        console.log('✅ ScheduleCalendar доступен');
+        setTimeout(initCalendar, 300);
+    } else {
+        console.log('⏳ Ожидание ScheduleCalendar...');
+        let attempts = 0;
+        const wait = setInterval(() => {
+            if (window.scheduleCalendarInstance) {
+                clearInterval(wait);
+                console.log('✅ ScheduleCalendar загружен');
+                setTimeout(initCalendar, 300);
             } else {
-                var formattedDiff = formatHoursDiff(diff);
-                var direction = diff > 0 ? 'больше' : 'меньше';
-
-                var oldModal = document.getElementById('hours-warning-modal');
-                if (oldModal) oldModal.remove();
-
-                var newModal = document.createElement('div');
-                newModal.id = 'hours-warning-modal';
-                newModal.className = 'modal-bg';
-                newModal.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; display:flex; justify-content:center; align-items:center;';
-                newModal.innerHTML =
-                    '<div class="modal-box" style="background:white; border-radius:12px; padding:24px; width:350px; max-width:90%; box-shadow:0 8px 30px rgba(0,0,0,0.2);">' +
-                    '<h4 style="margin:0 0 15px 0; color:#dc2626;">⚠️ Расхождение в часах</h4>' +
-                    '<div style="margin-bottom:20px; color:#475569; line-height:1.5;">' +
-                    '<div style="margin-bottom:5px;">📊 Итого в календаре: <strong>' + totalHours.toFixed(1) + ' ч.</strong></div>' +
-                    '<div style="margin-bottom:5px;">🔹 Требуется: <strong>' + requiredHours + ' ч.</strong></div>' +
-                    '<div style="color:#dc2626; margin-top:10px;">⚖️ Разница: на <strong>' + formattedDiff + '</strong> ' + direction + '</div>' +
-                    '</div>' +
-                    '<div class="m-btns" style="display:flex; gap:8px; justify-content:flex-end; margin-top:20px;">' +
-                    '<button type="button" id="btn-back-modal" class="btn-cancel" style="background:#e2e8f0; color:#334155; border:none; padding:10px 16px; border-radius:6px; cursor:pointer;">🔙 Назад</button>' +
-                    '<button type="button" id="btn-force-submit-new" class="btn-ok" style="background:#4facfe; color:white; border:none; padding:10px 20px; border-radius:6px; cursor:pointer; font-weight:600;">✅ Продолжить</button>' +
-                    '</div>' +
-                    '</div>';
-                document.body.appendChild(newModal);
-
-                document.getElementById('btn-back-modal').addEventListener('click', function() { newModal.remove(); });
-                document.getElementById('btn-force-submit-new').addEventListener('click', function() { form.submit(); });
-                newModal.addEventListener('click', function(e) { if (e.target === newModal) newModal.remove(); });
+                attempts++;
+                if (attempts > 30) {
+                    clearInterval(wait);
+                    console.error('❌ ScheduleCalendar не загрузился');
+                }
             }
-        });
+        }, 100);
     }
 });
 </script>
+{% endblock %}
 {% endblock %}
 
 
@@ -8080,7 +9092,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     .info-grid {
         display: grid;
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(4, 1fr);
         gap: 24px;
     }
     .info-column { display: flex; flex-direction: column; gap: 16px; }
@@ -8191,54 +9203,83 @@ document.addEventListener('DOMContentLoaded', function() {
         <a href="{% url 'groups:schedule_plans_list' %}" class="btn" style="background:#e2e8f0;color:#334155;">← Назад к списку</a>
     </div>
 
-    <div class="step2-container">
-        <div class="info-block">
-            <h2 class="info-title">
-                План-график выполнения единой программы подготовки водителей МТС категории "{{ plan.group.category.code|default:'B' }}"
-            </h2>
+    <div class="info-block">
+    <h2 class="info-title">
+        План-график выполнения единой программы подготовки водителей МТС категории "{{ plan.group.category.code|default:'B' }}"
+    </h2>
 
-            <div class="info-grid">
-                <div class="info-column">
-                    <div class="info-field">
-                        <span class="info-label">Учебная группа</span>
-                        <span class="info-value">{{ plan.group }}</span>
-                    </div>
-                    <div class="info-field">
-                        <span class="info-label">Аудитория</span>
-                        <span class="info-value"> {{ location|default:"—" }}</span>
-                    </div>
-                </div>
+    <div class="info-grid">
+        <div class="info-column">
+            <div class="info-field">
+                <span class="info-label">Учебная группа</span>
+                <span class="info-value">{{ plan.group }}</span>
+            </div>
+            <div class="info-field">
+                <span class="info-label">Аудитория</span>
+                <span class="info-value">{{ location|default:"—" }}</span>
+            </div>
+        </div>
 
-                <div class="info-column">
-                    <div class="info-field">
-                        <span class="info-label">Преподаватель</span>
-                        <span class="info-value">{{ plan.teacher }}</span>
-                    </div>
-                    <div class="info-field">
-                        <span class="info-label">Преподаватель медицины</span>
-                        <select name="med_teacher" class="info-select">
-                            <option value="">— Выберите —</option>
-                            {% for teacher in teachers %}
-                            <option value="{{ teacher.pk }}" {% if med_teacher_id == teacher.pk %}selected{% endif %}>
-                                {{ teacher.last_name }} {{ teacher.first_name }} {{ teacher.middle_name|default:'' }}
-                            </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                </div>
+        <div class="info-column">
+            <div class="info-field">
+                <span class="info-label">Преподаватель</span>
+                <span class="info-value">{{ plan.teacher }}</span>
+            </div>
+            <div class="info-field">
+                <span class="info-label">Преподаватель медицины</span>
+                <span class="info-value">{{ plan.med_teacher|default:"—" }}</span>
+            </div>
+        </div>
 
-                <div class="info-column">
-                    <div class="info-field">
-                        <span class="info-label">Период обучения</span>
-                        <span class="info-value">{{ plan.date_start|date:"d.m.Y" }} — {{ plan.date_end|date:"d.m.Y" }}</span>
-                    </div>
-                    <div class="info-field">
-                        <span class="info-label">Расписание</span>
-                        <span class="info-value">⏰ {{ time_start }} — {{ time_end }}</span>
-                    </div>
+        <div class="info-column">
+            <div class="info-field">
+                <span class="info-label">Период обучения</span>
+                <span class="info-value">{{ plan.date_start|date:"d.m.Y" }} — {{ plan.date_end|date:"d.m.Y" }}</span>
+            </div>
+            <div class="info-field">
+                <span class="info-label">Расписание занятий</span>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <input type="time" id="time-start" value="{{ time_start }}"
+                           style="padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 13px; width: 50px;">
+                    <span style="color: #64748b;">—</span>
+                    <input type="time" id="time-end" value="{{ time_end }}"
+                           style="padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 13px; width: 50px;">
                 </div>
             </div>
         </div>
+                <!--  4. КОНТЕЙНЕР: Часы и Категория (в едином стиле) -->
+        <div class="info-column">
+            <!-- Часов обучения -->
+             <div class="info-field">
+                <span class="info-label">Часов обучения</span>
+                <input type="number" id="total-hours-display" value="{{ required_hours|default:0 }}"
+                       style="width: 38%; height: 18px; padding: 4px 8px; border: 1px solid #cbd5e1; border-radius: 4px;
+                              font-size: 12px; font-weight: 600; color: #1e40af;
+                              background: #fff; text-align: center;">
+            </div>
+
+            <!-- Категория -->
+            <div class="info-field">
+                <span class="info-label" style="position: relative; top: -9px;">Категория</span>
+                <select id="category-select" onchange="changeCategory()" style="width: 45%; height: 28px; padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 12px; background: #fff; box-sizing: border-box; margin-top: -9px;">
+                    {% for cat_value, cat_label in categories %}
+                    <option value="{{ cat_value }}"
+                            data-pdd="{% if cat_value == 'B' %}100{% elif cat_value == 'C' %}120{% elif cat_value == 'D' %}150{% else %}100{% endif %}"
+                            data-ua="{% if cat_value == 'B' %}6{% elif cat_value == 'C' %}8{% elif cat_value == 'D' %}10{% else %}6{% endif %}"
+                            data-bd="{% if cat_value == 'B' %}38{% elif cat_value == 'C' %}40{% elif cat_value == 'D' %}42{% else %}38{% endif %}"
+                            data-podd="{% if cat_value == 'B' %}8{% elif cat_value == 'C' %}10{% elif cat_value == 'D' %}12{% else %}8{% endif %}"
+                            data-med="{% if cat_value == 'B' %}16{% elif cat_value == 'C' %}18{% elif cat_value == 'D' %}20{% else %}16{% endif %}"
+                            data-exam="2"
+                            {% if cat_value == current_category %}selected{% endif %}>
+                        {{ cat_label }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+    </div>
+</div>
 
         <div class="schedule-year">{{ plan_year }} год</div>
 
@@ -8685,11 +9726,15 @@ document.addEventListener('DOMContentLoaded', function() {
         const medTeacherSelect = document.querySelector('select[name="med_teacher"]');
         const medTeacherId = medTeacherSelect ? medTeacherSelect.value : '';
 
-        const data = {
-            plan_id: {{ plan.id }},
-            hours: {},
-            med_teacher: medTeacherId
-        };
+                const data = {
+                    plan_id: {{ plan.id }},
+                    hours: {},
+                    med_teacher: medTeacherId,
+                    // 🔹 ДОБАВЛЕНО:
+                    category: document.getElementById('category-select').value,
+                    time_start: document.getElementById('time-start').value,
+                    time_end: document.getElementById('time-end').value
+                };
 
         subjectsData.forEach(s => {
             data.hours[s.id] = {};
@@ -8714,6 +9759,52 @@ document.addEventListener('DOMContentLoaded', function() {
         updateTotalIndicator();
         validate();
     }, 100);
+});
+    // 🔹 Функция смены категории
+function changeCategory() {
+    const select = document.getElementById('category-select');
+    const option = select.options[select.selectedIndex];
+
+    // Обновляем totals
+    document.getElementById('pdd-total').value = option.dataset.pdd || 100;
+    document.getElementById('ua-total').value = option.dataset.ua || 6;
+    document.getElementById('bd-total').value = option.dataset.bd || 38;
+    document.getElementById('podd-total').value = option.dataset.podd || 8;
+    document.getElementById('med-total').value = option.dataset.med || 16;
+    document.getElementById('exam-total').value = option.dataset.exam || 2;
+
+    // Пересчитываем валидацию
+    if (typeof validate === 'function') validate();
+}
+
+// 🔹 Запоминание последнего значения в localStorage
+function saveLastValue(subject, date, value) {
+    const key = `schedule_hours_${subject}_${date}`;
+    localStorage.setItem(key, value);
+}
+
+// 🔹 Загрузка последних значений при инициализации
+function loadLastValues() {
+    document.querySelectorAll('.subject-hours').forEach(input => {
+        const key = `schedule_hours_${input.dataset.subject}_${input.dataset.date}`;
+        const lastValue = localStorage.getItem(key);
+        if (lastValue !== null && input.value === '') {
+            input.value = lastValue;
+        }
+    });
+}
+
+// 🔹 Добавляем слушатель на каждое поле для запоминания
+document.addEventListener('DOMContentLoaded', function() {
+    // Загружаем сохранённые значения
+    loadLastValues();
+
+    // Слушатель для запоминания
+    document.querySelectorAll('.subject-hours').forEach(input => {
+        input.addEventListener('change', function() {
+            saveLastValue(this.dataset.subject, this.dataset.date, this.value);
+        });
+    });
 });
 </script>
 {% endblock %}
@@ -8826,6 +9917,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
         <!-- Разделитель -->
         <div class="menu-divider"></div>
+
+        <!-- 🔹 НОВЫЙ ПУНКТ: Темы занятий -->
+        <a href="{% url 'reference:topic_list' %}" class="menu-item {% if request.resolver_match.app_name == 'reference' %}active{% endif %}">
+            <span class="icon">📖</span> Темы занятий
+        </a>
 
         <a href="{% url 'vault:vault_list' %}" class="menu-item">
             <span class="icon">🔐</span> Хранилище

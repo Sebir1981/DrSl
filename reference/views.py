@@ -4,6 +4,11 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.urls import reverse
 from .models import LessonTopic
+from django.shortcuts import render
+from django.contrib.auth.decorators import login_required
+from classrooms.models import Classroom
+from teachers.models import Teacher
+from masters.models import Master
 
 
 @login_required
@@ -51,3 +56,13 @@ def topic_delete(request, topic_id):
     topic.delete()
     messages.success(request, '🗑️ Тема удалена')
     return redirect(f'{reverse("reference:topic_list")}?category={category}')
+
+@login_required
+def reference_dashboard(request):
+    """Дашборд раздела Справочники"""
+    context = {
+        'classrooms_count': Classroom.objects.count(),
+        'teachers_count': Teacher.objects.count(),
+        'masters_count': Master.objects.count(),
+    }
+    return render(request, 'reference/dashboard.html', context)

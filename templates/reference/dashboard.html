@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}📁 Справочники — Автошкола{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>📁 Справочники</h1>
+    <a href="{% url 'vault:dashboard' %}" class="btn" style="background:#e2e8f0;color:#334155;">← На главную</a>
+</div>
+
+<!-- 🔹 СЕТКА КАРТОЧЕК СПРАВОЧНИКОВ -->
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px;max-width:1200px;margin:0 auto;">
+
+    <!-- 🏫 Аудитории -->
+    <a href="{% url 'classrooms:classroom_list' %}" class="card" style="background:white;padding:25px;border-radius:16px;text-decoration:none;box-shadow:0 4px 20px rgba(0,0,0,0.08);border-left:4px solid #4facfe;transition:transform 0.2s;">
+        <div style="font-size:32px;margin-bottom:12px;">🏫</div>
+        <div style="font-size:18px;font-weight:600;margin-bottom:8px;color:#1e293b;">Аудитории</div>
+        <div style="font-size:13px;color:#64748b;">Управление помещениями и договорами</div>
+        {% if classrooms_count %}
+        <div style="margin-top:12px;font-size:12px;color:#4facfe;font-weight:500;">
+            Всего: <strong>{{ classrooms_count }}</strong>
+        </div>
+        {% endif %}
+    </a>
+
+    <!-- 📚 Преподаватели -->
+    <a href="{% url 'teachers:teacher_list' %}" class="card" style="background:white;padding:25px;border-radius:16px;text-decoration:none;box-shadow:0 4px 20px rgba(0,0,0,0.08);border-left:4px solid #4facfe;transition:transform 0.2s;">
+        <div style="font-size:32px;margin-bottom:12px;">📚</div>
+        <div style="font-size:18px;font-weight:600;margin-bottom:8px;color:#1e293b;">Преподаватели</div>
+        <div style="font-size:13px;color:#64748b;">Список преподавателей и графики</div>
+        {% if teachers_count %}
+        <div style="margin-top:12px;font-size:12px;color:#4facfe;font-weight:500;">
+            Всего: <strong>{{ teachers_count }}</strong>
+        </div>
+        {% endif %}
+    </a>
+
+    <!-- 🚗 Мастера -->
+    <a href="{% url 'masters:master_list' %}" class="card" style="background:white;padding:25px;border-radius:16px;text-decoration:none;box-shadow:0 4px 20px rgba(0,0,0,0.08);border-left:4px solid #4facfe;transition:transform 0.2s;">
+        <div style="font-size:32px;margin-bottom:12px;">🚗</div>
+        <div style="font-size:18px;font-weight:600;margin-bottom:8px;color:#1e293b;">Мастера вождения</div>
+        <div style="font-size:13px;color:#64748b;">Инструкторы по вождению</div>
+        {% if masters_count %}
+        <div style="margin-top:12px;font-size:12px;color:#4facfe;font-weight:500;">
+            Всего: <strong>{{ masters_count }}</strong>
+        </div>
+        {% endif %}
+    </a>
+
+    <!-- 🚙 Автопарк (заглушка) -->
+    <div class="card" style="background:#f8fafc;padding:25px;border-radius:16px;box-shadow:0 4px 20px rgba(0,0,0,0.05);border-left:4px solid #94a3b8;opacity:0.7;">
+        <div style="font-size:32px;margin-bottom:12px;">🚙</div>
+        <div style="font-size:18px;font-weight:600;margin-bottom:8px;color:#475569;">Автопарк</div>
+        <div style="font-size:13px;color:#94a3b8;">Функция в разработке</div>
+        <div style="margin-top:12px;font-size:11px;color:#f59e0b;font-weight:500;">🔜 Скоро</div>
+    </div>
+
+    <!-- 📖 Темы занятий -->
+    <a href="{% url 'reference:topic_list' %}" class="card" style="background:white;padding:25px;border-radius:16px;text-decoration:none;box-shadow:0 4px 20px rgba(0,0,0,0.08);border-left:4px solid #8b5cf6;transition:transform 0.2s;">
+        <div style="font-size:32px;margin-bottom:12px;">📖</div>
+        <div style="font-size:18px;font-weight:600;margin-bottom:8px;color:#1e293b;">Темы занятий</div>
+        <div style="font-size:13px;color:#64748b;">Справочник учебных тем и часов</div>
+    </a>
+
+    <!-- 📁 Категории (админка) -->
+    <a href="{% url 'admin:reference_groupcategory_changelist' %}" class="card" style="background:white;padding:25px;border-radius:16px;text-decoration:none;box-shadow:0 4px 20px rgba(0,0,0,0.08);border-left:4px solid #8b5cf6;transition:transform 0.2s;">
+        <div style="font-size:32px;margin-bottom:12px;">📁</div>
+        <div style="font-size:18px;font-weight:600;margin-bottom:8px;color:#1e293b;">Категории</div>
+        <div style="font-size:13px;color:#64748b;">Управление категориями групп</div>
+    </a>
+
+</div>
+
+<!-- 🔹 Анимация при наведении -->
+<style>
+.card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.12) !important;
+}
+</style>
+{% endblock %}

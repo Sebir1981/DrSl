@@ -6,11 +6,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🚗 Автошкола — Панель управления</title>
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
+
     <style>
-        /* 🔹 Общий сброс */
+        /*  Общий сброс */
         * { box-sizing: border-box; margin: 0; padding: 0; }
 
-        /* 🔹 Layout: сайдбар справа, контент слева */
+        /* Layout: сайдбар справа, контент слева */
         body {
             display: flex;
             flex-direction: row-reverse;
@@ -20,12 +21,12 @@
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         }
 
-        /* 🔹 Верхняя панель */
+        /*  Верхняя панель */
         .top-bar {
             position: fixed;
             top: 0;
             left: 0;
-            right: 280px; /* ширина сайдбара */
+            right: 280px;
             height: 70px;
             background: rgba(255,255,255,0.95);
             backdrop-filter: blur(10px);
@@ -40,7 +41,6 @@
             font-size: 24px;
             font-weight: 700;
             color: #667eea;
-            text-shadow: none;
         }
         .top-bar .user-actions {
             display: flex;
@@ -64,17 +64,68 @@
         }
         .top-bar .logout-btn:hover { background: #dc2626; }
 
-        /* 🔹 Основной контент */
+        /* Основной контент */
         .main-content {
             flex: 1;
-            padding: 100px 30px 30px; /* отступ сверху под top-bar */
+            padding: 100px 30px 30px;
             display: flex;
             flex-direction: column;
             align-items: center;
             overflow-y: auto;
         }
 
-        /* 🔹 Сетка карточек */
+        /* Заголовки секций */
+        .section-title {
+            width: 100%;
+            max-width: 1000px;
+            margin: 30px 0 15px 0;
+            padding-bottom: 10px;
+            border-bottom: 2px solid rgba(255,255,255,0.3);
+            color: white;
+            font-size: 18px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .section-title:first-child { margin-top: 0; }
+
+        /* 🔹 Стили для сворачиваемого раздела */
+        .collapsible-header {
+            cursor: pointer;
+            user-select: none;
+            transition: opacity 0.2s;
+        }
+        .collapsible-header:hover { opacity: 0.9; }
+
+        .collapse-icon {
+            transition: transform 0.3s ease;
+            font-size: 14px;
+            margin-left: auto; /* Сдвигаем стрелку вправо */
+        }
+
+        /* Когда свернуто */
+        .collapsible-header.collapsed .collapse-icon {
+            transform: rotate(-90deg);
+        }
+
+        .collapsible-content {
+            overflow: hidden;
+            transition: max-height 0.4s ease, opacity 0.4s ease;
+            max-height: 2000px; /* Достаточно большое значение для контента */
+            opacity: 1;
+        }
+
+        .collapsible-content.collapsed {
+            max-height: 0;
+            opacity: 0;
+            margin: 0;
+            padding: 0;
+            pointer-events: none;
+        }
+
+        /* Сетка карточек */
         .cards-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -82,6 +133,7 @@
             max-width: 1000px;
             width: 100%;
         }
+
         .card {
             background: white;
             border-radius: 16px;
@@ -95,18 +147,14 @@
             flex-direction: column;
             align-items: center;
             gap: 12px;
+            position: relative;
         }
         .card:hover {
             transform: translateY(-5px);
             box-shadow: 0 20px 60px rgba(0,0,0,0.25);
         }
-        .card .icon {
-            font-size: 42px;
-        }
-        .card .title {
-            font-weight: 600;
-            font-size: 16px;
-        }
+        .card .icon { font-size: 42px; }
+        .card .title { font-weight: 600; font-size: 16px; }
         .card .count {
             background: #667eea;
             color: white;
@@ -115,24 +163,67 @@
             font-size: 12px;
             font-weight: bold;
         }
-        .card.vault { background: linear-gradient(135deg, #667eea, #764ba2); color: white; }
-        .card.vault .count { background: rgba(255,255,255,0.3); }
-        .card.admin { background: #1e293b; color: white; }
+
+        /* Стили для разных типов карточек */
+        .card.primary {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+        .card.primary .count { background: rgba(255,255,255,0.3); }
+
+        .card.admin {
+            background: #1e293b;
+            color: white;
+        }
         .card.admin .count { background: rgba(255,255,255,0.3); }
 
-        /* 🔹 Адаптив */
+        .card.reference {
+            border-left: 4px solid #8b5cf6;
+        }
+
+        .card.coming-soon {
+            background: #f8fafc;
+            opacity: 0.85;
+            border-left: 4px solid #94a3b8;
+        }
+        .card.coming-soon .icon { filter: grayscale(0.5); }
+        .card.coming-soon .count {
+            background: #94a3b8;
+            color: white;
+        }
+
+        /* Адаптив */
         @media (max-width: 900px) {
             .top-bar { right: 0; }
             body { flex-direction: column; }
-            .sidebar { width: 100%; height: auto; position: relative; flex-direction: row; overflow-x: auto; padding: 10px; box-shadow: 0 -5px 25px rgba(0,0,0,0.1); }
-            .menu-item { flex-shrink: 0; border-left: none; border-bottom: 4px solid transparent; margin: 0; border-radius: 10px; }
-            .menu-item:hover, .menu-item.active { border-left: none; border-bottom-color: #667eea; transform: none; }
+            .sidebar {
+                width: 100%;
+                height: auto;
+                position: relative;
+                flex-direction: row;
+                overflow-x: auto;
+                padding: 10px;
+                box-shadow: 0 -5px 25px rgba(0,0,0,0.1);
+            }
+            .menu-item {
+                flex-shrink: 0;
+                border-left: none;
+                border-bottom: 4px solid transparent;
+                margin: 0;
+                border-radius: 10px;
+            }
+            .menu-item:hover, .menu-item.active {
+                border-left: none;
+                border-bottom-color: #667eea;
+                transform: none;
+            }
             .main-content { padding-top: 90px; }
+            .section-title { border-bottom-color: rgba(255,255,255,0.5); }
         }
     </style>
 </head>
 <body>
-    <!-- 🔹 Правая панель (сайдбар) -->
+    <!-- 🔹 Правая панель (сайдбар) - БЕЗ ИЗМЕНЕНИЙ -->
     {% include 'includes/sidebar.html' %}
 
     <!-- 🔹 Верхняя панель -->
@@ -150,56 +241,123 @@
 
     <!-- 🔹 Основной контент с карточками -->
     <main class="main-content">
+
+        <!-- 🔹 ОСНОВНЫЕ РАЗДЕЛЫ -->
+        <div class="section-title"> Основные разделы</div>
         <div class="cards-grid">
             <!-- Группы -->
-            <a href="{% url 'groups:dashboard' %}" class="card">
+            <a href="{% url 'groups:dashboard' %}" class="card primary">
                 <span class="icon">👥</span>
                 <span class="title">Группы</span>
                 <span class="count">{{ groups_count|default:0 }}</span>
             </a>
 
             <!-- Учащиеся -->
-            <a href="{% url 'students:dashboard' %}" class="card">
+            <a href="{% url 'students:dashboard' %}" class="card primary">
                 <span class="icon">🎓</span>
                 <span class="title">Учащиеся</span>
                 <span class="count">{{ students_count|default:0 }}</span>
             </a>
 
-            <!-- ✅ Зачёты и экзамены (ЕДИНЫЙ СТИЛЬ) -->
-            <a href="{% url 'groups:credits_exams' %}" class="card">
+            <!-- Зачёты и экзамены -->
+            <a href="{% url 'groups:credits_exams' %}" class="card primary">
                 <span class="icon">✅</span>
                 <span class="title">Зачёты и экзамены</span>
-                <span class="count">📊</span>
+                <span class="count"></span>
             </a>
+        </div>
 
+        <!-- 🔹 СПРАВОЧНИКИ (Сворачиваемый) -->
+        <div class="section-title collapsible-header" id="ref-toggle">
+            <span> Справочники</span>
+            <span class="collapse-icon">▼</span>
+        </div>
+
+        <!-- Карточки справочников (по умолчанию скрыты через JS) -->
+        <div class="cards-grid collapsible-content" id="ref-content">
             <!-- Аудитории -->
-            <a href="{% url 'classrooms:classroom_list' %}" class="card">
+            <a href="{% url 'classrooms:classroom_list' %}" class="card reference">
                 <span class="icon">🏫</span>
                 <span class="title">Аудитории</span>
                 <span class="count">{{ classrooms_count|default:0 }}</span>
             </a>
 
             <!-- Преподаватели -->
-            <a href="{% url 'teachers:teacher_list' %}" class="card">
+            <a href="{% url 'teachers:teacher_list' %}" class="card reference">
                 <span class="icon">📚</span>
                 <span class="title">Преподаватели</span>
                 <span class="count">{{ teachers_count|default:0 }}</span>
             </a>
 
             <!-- Мастера -->
-            <a href="{% url 'masters:master_list' %}" class="card">
+            <a href="{% url 'masters:master_list' %}" class="card reference">
                 <span class="icon">🚗</span>
                 <span class="title">Мастера</span>
                 <span class="count">{{ masters_count|default:0 }}</span>
             </a>
 
+            <!-- Темы занятий -->
+            <a href="{% url 'reference:topic_list' %}" class="card reference">
+                <span class="icon">📖</span>
+                <span class="title">Темы занятий</span>
+                <span class="count">📝</span>
+            </a>
+
+            <!-- Категории -->
+            <a href="{% url 'admin:reference_groupcategory_changelist' %}" class="card reference">
+                <span class="icon">📁</span>
+                <span class="title">Категории</span>
+                <span class="count">⚙️</span>
+            </a>
+
             <!-- Автопарк (заглушка) -->
-            <a href="#" class="card">
+            <a href="#" class="card coming-soon">
                 <span class="icon">🚙</span>
                 <span class="title">Автопарк</span>
-                <span class="count">🔜</span>
+                <span class="count"></span>
             </a>
         </div>
+
+        <!-- 🔹 СИСТЕМНЫЕ РАЗДЕЛЫ -->
+        <div class="section-title">⚙️ Системные</div>
+        <div class="cards-grid">
+            <!-- Хранилище -->
+            <a href="{% url 'vault:vault_list' %}" class="card admin">
+                <span class="icon">🔐</span>
+                <span class="title">Хранилище</span>
+                <span class="count">🗝️</span>
+            </a>
+
+            <!-- Админка -->
+            <a href="{% url 'admin:index' %}" class="card admin">
+                <span class="icon">⚙️</span>
+                <span class="title">Админ-панель</span>
+                <span class="count"></span>
+            </a>
+        </div>
+
     </main>
+
+    <!-- 🔹 Скрипт для сворачивания справочников -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const header = document.getElementById('ref-toggle');
+            const content = document.getElementById('ref-content');
+
+            // Функция сворачивания/разворачивания
+            function toggleRef() {
+                header.classList.toggle('collapsed');
+                content.classList.toggle('collapsed');
+            }
+
+            // Обработчик клика
+            header.addEventListener('click', toggleRef);
+
+            // 🔹 ПО УМОЛЧАНИЮ СВЕРНУТО (как вы просили)
+            // Если хотите по умолчанию развернуть, удалите эти две строки:
+            header.classList.add('collapsed');
+            content.classList.add('collapsed');
+        });
+    </script>
 </body>
 </html>

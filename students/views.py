@@ -11,6 +11,86 @@ from .models import Student, StudentHistory
 from groups.models import Group
 from teachers.models import Teacher
 from .forms import DismissalForm, RefusalForm, SuspensionForm
+from masters.models import Master
+
+# ✅ 0. Создание карточки учащегося
+@login_required
+def student_add(request):
+    """Фронтенд-страница добавления учащегося"""
+
+    if request.method == 'POST':
+        # 🔹 Сбор данных из формы
+        last_name = request.POST.get('last_name', '').strip()
+        first_name = request.POST.get('first_name', '').strip()
+        patronymic = request.POST.get('patronymic', '').strip()
+        phone = request.POST.get('phone', '').strip()
+        birth_date = request.POST.get('birth_date') or None
+        place_of_birth = request.POST.get('place_of_birth', '').strip()
+        place_of_residence = request.POST.get('place_of_residence', '').strip()
+        place_of_registration = request.POST.get('place_of_registration', '').strip()
+        work_study_place = request.POST.get('work_study_place', '').strip()
+        position = request.POST.get('position', '').strip()
+
+        # 🔹 Связи
+        group_id = request.POST.get('group')
+        teacher_id = request.POST.get('teacher')
+        master_id = request.POST.get('master')
+        gearbox_type = request.POST.get('gearbox_type', '')
+        enrolled_date = request.POST.get('enrolled_date') or timezone.now().date()
+
+        # 🔹 Валидация
+        if not last_name or not first_name:
+            messages.error(request, '❌ Фамилия и имя обязательны для заполнения')
+            return redirect('students:student_add')
+
+        # 🔹 Создание записи
+        student = Student.objects.create(
+            last_name=last_name,
+            first_name=first_name,
+            patronymic=patronymic,
+            phone=phone,
+            birth_date=birth_date,
+            place_of_birth=place_of_birth,
+            place_of_residence=place_of_residence,
+            place_of_registration=place_of_registration,
+            work_study_place=work_study_place,
+            position=position,
+            group_id=group_id if group_id and group_id.isdigit() else None,
+            teacher_id=teacher_id if teacher_id and teacher_id.isdigit() else None,
+            master_id=master_id if master_id and master_id.isdigit() else None,
+            gearbox_type=gearbox_type,
+            enrolled_date=enrolled_date,
+        )
+
+        # 🔹 Лог в activity_log
+        log_entry = {
+            'type': 'enrollment',
+            'date': enrolled_date.strftime('%d.%m.%Y') if enrolled_date else timezone.now().date().strftime('%d.%m.%Y'),
+            'title': 'Зачисление в автошколу',
+            'details': {
+                'group': str(student.group) if student.group else '—',
+                'teacher': str(student.teacher) if student.teacher else '—',
+            }
+        }
+        student.activity_log = [log_entry]
+        student.save(update_fields=['activity_log'])
+
+        messages.success(request, f'✅ Учащийся {last_name} {first_name} добавлен!')
+        return redirect('students:student_detail', student_id=student.pk)
+
+    # 🔹 GET-запрос: подготовка данных для формы
+    groups = Group.objects.filter(status='active').order_by('group_number')
+    teachers = Teacher.objects.filter(is_active=True).order_by('last_name', 'first_name')
+    masters = Master.objects.all().order_by('last_name', 'first_name')
+
+    context = {
+        'title': '➕ Добавить учащегося',
+        'groups': groups,
+        'teachers': teachers,
+        'masters': masters,
+        'today': timezone.now().date(),
+    }
+    return render(request, 'students/student_add.html', context)
 
 
 # ✅ 1. Панель управления разделом "Учащиеся"
