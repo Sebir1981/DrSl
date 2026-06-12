@@ -1,10 +1,76 @@
 {% extends "base.html" %}
 {% load static %}
-
+{% load schedule_filters %}
 {% block title %}{{ title }} — Автошкола{% endblock %}
 
 {% block extra_css %}
 <style>
+
+    /* 🔹 Подсветка корректных/некорректных значений */
+.hours-input.subject-hours {
+    transition: all 0.2s;
+}
+
+.hours-input.subject-hours[style*="border-color: rgb(134, 239, 172)"] {
+    border-color: #86efac !important;
+    background: #f0fdf4 !important;
+}
+
+.hours-input.subject-hours[style*="border-color: rgb(252, 165, 165)"] {
+    border-color: #fca5a5 !important;
+    background: #fef2f2 !important;
+}
+
+.hours-input.total {
+    font-weight: 700;
+    cursor: not-allowed;
+}
+
+            /* 🔹 Визуальное разделение по месяцам */
+        .distribution-table th.month-header {
+            background: #dbeafe;
+            font-weight: 700;
+            color: #1e40af;
+            padding: 8px 4px;
+            border-left: 3px solid #3b82f6;
+            border-right: 3px solid #3b82f6;
+        }
+
+        .distribution-table th.month-header:first-child {
+            border-left: 3px solid #3b82f6;
+        }
+
+        .distribution-table th.date-header {
+            background: #eff6ff;
+            border-left: 1px solid #bfdbfe;
+        }
+
+        /* Первая дата каждого месяца - жирная граница слева */
+        .distribution-table th.date-header:first-child,
+        .distribution-table td:first-child {
+            border-left: 3px solid #3b82f6;
+        }
+
+        /* Разделитель между месяцами - вертикальная линия */
+        .month-separator {
+            border-left: 3px solid #3b82f6 !important;
+        }
+
+        /* Альтернативный вариант: фоновая подложка для каждого месяца */
+        .distribution-table tbody tr:nth-child(odd) {
+            background: #f8fafc;
+        }
+
+        .distribution-table tbody tr:nth-child(even) {
+            background: #ffffff;
+        }
+
+        /* Подсветка ячеек при наведении */
+        .distribution-table td:hover {
+            background: #dbeafe;
+            transition: background 0.2s;
+        }
+
     .step2-container {
         background: white;
         border-radius: 16px;
@@ -15,7 +81,6 @@
         overflow-x: auto;
     }
 
-    /* 🔹 Выровненная шапка */
     .info-block {
         background: #f8fafc;
         border-radius: 12px;
@@ -35,100 +100,66 @@
         grid-template-columns: repeat(3, 1fr);
         gap: 24px;
     }
-    .info-column {
-        display: flex;
-        flex-direction: column;
-        gap: 16px;
-    }
-    .info-field {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-    }
+    .info-column { display: flex; flex-direction: column; gap: 16px; }
+    .info-field { display: flex; flex-direction: column; gap: 4px; }
     .info-label {
-        font-size: 11px;
-        color: #64748b;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
+        font-size: 11px; color: #64748b; font-weight: 600;
+        text-transform: uppercase; letter-spacing: 0.5px;
     }
-    .info-value {
-        font-size: 15px;
-        color: #1e293b;
-        font-weight: 600;
-    }
+    .info-value { font-size: 15px; color: #1e293b; font-weight: 600; }
     .info-select {
-        width: 100%;
-        padding: 8px 10px;
-        border: 1px solid #cbd5e1;
-        border-radius: 6px;
-        font-size: 14px;
-        background: #fff;
+        width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1;
+        border-radius: 6px; font-size: 14px; background: #fff;
         transition: border-color 0.2s;
     }
     .info-select:focus {
-        outline: none;
-        border-color: #4facfe;
+        outline: none; border-color: #4facfe;
         box-shadow: 0 0 0 2px rgba(79,172,254,0.15);
     }
 
     .schedule-year {
-        text-align: center;
-        font-size: 20px;
-        font-weight: 700;
-        color: #1e293b;
-        margin: 0 0 16px 0;
-        padding-bottom: 8px;
+        text-align: center; font-size: 20px; font-weight: 700;
+        color: #1e293b; margin: 0 0 16px 0; padding-bottom: 8px;
         border-bottom: 2px solid #e2e8f0;
     }
 
     .distribution-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 12px;
-        margin: 16px 0;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        table-layout: fixed;
+        width: 100%; border-collapse: collapse; font-size: 12px;
+        margin: 16px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.1); table-layout: fixed;
     }
     .distribution-table th, .distribution-table td {
-        border: 1px solid #cbd5e1;
-        padding: 4px;
-        text-align: center;
-        vertical-align: middle;
+        border: 1px solid #cbd5e1; padding: 4px; text-align: center; vertical-align: middle;
     }
     .distribution-table th { background: #f1f5f9; font-weight: 600; color: #475569; }
     .distribution-table .subject-cell {
         background: #f8fafc; font-weight: 600; text-align: left; padding-left: 12px;
         position: sticky; left: 0; z-index: 10; min-width: 180px; width: 180px;
     }
-    .distribution-table .month-header { background: #dbeafe; font-weight: 700; color: #1e40af; padding: 8px 4px; white-space: nowrap; }
+    .distribution-table .month-header {
+        background: #dbeafe; font-weight: 700; color: #1e40af; padding: 8px 4px; white-space: nowrap;
+    }
     .distribution-table .date-header {
         background: #eff6ff; font-size: 11px; color: #64748b; font-weight: 500;
         width: 48px; min-width: 48px; max-width: 48px; padding: 6px 2px;
     }
 
     .hours-input {
-        width: 100%;
-        height: 28px;
-        padding: 0;
-        border: 1px solid #cbd5e1;
-        border-radius: 3px;
-        text-align: center;
-        font-size: 12px;
-        font-weight: 600;
-        box-sizing: border-box;
-        transition: border-color 0.2s;
-        -moz-appearance: textfield;
+        width: 100%; height: 28px; padding: 0; border: 1px solid #cbd5e1;
+        border-radius: 3px; text-align: center; font-size: 12px; font-weight: 600;
+        box-sizing: border-box; transition: all 0.2s; -moz-appearance: textfield;
     }
     .hours-input::-webkit-outer-spin-button,
-    .hours-input::-webkit-inner-spin-button {
-        -webkit-appearance: none;
-        margin: 0;
-    }
+    .hours-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
     .hours-input:focus { outline: none; border-color: #4facfe; box-shadow: 0 0 0 2px rgba(79,172,254,0.2); }
+
+    /* 🔹 ИСПРАВЛЕНИЕ: Убрано !important у background, чтобы JS мог менять цвет */
+    .hours-input.invalid {
+        border-color: #dc2626 !important;
+        background: #fef2f2;
+    }
+
     .hours-input.total { background: #fef3c7; border-color: #fcd34d; font-weight: 700; color: #92400e; }
     .hours-input[readonly] { background: #f1f5f9; color: #64748b; cursor: not-allowed; border-color: #e2e8f0; }
-    .hours-input.invalid { border-color: #dc2626; background: #fef2f2; }
 
     .tooltip { position: relative; cursor: help; border-bottom: 2px dotted #4facfe; }
     .tooltip:hover::after {
@@ -136,245 +167,364 @@
         background: #1e293b; color: white; padding: 6px 10px; border-radius: 4px; font-size: 11px; white-space: nowrap; z-index: 1000;
     }
 
-    .validation-message { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 12px; margin: 16px 0; color: #dc2626; font-size: 13px; display: none; }
+    .validation-message {
+        background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px;
+        padding: 12px; margin: 16px 0; color: #dc2626; font-size: 13px; display: none;
+    }
     .validation-message.show { display: block; }
     .validation-message.success { background: #dcfce7; border-color: #86efac; color: #166534; }
 
-    .action-buttons { display: flex; gap: 16px; justify-content: flex-end; margin-top: 24px; padding-top: 24px; border-top: 2px solid #e2e8f0; }
-    .btn-back { padding: 12px 32px; background: #e2e8f0; color: #334155; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none; }
-    .btn-confirm { padding: 12px 32px; background: #4facfe; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
+    .action-buttons {
+        display: flex; gap: 16px; justify-content: flex-end; margin-top: 24px;
+        padding-top: 24px; border-top: 2px solid #e2e8f0;
+    }
+    .btn-back {
+        padding: 12px 32px; background: #e2e8f0; color: #334155; border: none;
+        border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none;
+    }
+    .btn-confirm {
+        padding: 12px 32px; background: #4facfe; color: white; border: none;
+        border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;
+    }
     .btn-confirm:disabled { background: #cbd5e1; cursor: not-allowed; }
-    .print-btn { padding: 12px 24px; background: #10b981; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; margin-right: auto; }
+    .print-btn {
+        padding: 12px 24px; background: #10b981; color: white; border: none;
+        border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; margin-right: auto;
+    }
 
-    @media print { .action-buttons, .page-header { display: none; } .step2-container { box-shadow: none; overflow: visible; } .hours-input { border: none; } .subject-cell { position: static; } }
+    @media print {
+        .action-buttons, .page-header { display: none; }
+        .step2-container { box-shadow: none; overflow: visible; }
+        .hours-input { border: none; }
+        .subject-cell { position: static; }
+    }
     @media (max-width: 900px) { .info-grid { grid-template-columns: 1fr; } }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="page-header">
-    <h1>{{ title }}</h1>
-    <a href="{% url 'groups:schedule_plans_list' %}" class="btn" style="background:#e2e8f0;color:#334155;">← Назад к списку</a>
-</div>
+        <h1>{{ title }}</h1>
+        <a href="{% url 'groups:schedule_plans_list' %}" class="btn" style="background:#e2e8f0;color:#334155;">← Назад к списку</a>
+    </div>
 
-<div class="step2-container">
-    <div class="info-block">
-        <h2 class="info-title">
-            План-график выполнения единой программы подготовки водителей МТС категории "{{ plan.group.category.code|default:'B' }}"
-        </h2>
+    <div class="step2-container">
+        <div class="info-block">
+            <h2 class="info-title">
+                План-график выполнения единой программы подготовки водителей МТС категории "{{ plan.group.category.code|default:'B' }}"
+            </h2>
 
-        <div class="info-grid">
-            <!-- 🔹 Колонка 1: Группа + Аудитория -->
-            <div class="info-column">
-                <div class="info-field">
-                    <span class="info-label">Учебная группа</span>
-                    <span class="info-value">{{ plan.group }}</span>
+            <div class="info-grid">
+                <div class="info-column">
+                    <div class="info-field">
+                        <span class="info-label">Учебная группа</span>
+                        <span class="info-value">{{ plan.group }}</span>
+                    </div>
+                    <div class="info-field">
+                        <span class="info-label">Аудитория</span>
+                        <span class="info-value"> {{ location|default:"—" }}</span>
+                    </div>
                 </div>
-                <div class="info-field">
-                    <span class="info-label">Аудитория</span>
-                    <span class="info-value">📍 {{ location|default:"—" }}</span>
-                </div>
-            </div>
 
-            <!-- 🔹 Колонка 2: Преподаватель + Медицина -->
-            <div class="info-column">
-                <div class="info-field">
-                    <span class="info-label">Преподаватель</span>
-                    <span class="info-value">{{ plan.teacher }}</span>
+                <div class="info-column">
+                    <div class="info-field">
+                        <span class="info-label">Преподаватель</span>
+                        <span class="info-value">{{ plan.teacher }}</span>
+                    </div>
+                    <div class="info-field">
+                        <span class="info-label">Преподаватель медицины</span>
+                        <select name="med_teacher" class="info-select">
+                            <option value="">— Выберите —</option>
+                            {% for teacher in teachers %}
+                            <option value="{{ teacher.pk }}" {% if med_teacher_id == teacher.pk %}selected{% endif %}>
+                                {{ teacher.last_name }} {{ teacher.first_name }} {{ teacher.middle_name|default:'' }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
                 </div>
-                <div class="info-field">
-                    <span class="info-label">Преподаватель медицины</span>
-                    <select name="med_teacher" class="info-select">
-                        <option value="">— Выберите —</option>
-                        {% for teacher in teachers %}
-                        <option value="{{ teacher.pk }}" {% if med_teacher_id == teacher.pk %}selected{% endif %}>
-                            {{ teacher.last_name }} {{ teacher.first_name }} {{ teacher.middle_name|default:'' }}
-                        </option>
-                        {% endfor %}
-                    </select>
-                </div>
-            </div>
 
-            <!-- 🔹 Колонка 3: Период + Расписание -->
-            <div class="info-column">
-                <div class="info-field">
-                    <span class="info-label">Период обучения</span>
-                    <span class="info-value">{{ plan.date_start|date:"d.m.Y" }} — {{ plan.date_end|date:"d.m.Y" }}</span>
-                </div>
-                <div class="info-field">
-                    <span class="info-label">Расписание</span>
-                    <span class="info-value">⏰ {{ time_start }} — {{ time_end }}</span>
+                <div class="info-column">
+                    <div class="info-field">
+                        <span class="info-label">Период обучения</span>
+                        <span class="info-value">{{ plan.date_start|date:"d.m.Y" }} — {{ plan.date_end|date:"d.m.Y" }}</span>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
 
-    <div class="schedule-year">{{ plan_year }} год</div>
+        <div class="schedule-year">{{ plan_year }} год</div>
 
-    <div id="validation-msg" class="validation-message"></div>
+        <div id="validation-msg" class="validation-message"></div>
 
-    <form id="hours-form" method="post" action="{% url 'groups:schedule_plan_step2' plan.id %}">
-        {% csrf_token %}
+        <form id="hours-form" method="post" action="{% url 'groups:schedule_plan_step2' plan.id %}">
+            {% csrf_token %}
 
-        <table class="distribution-table">
-            <thead>
-                <tr>
-                    <th rowspan="2" style="width: 180px; min-width: 180px;">Занятия</th>
-                    {% for month, days in days_by_month.items %}
-                    <th colspan="{{ days|length }}" class="month-header">{{ month }}</th>
-                    {% endfor %}
-                    <th rowspan="2" style="width: 60px; background:#fef3c7;">ИТОГО</th>
-                </tr>
-                <tr>
-                    {% for month, days in days_by_month.items %}
-                    {% for day in days %}
-                    <th class="date-header" title="{{ day.raw_date }}">{{ day.day_num }}</th>
-                    {% endfor %}
-                    {% endfor %}
-                </tr>
-            </thead>
-            <tbody>
-                <!-- Всего часов (из расписания) -->
-                <tr style="background:#e0f2fe; font-weight:700;">
-                    <td class="subject-cell">Всего часов</td>
-                    {% for month, days in days_by_month.items %}
-                    {% for day in days %}
-                    <td>
-                        <input type="number" step="1" class="hours-input total"
-                               value="{{ day.duration }}" readonly
-                               title="Длительность дня по расписанию">
-                    </td>
-                    {% endfor %}
-                    {% endfor %}
-                    <td>
-                        <input type="number" step="1" class="hours-input total"
-                               id="grand-total" value="{{ required_hours }}" readonly>
-                    </td>
-                </tr>
+            <table class="distribution-table">
+                <thead>
+                    <tr>
+                        <th rowspan="2" style="width: 180px; min-width: 180px;">Занятия</th>
+                        {% for month, days in days_by_month.items %}
+                        <th colspan="{{ days|length }}" class="month-header">{{ month }}</th>
+                        {% endfor %}
+                        <th rowspan="2" style="width: 60px; background:#fef3c7;">ИТОГО</th>
+                    </tr>
+                    <tr>
+                        {% for month, days in days_by_month.items %}
+                        {% for day in days %}
+                        <th class="date-header" title="{{ day.raw_date }}">{{ day.day_num }}</th>
+                        {% endfor %}
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                  <tbody>
+   <!-- 🔹 Строка "Всего часов" (автоматический подсчёт) -->
+<tr style="background:#e0f2fe; font-weight:700;">
+    <td class="subject-cell">Всего часов</td>
+    {% for month, days in days_by_month.items %}
+    {% for day in days %}
+    <td>
+        <input type="number" step="0.5" class="hours-input total day-total"
+               data-date="{{ day.raw_date }}" value="0" readonly
+               style="background:#dbeafe; font-weight:700;">
+    </td>
+    {% endfor %}
+    {% endfor %}
+    <td>
+        <input type="number" step="1" class="hours-input total grand-total"
+               id="grand-total" value="0" readonly
+               style="background:#bbf7d0; font-weight:700;">
+    </td>
+</tr>
 
-                <!-- ПДД -->
-                <tr>
-                    <td class="subject-cell">
-                        <span class="tooltip" data-tooltip="Правила дорожного движения">ПДД</span>
-                    </td>
-                    {% for month, days in days_by_month.items %}
-                    {% for day in days %}
-                    <td>
-                        <input type="number" step="1" class="hours-input subject-hours"
-                               data-subject="pdd" data-date="{{ day.raw_date }}"
-                               value="" min="0" placeholder="·">
-                    </td>
-                    {% endfor %}
-                    {% endfor %}
-                    <td>
-                        <input type="number" step="1" class="hours-input total subject-total"
-                               id="pdd-total" value="{{ pdd_default }}" min="0">
-                    </td>
-                </tr>
+    <!-- ПДД -->
+    <tr>
+        <td class="subject-cell">ПДД</td>
+        {% for month, days in days_by_month.items %}
+        {% for day in days %}
+        <td>
+            <input type="number" step="1" class="hours-input subject-hours"
+                   data-subject="pdd" data-date="{{ day.raw_date }}"
+                   value="{{ day.pdd }}" min="0" placeholder="·">
+        </td>
+        {% endfor %}
+        {% endfor %}
+        <td><input type="number" step="1" class="hours-input total subject-total" id="pdd-total" value="{{ pdd_default }}" min="0"></td>
+    </tr>
 
-                <!-- УА -->
-                <tr>
-                    <td class="subject-cell">
-                        <span class="tooltip" data-tooltip="Устройство автомобиля">УА</span>
-                    </td>
-                    {% for month, days in days_by_month.items %}
-                    {% for day in days %}
-                    <td>
-                        <input type="number" step="1" class="hours-input subject-hours"
-                               data-subject="ua" data-date="{{ day.raw_date }}"
-                               value="" min="0" placeholder="·">
-                    </td>
-                    {% endfor %}
-                    {% endfor %}
-                    <td>
-                        <input type="number" step="1" class="hours-input total subject-total"
-                               id="ua-total" value="{{ ua_default }}" min="0">
-                    </td>
-                </tr>
+    <!-- УА -->
+    <tr>
+        <td class="subject-cell">УА</td>
+        {% for month, days in days_by_month.items %}
+        {% for day in days %}
+        <td>
+            <input type="number" step="1" class="hours-input subject-hours"
+                   data-subject="ua" data-date="{{ day.raw_date }}"
+                   value="{{ day.ua }}" min="0" placeholder="·">
+        </td>
+        {% endfor %}
+        {% endfor %}
+        <td><input type="number" step="1" class="hours-input total subject-total" id="ua-total" value="{{ ua_default }}" min="0"></td>
+    </tr>
 
-                <!-- БД -->
-                <tr>
-                    <td class="subject-cell">
-                        <span class="tooltip" data-tooltip="Безопасность движения">БД</span>
-                    </td>
-                    {% for month, days in days_by_month.items %}
-                    {% for day in days %}
-                    <td>
-                        <input type="number" step="1" class="hours-input subject-hours"
-                               data-subject="bd" data-date="{{ day.raw_date }}"
-                               value="" min="0" placeholder="·">
-                    </td>
-                    {% endfor %}
-                    {% endfor %}
-                    <td>
-                        <input type="number" step="1" class="hours-input total subject-total"
-                               id="bd-total" value="{{ bd_default }}" min="0">
-                    </td>
-                </tr>
+    <!-- БД -->
+    <tr>
+        <td class="subject-cell">БД</td>
+        {% for month, days in days_by_month.items %}
+        {% for day in days %}
+        <td>
+            <input type="number" step="1" class="hours-input subject-hours"
+                   data-subject="bd" data-date="{{ day.raw_date }}"
+                   value="{{ day.bd }}" min="0" placeholder="·">
+        </td>
+        {% endfor %}
+        {% endfor %}
+        <td><input type="number" step="1" class="hours-input total subject-total" id="bd-total" value="{{ bd_default }}" min="0"></td>
+    </tr>
 
-                <!-- ПОДД -->
-                <tr>
-                    <td class="subject-cell">
-                        <span class="tooltip" data-tooltip="Правовые основы дорожного движения">ПОДД</span>
-                    </td>
-                    {% for month, days in days_by_month.items %}
-                    {% for day in days %}
-                    <td>
-                        <input type="number" step="1" class="hours-input subject-hours"
-                               data-subject="podd" data-date="{{ day.raw_date }}"
-                               value="" min="0" placeholder="·">
-                    </td>
-                    {% endfor %}
-                    {% endfor %}
-                    <td>
-                        <input type="number" step="1" class="hours-input total subject-total"
-                               id="podd-total" value="{{ podd_default }}" min="0">
-                    </td>
-                </tr>
+    <!-- ПОДД -->
+    <tr>
+        <td class="subject-cell">ПОДД</td>
+        {% for month, days in days_by_month.items %}
+        {% for day in days %}
+        <td>
+            <input type="number" step="1" class="hours-input subject-hours"
+                   data-subject="podd" data-date="{{ day.raw_date }}"
+                   value="{{ day.podd }}" min="0" placeholder="·">
+        </td>
+        {% endfor %}
+        {% endfor %}
+        <td><input type="number" step="1" class="hours-input total subject-total" id="podd-total" value="{{ podd_default }}" min="0"></td>
+    </tr>
 
-                <!-- Медицина -->
-                <tr>
-                    <td class="subject-cell">
-                        <span class="tooltip" data-tooltip="Оказание первой помощи при ДТП">Медицина</span>
-                    </td>
-                    {% for month, days in days_by_month.items %}
-                    {% for day in days %}
-                    <td>
-                        <input type="number" step="1" class="hours-input subject-hours"
-                               data-subject="med" data-date="{{ day.raw_date }}"
-                               value="" min="0" placeholder="·">
-                    </td>
-                    {% endfor %}
-                    {% endfor %}
-                    <td>
-                        <input type="number" step="1" class="hours-input total subject-total"
-                               id="med-total" value="{{ med_default }}" min="0">
-                    </td>
-                </tr>
+    <!-- Медицина -->
+    <tr>
+        <td class="subject-cell">Медицина</td>
+        {% for month, days in days_by_month.items %}
+        {% for day in days %}
+        <td>
+            <input type="number" step="1" class="hours-input subject-hours"
+                   data-subject="med" data-date="{{ day.raw_date }}"
+                   value="{{ day.med }}" min="0" placeholder="·">
+        </td>
+        {% endfor %}
+        {% endfor %}
+        <td><input type="number" step="1" class="hours-input total subject-total" id="med-total" value="{{ med_default }}" min="0"></td>
+    </tr>
 
-                <!-- Экзамен -->
-                <tr>
-                    <td class="subject-cell">Экзамен</td>
-                    {% for month, days in days_by_month.items %}
-                    {% for day in days %}
-                    <td>
-                        <input type="number" step="1" class="hours-input subject-hours"
-                               data-subject="exam" data-date="{{ day.raw_date }}"
-                               value="" min="0" placeholder="·">
-                    </td>
-                    {% endfor %}
-                    {% endfor %}
-                    <td>
-                        <input type="number" step="1" class="hours-input total subject-total"
-                               id="exam-total" value="{{ exam_default }}" min="0">
-                    </td>
-                </tr>
-            </tbody>
+    <!-- Экзамен -->
+    <tr>
+        <td class="subject-cell">Экзамен</td>
+        {% for month, days in days_by_month.items %}
+        {% for day in days %}
+        <td>
+            <input type="number" step="1" class="hours-input subject-hours"
+                   data-subject="exam" data-date="{{ day.raw_date }}"
+                   value="{{ day.exam }}" min="0" placeholder="·">
+        </td>
+        {% endfor %}
+        {% endfor %}
+        <td><input type="number" step="1" class="hours-input total subject-total" id="exam-total" value="{{ exam_default }}" min="0"></td>
+    </tr>
+
+            <script>
+document.addEventListener('DOMContentLoaded', function() {
+    const subjects = ['pdd', 'ua', 'bd', 'podd', 'med', 'exam'];
+
+    // 🔹 Функция пересчёта итогов
+    function recalculateTotals() {
+        const dates = new Set();
+
+        // Собираем все даты из полей предметов
+        subjects.forEach(subject => {
+            document.querySelectorAll(`.subject-hours[data-subject="${subject}"]`).forEach(input => {
+                dates.add(input.dataset.date);
+            });
+        });
+
+        let grandTotal = 0;
+
+        // Для каждой даты считаем сумму по всем предметам
+        dates.forEach(date => {
+            let daySum = 0;
+
+            subjects.forEach(subject => {
+                const input = document.querySelector(`.subject-hours[data-subject="${subject}"][data-date="${date}"]`);
+                if (input) {
+                    const val = parseFloat(input.value) || 0;
+                    daySum += val;
+                }
+            });
+
+            // Обновляем ячейку "Всего часов" для этого дня
+            const dayTotalInput = document.querySelector(`.day-total[data-date="${date}"]`);
+            if (dayTotalInput) {
+                dayTotalInput.value = daySum.toFixed(1);
+
+                // Визуальная индикация
+                if (daySum > 0) {
+                    dayTotalInput.style.background = '#bbf7d0'; // Зелёный
+                } else {
+                    dayTotalInput.style.background = '#dbeafe'; // Синий
+                }
+            }
+
+            grandTotal += daySum;
+        });
+
+        // Обновляем общий итог
+        const grandTotalInput = document.getElementById('grand-total');
+        if (grandTotalInput) {
+            grandTotalInput.value = Math.round(grandTotal);
+
+            // Сравниваем с требуемым
+            const requiredHours = parseFloat('{{ required_hours }}') || 0;
+            const diff = grandTotal - requiredHours;
+
+            if (Math.abs(diff) < 0.5) {
+                grandTotalInput.style.background = '#86efac'; // Точно
+                grandTotalInput.style.color = '#166534';
+            } else if (diff > 0) {
+                grandTotalInput.style.background = '#fecaca'; // Превышение
+                grandTotalInput.style.color = '#dc2626';
+            } else {
+                grandTotalInput.style.background = '#fef3c7'; // Недобор
+                grandTotalInput.style.color = '#92400e';
+            }
+        }
+
+        // 🔹 Проверяем валидность (сумма по дням = итого по предмету)
+        validateSubjects();
+    }
+
+    // 🔹 Проверка: сумма по дням должна равняться итогу предмета
+    function validateSubjects() {
+        subjects.forEach(subject => {
+            let sumByDays = 0;
+            document.querySelectorAll(`.subject-hours[data-subject="${subject}"]`).forEach(input => {
+                sumByDays += parseFloat(input.value) || 0;
+            });
+
+            const totalInput = document.getElementById(`${subject}-total`);
+            if (totalInput) {
+                const targetValue = parseFloat(totalInput.value) || 0;
+                const diff = sumByDays - targetValue;
+
+                // Визуальная индикация
+                const subjectInputs = document.querySelectorAll(`.subject-hours[data-subject="${subject}"]`);
+                if (Math.abs(diff) < 0.1) {
+                    subjectInputs.forEach(input => {
+                        input.style.borderColor = '#86efac';
+                        input.style.background = '#f0fdf4';
+                    });
+                    totalInput.style.borderColor = '#86efac';
+                    totalInput.style.background = '#f0fdf4';
+                } else {
+                    subjectInputs.forEach(input => {
+                        input.style.borderColor = '#fca5a5';
+                        input.style.background = '#fef2f2';
+                    });
+                    totalInput.style.borderColor = '#fca5a5';
+                    totalInput.style.background = '#fef2f2';
+                }
+            }
+        });
+    }
+
+    // 🔹 Навешиваем обработчики на все поля предметов
+    document.querySelectorAll('.subject-hours').forEach(input => {
+        input.addEventListener('input', function() {
+            // Ограничиваем минимальное значение 0
+            if (this.value < 0) this.value = 0;
+            recalculateTotals();
+        });
+
+        input.addEventListener('change', function() {
+            if (this.value === '0' || this.value === '') this.value = '';
+            recalculateTotals();
+        });
+    });
+
+    // 🔹 Обработчики для итоговых полей предметов
+    document.querySelectorAll('.subject-total').forEach(input => {
+        input.addEventListener('change', function() {
+            if (this.value < 0) this.value = 0;
+            validateSubjects();
+        });
+    });
+
+    // 🔹 Первоначальный расчёт
+    setTimeout(recalculateTotals, 100);
+});
+</script>
+</tbody>
+
         </table>
 
         <div class="action-buttons">
-            <button type="button" onclick="window.print()" class="print-btn">🖨️ Печать</button>
-            <a href="{% url 'groups:schedule_plan_edit' plan.id %}" class="btn-back">🔙 Назад</a>
+            <button type="button" onclick="window.print()" class="print-btn">️ Печать</button>
+            <a href="{% url 'groups:schedule_plan_edit' plan.id %}" class="btn-back"> Назад</a>
             <button type="submit" id="btn-save" class="btn-confirm" disabled>✅ Сохранить распределение</button>
         </div>
     </form>
@@ -385,14 +535,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('hours-form');
     const btnSave = document.getElementById('btn-save');
     const validationMsg = document.getElementById('validation-msg');
+    const grandTotalInput = document.getElementById('grand-total');
 
     const subjectsData = [
-        {id: 'pdd', label: 'ПДД', tooltip: 'Правила дорожного движения'},
-        {id: 'ua', label: 'УА', tooltip: 'Устройство автомобиля'},
-        {id: 'bd', label: 'БД', tooltip: 'Безопасность движения'},
-        {id: 'podd', label: 'ПОДД', tooltip: 'Правовые основы'},
-        {id: 'med', label: 'Медицина', tooltip: 'Первая помощь при ДТП'},
-        {id: 'exam', label: 'Экзамен', tooltip: null}
+        {id: 'pdd', label: 'ПДД'}, {id: 'ua', label: 'УА'}, {id: 'bd', label: 'БД'},
+        {id: 'podd', label: 'ПОДД'}, {id: 'med', label: 'Медицина'}, {id: 'exam', label: 'Экзамен'}
     ];
 
     function getVal(el) { return el.value.trim() === '' ? 0 : parseInt(el.value) || 0; }
@@ -403,24 +550,104 @@ document.addEventListener('DOMContentLoaded', function() {
         return total;
     }
 
-    function calculateGrandTotal() {
+    function calculateDistributedHours() {
         let total = 0;
         subjectsData.forEach(s => total += getVal(document.getElementById(`${s.id}-total`)));
         return total;
     }
 
+    // 🔹 ЦВЕТОВАЯ ИНДИКАЦИЯ ДЛЯ КАЖДОГО ДНЯ
+    function updateDailyIndicators() {
+        // 1. Сначала сбрасываем цвета всех полей предметов к дефолту
+        document.querySelectorAll('.subject-hours').forEach(subjInput => {
+            subjInput.style.background = '';
+            subjInput.style.borderColor = '';
+            subjInput.style.color = '';
+            // Убираем класс ошибки, будем ставить его через validate() если нужно
+            // Но чтобы не мигало, лучше оставить, если сумма предмета не сходится
+        });
+
+        // 2. Проходим по каждому дню
+        document.querySelectorAll('.duration-input[data-date]').forEach(input => {
+            const date = input.dataset.date;
+            const scheduledDuration = parseFloat(input.value) || 0;
+
+            // Если день вообще без занятий (длительность 0), пропускаем покраску
+            if (scheduledDuration === 0) return;
+
+            // Суммируем часы по всем предметам для этого дня
+            let dailySum = 0;
+            const dayInputs = document.querySelectorAll(`.subject-hours[data-date="${date}"]`);
+
+            dayInputs.forEach(subjInput => {
+                dailySum += getVal(subjInput);
+            });
+
+            const diff = dailySum - scheduledDuration;
+            const absDiff = Math.abs(diff);
+
+            // 3. Применяем стили к каждому полю предмета в этом дне
+            dayInputs.forEach(subjInput => {
+                // Если ячейка пустая и сумма 0 - оставляем серым (нейтральным)
+                if (dailySum === 0) {
+                    subjInput.style.background = '#f1f5f9'; // Серый для пустых
+                    subjInput.style.borderColor = '#e2e8f0';
+                    return;
+                }
+
+                if (absDiff <= 0.083) { // ✅ Точное совпадение (±5 мин)
+                    subjInput.style.background = '#dcfce7'; // Зелёный
+                    subjInput.style.borderColor = '#22c55e';
+                    subjInput.style.color = '#166534';
+                } else if (diff > 0) { // 🔴 Превышено
+                    subjInput.style.background = '#fef2f2'; // Красный
+                    subjInput.style.borderColor = '#ef4444';
+                    subjInput.style.color = '#dc2626';
+                } else { // 🟡 Не хватает
+                    subjInput.style.background = '#fef3c7'; // Жёлтый
+                    subjInput.style.borderColor = '#f59e0b';
+                    subjInput.style.color = '#92400e';
+                }
+            });
+        });
+    }
+
+    // 🔹 Индикация в ячейке "ИТОГО" (общая сумма)
+    function updateTotalIndicator() {
+        const distributed = calculateDistributedHours();
+        const required = parseFloat('{{ required_hours }}') || 0;
+        const diff = distributed - required;
+        const absDiff = Math.abs(diff);
+
+        if (absDiff <= 0.083) {
+            grandTotalInput.style.background = '#dcfce7';
+            grandTotalInput.style.borderColor = '#22c55e';
+            grandTotalInput.style.color = '#166534';
+            grandTotalInput.title = '✅ Распределение точное';
+        } else if (diff > 0) {
+            grandTotalInput.style.background = '#fef2f2';
+            grandTotalInput.style.borderColor = '#ef4444';
+            grandTotalInput.style.color = '#dc2626';
+            grandTotalInput.title = `🔴 Превышено на ${absDiff.toFixed(1)} ч.`;
+        } else {
+            grandTotalInput.style.background = '#fef3c7';
+            grandTotalInput.style.borderColor = '#f59e0b';
+            grandTotalInput.style.color = '#92400e';
+            grandTotalInput.title = ` Не распределено ${absDiff.toFixed(1)} ч.`;
+        }
+    }
+
     function validate() {
         let valid = true;
         let msgs = [];
-        const maxHours = parseInt(document.getElementById('grand-total').value) || 170;
+        const required = parseFloat('{{ required_hours }}') || 0;
 
         subjectsData.forEach(s => {
             const sum = calculateSubjectTotal(s.id);
             const target = getVal(document.getElementById(`${s.id}-total`));
             if (sum !== target) {
                 valid = false;
-                const diff = sum - target;
-                msgs.push(`${s.label.toUpperCase()}: по датам ${sum} ч., в итоге ${target} (разница ${diff>0?'+':''}${diff})`);
+                msgs.push(`${s.label.toUpperCase()}: сумма по дням (${sum}) ≠ итого (${target})`);
                 document.querySelectorAll(`.subject-hours[data-subject="${s.id}"]`).forEach(i => i.classList.add('invalid'));
                 document.getElementById(`${s.id}-total`).classList.add('invalid');
             } else {
@@ -429,46 +656,52 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
 
-        const subjectsSum = calculateGrandTotal();
-        const grandEl = document.getElementById('grand-total');
-        if (subjectsSum > maxHours) {
+        const totalSum = calculateDistributedHours();
+        if (Math.abs(totalSum - required) > 0.083) {
             valid = false;
-            msgs.unshift(`❌ ПРЕВЫШЕН ЛИМИТ: сумма ${subjectsSum} ч., разрешено ${maxHours} ч.`);
-            grandEl.classList.add('invalid');
-        } else {
-            grandEl.classList.remove('invalid');
-            if(subjectsSum < maxHours) msgs.unshift(`⚠️ Недобор: ${subjectsSum} ч. из ${maxHours} ч.`);
+            msgs.push(`❌ Общая сумма (${totalSum}) ≠ требуемой (${required})`);
         }
 
         if (msgs.length) {
             validationMsg.className = 'validation-message show';
-            validationMsg.innerHTML = msgs.map(m => m.includes('❌') ? m : '• '+m).join('<br>');
-            btnSave.disabled = msgs.some(m => m.includes('❌'));
+            validationMsg.innerHTML = msgs.join('<br>');
+            btnSave.disabled = true;
         } else {
             validationMsg.className = 'validation-message success show';
             validationMsg.innerHTML = '✅ Всё сходится. Можно сохранять.';
             btnSave.disabled = false;
         }
-        return valid && !msgs.some(m => m.includes(''));
+        return valid;
     }
 
-    document.querySelectorAll('.hours-input').forEach(inp => {
-        inp.addEventListener('input', () => { inp.value = Math.max(0, parseInt(inp.value)||0); validate(); });
-        inp.addEventListener('blur', () => { if(inp.value==='0') inp.value=''; });
+    // Слушатели изменений
+    document.querySelectorAll('.subject-hours, .subject-total').forEach(input => {
+        input.addEventListener('input', () => {
+            if (input.value < 0) input.value = 0;
+            updateDailyIndicators();
+            updateTotalIndicator();
+            validate();
+        });
+        input.addEventListener('change', () => {
+            if (input.value === '0') input.value = '';
+            updateDailyIndicators();
+            updateTotalIndicator();
+            validate();
+        });
     });
 
-        form.addEventListener('submit', e => {
+    // Отправка формы
+    form.addEventListener('submit', e => {
         e.preventDefault();
         if(!validate()) return;
 
-        // Получаем выбранного преподавателя медицины
         const medTeacherSelect = document.querySelector('select[name="med_teacher"]');
         const medTeacherId = medTeacherSelect ? medTeacherSelect.value : '';
 
         const data = {
             plan_id: {{ plan.id }},
             hours: {},
-            med_teacher: medTeacherId  // 🔹 Добавляем в данные
+            med_teacher: medTeacherId
         };
 
         subjectsData.forEach(s => {
@@ -485,9 +718,15 @@ document.addEventListener('DOMContentLoaded', function() {
         }).then(r=>r.json()).then(res=>{
             if(res.success){ alert('✅ Сохранено!'); window.location.href="{% url 'groups:schedule_plans_list' %}"; }
             else alert('❌ '+res.error);
-        }).catch(()=>alert('❌ Ошибка сети'));
+        }).catch(()=>alert(' Ошибка сети'));
     });
-    validate();
+
+    // Инициализация при загрузке
+    setTimeout(() => {
+        updateDailyIndicators();
+        updateTotalIndicator();
+        validate();
+    }, 100);
 });
 </script>
 {% endblock %}

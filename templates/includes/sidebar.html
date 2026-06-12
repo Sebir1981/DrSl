@@ -47,6 +47,11 @@
         <!-- Разделитель -->
         <div class="menu-divider"></div>
 
+        <!-- 🔹 НОВЫЙ ПУНКТ: Темы занятий -->
+        <a href="{% url 'reference:topic_list' %}" class="menu-item {% if request.resolver_match.app_name == 'reference' %}active{% endif %}">
+            <span class="icon">📖</span> Темы занятий
+        </a>
+
         <a href="{% url 'vault:vault_list' %}" class="menu-item">
             <span class="icon">🔐</span> Хранилище
         </a>

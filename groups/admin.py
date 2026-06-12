@@ -4,7 +4,7 @@ from django.db import models
 from django import forms
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
-from reference.models import GroupCategory, Credit  # ✅ Импортируем для autocomplete_fields
+from reference.models import GroupCategory, Credit
 from .models import Group, CreditResult, ExamResult
 from DrSl.widgets import RuDateWidget
 
@@ -15,10 +15,6 @@ from DrSl.widgets import RuDateWidget
 class BaseAdmin(admin.ModelAdmin):
     formfield_overrides = {
         models.DateField: {'widget': RuDateWidget()},
-        models.TimeField: {'widget': forms.TimeInput(attrs={
-            'type': 'time', 'step': '60',
-            'style': 'width: 90px; min-width: 90px; padding: 4px 6px;'
-        })},
     }
 
 
@@ -45,14 +41,16 @@ class GroupAdminForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        for field_name in ['duration', 'schedule_type', 'time_session']:
+        for field_name in ['duration', 'schedule_type']:
             if field_name in self.fields:
                 self.fields[field_name].choices = [
                     c for c in self.fields[field_name].choices if c[0] != ''
                 ]
-                if not self.instance.pk:
-                    if field_name == 'duration': self.fields[field_name].initial = 'standard'
-                    if field_name == 'schedule_type': self.fields[field_name].initial = 'directed'
+        if not self.instance.pk:
+            if 'duration' in self.fields:
+                self.fields['duration'].initial = 'standard'
+            if 'schedule_type' in self.fields:
+                self.fields['schedule_type'].initial = 'directed'
         if 'category' in self.fields:
             field = self.fields['category']
             field.widget.attrs['class'] = 'category-with-hint'
@@ -73,33 +71,41 @@ class GroupAdminForm(forms.ModelForm):
 @admin.register(Group)
 class GroupAdmin(BaseAdmin):
     form = GroupAdminForm
-    list_display = ('group_number', 'category', 'classroom', 'teacher', 'schedule_type', 'time_session', 'status',
-                    'contract_period')
-    list_filter = ('status', 'schedule_type', 'time_session', 'category')
+
+    # ✅ Убраны time_session, time_start, time_end
+    list_display = (
+        'group_number', 'category', 'classroom', 'teacher',
+        'schedule_type', 'status', 'contract_period'
+    )
+
+    # ✅ Убран time_session
+    list_filter = ('status', 'schedule_type', 'category')
+
     search_fields = ('group_number', 'category__code', 'teacher__last_name', 'classroom__classroom_number')
     autocomplete_fields = ('classroom', 'teacher')
-    readonly_fields = ('created_at', 'updated_at', 'contract_section_header', 'standard_time_display')
+
+    # ✅ Убран standard_time_display
+    readonly_fields = ('created_at', 'updated_at', 'contract_section_header')
 
     fieldsets = (
-        ('🔢 Идентификаторы', {'fields': ('group_number', 'category', 'classroom', 'teacher')}),
-
-        # 🔹 🔥 ОБНОВЛЕНО: Добавлены даты экзаменов в раздел Договора
+        ('🔢 Идентификаторы', {
+            'fields': ('group_number', 'category', 'classroom', 'teacher')
+        }),
         ('📅 Договор и экзамены', {
             'fields': (
                 'contract_section_header',
                 'contract_start',
                 'contract_end',
                 'status',
-                # ✅ Новые поля дат экзаменов
                 'exam_internal_theory_date',
                 'exam_internal_driving_date',
                 'exam_gai_date',
             ),
             'description': '📚 Даты внутренних экзаменов и сдачи в ГАИ'
         }),
-
+        # ✅ Убрано время из расписания
         ('🗓️ Расписание', {
-            'fields': ('schedule_type', 'time_session', 'duration', 'standard_time_display', 'time_start', 'time_end'),
+            'fields': ('schedule_type', 'duration'),
             'classes': ('collapse',)
         }),
         ('📊 Системное', {
@@ -111,21 +117,8 @@ class GroupAdmin(BaseAdmin):
     @admin.display(description="")
     def contract_section_header(self, obj):
         return mark_safe(
-            '<div style="font-weight:600; color:#475569; margin-bottom:8px; padding-bottom:4px; border-bottom:2px solid #e2e8f0;">Действие договора</div>')
-
-    @admin.display(description="⏱ Стандартное время")
-    def standard_time_display(self, obj):
-        sched = obj.schedule_type or ''
-        sess = obj.time_session or ''
-        if sched == 'weekend':
-            time_str = '13:30–18:20'
-        elif sess in ('morning', 'evening'):
-            time_str = '08:40–13:30' if sess == 'morning' else '17:30–21:15'
-        else:
-            return mark_safe('<span style="color:#94a3b8;">Выберите Смену или Тип расписания</span>')
-        start, end = time_str.split('–')
-        return mark_safe(
-            f'<strong>{time_str}</strong><button type="button" onclick="window.fillStandardTime(\'{start}\', \'{end}\')" style="margin-left:10px;padding:4px 10px;background:#4facfe;color:white;border:none;border-radius:4px;cursor:pointer;font-size:12px;">▶ Заполнить</button>')
+            '<div style="font-weight:600; color:#475569; margin-bottom:8px; '
+            'padding-bottom:4px; border-bottom:2px solid #e2e8f0;">Действие договора</div>')
 
     @admin.display(description="Период договора")
     def contract_period(self, obj):
@@ -137,7 +130,6 @@ class GroupAdmin(BaseAdmin):
         js = (
             'js/date-mask.js?v=3',
             'js/category-hint.js',
-            'js/group-time-autofill.js?v=6',
         )
         css = {'all': ('css/date-fields.css',)}
 
@@ -150,7 +142,6 @@ class CreditResultAdmin(admin.ModelAdmin):
     list_display = ['student', 'credit', 'credit_date', 'chairman']
     list_filter = ['credit', 'chairman', 'student__group']
     search_fields = ['student__last_name', 'student__first_name', 'chairman__last_name']
-    # ✅ autocomplete_fields для 'credit' будет работать, т.к. Credit зарегистрирован в reference/admin.py
     autocomplete_fields = ['student', 'credit', 'chairman', 'member1', 'member2', 'member3']
     date_hierarchy = 'credit_date'
 

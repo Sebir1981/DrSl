@@ -211,4 +211,8 @@ LOGGING = {
         'handlers': ['console'],
         'level': 'INFO',
     },
-}
+}# Игнорировать 404 для favicon
+import logging
+logging.getLogger('django.request').addFilter(
+    lambda r: not r.getMessage().endswith('favicon.ico')
+)

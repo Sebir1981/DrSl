@@ -95,7 +95,8 @@ class StudentAdmin(admin.ModelAdmin):
         from django.utils.html import format_html
 
         if not obj.activity_log:
-            return format_html('<span style="color:#94a3b8;">— Записей нет —</span>')
+            from django.utils.safestring import mark_safe
+            return mark_safe('<span style="color:#94a3b8;">— Записей нет —</span>')
 
         log_items = []
         for entry in reversed(obj.activity_log[-20:]):

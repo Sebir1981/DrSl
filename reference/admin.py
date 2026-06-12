@@ -1,6 +1,5 @@
-# reference/admin.py
 from django.contrib import admin
-from .models import GroupCategory, Credit
+from .models import GroupCategory, Credit, LessonTopic  # 🔹 Добавили LessonTopic
 
 
 @admin.register(GroupCategory)
@@ -20,3 +19,17 @@ class CreditAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+# 🔹 НОВОЕ: Админка для тем занятий
+@admin.register(LessonTopic)
+class LessonTopicAdmin(admin.ModelAdmin):
+    list_display = ('category', 'topic_number', 'hours', 'content_preview')
+    list_filter = ('category',)
+    search_fields = ('content', 'topic_number')
+    ordering = ('category', 'topic_number')
+
+    def content_preview(self, obj):
+        return obj.content[:60] + "..." if len(obj.content) > 60 else obj.content
+
+    content_preview.short_description = "Содержание"

@@ -8,13 +8,23 @@ urlpatterns = [
     path('', views.groups_dashboard, name='dashboard'),
     path('list/', views.group_list, name='group_list'),
     path('<int:group_id>/', views.group_detail, name='group_detail'),
+
     path('credits-exams/', views.credits_exams_dashboard, name='credits_exams'),
     path('credits-exams/add/', views.credits_exams_add, name='credits_exams_add'),
+
+    # 🔹 План-графики
     path('schedules/', views.schedule_plans_list, name='schedule_plans_list'),
     path('schedules/create/', views.schedule_plan_create, name='schedule_plan_create'),
     path('schedules/<int:plan_id>/edit/', views.schedule_plan_create, name='schedule_plan_edit'),
-    path('schedules/<int:plan_id>/ajax/update-day/', views.schedule_plan_ajax_update_day, name='schedule_plan_ajax_update_day'),
     path('schedules/<int:plan_id>/step2/', views.schedule_plan_step2, name='schedule_plan_step2'),
+    path('schedules/<int:plan_id>/ajax/update-day/', views.schedule_plan_ajax_update_day,
+         name='schedule_plan_ajax_update_day'),
+
+    # 🔹 НОВОЕ: Удаление план-графика
+    path('schedules/<int:plan_id>/delete/', views.schedule_plan_delete, name='schedule_plan_delete'),
+
+    # 🔹 API
     path('api/instructor/availability/', views.check_instructor_availability, name='check_instructor_availability'),
     path('api/groups/<int:group_id>/data/', views.group_api_data, name='group_api_data'),
+    path('api/teacher-schedule/', views.get_teacher_schedules, name='get_teacher_schedules'),
 ]
