@@ -4,33 +4,279 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🔐 Вход в систему</title>
+    <title>🔐 Вход в систему — Автошкола</title>
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <style>
+        /* 🔹 Общий сброс */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        /* 🔹 Градиентный фон как в основном приложении */
+        body {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+        }
+
+        /* 🔹 Карточка входа */
+        .login-card {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            width: 100%;
+            max-width: 420px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            animation: slideUp 0.4s ease;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* 🔹 Логотип/заголовок */
+        .login-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .login-header .logo {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+
+        .login-header h1 {
+            font-size: 24px;
+            font-weight: 700;
+            color: #1e293b;
+            margin: 0;
+        }
+
+        .login-header p {
+            color: #64748b;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+
+        /* 🔹 Форма */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: #475569;
+            margin-bottom: 6px;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #cbd5e1;
+            border-radius: 10px;
+            font-size: 15px;
+            transition: all 0.2s;
+            background: #fff;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #4facfe;
+            box-shadow: 0 0 0 4px rgba(79,172,254,0.15);
+        }
+
+        .form-group input::placeholder {
+            color: #94a3b8;
+        }
+
+        /* 🔹 Кнопка входа */
+        .btn-login {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #4facfe, #00f2fe);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 10px;
+        }
+
+        .btn-login:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(79,172,254,0.4);
+        }
+
+        .btn-login:active {
+            transform: translateY(0);
+        }
+
+        /* 🔹 Сообщения об ошибках */
+        .error-message {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #dc2626;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            text-align: center;
+            animation: shake 0.3s ease;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+
+        /* 🔹 Футер карточки */
+        .login-footer {
+            text-align: center;
+            margin-top: 25px;
+            padding-top: 20px;
+            border-top: 1px solid #e2e8f0;
+            font-size: 12px;
+            color: #94a3b8;
+        }
+
+        .login-footer a {
+            color: #4facfe;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .login-footer a:hover {
+            text-decoration: underline;
+        }
+
+        /* 🔹 Адаптив */
+        @media (max-width: 480px) {
+            .login-card {
+                padding: 30px 25px;
+            }
+            .login-header h1 {
+                font-size: 20px;
+            }
+        }
+    </style>
 </head>
 <body>
-    <div class="login-container">
-        <h2>🔐 Вход в систему</h2>
+    <div class="login-card">
+        <!-- 🔹 Заголовок -->
+        <div class="login-header">
+            <div class="logo">🚗</div>
+            <h1>Автошкола</h1>
+            <p>Введите данные для входа в систему</p>
+        </div>
 
+        <!-- 🔹 Сообщения об ошибках -->
+        {% if form.errors %}
+        <div class="error-message">
+            ❌ Неверный логин или пароль. Попробуйте ещё раз.
+        </div>
+        {% endif %}
+
+        {% if messages %}
+            {% for message in messages %}
+            <div class="error-message" style="background: {% if message.tags == 'success' %}#dcfce7; border-color: #86efac; color: #166534;{% else %}#fef2f2; border-color: #fecaca; color: #dc2626;{% endif %}">
+                {{ message }}
+            </div>
+            {% endfor %}
+        {% endif %}
+
+        <!-- 🔹 Форма входа -->
         <form method="post" action="{% url 'home' %}">
             {% csrf_token %}
 
+            <!-- Скрытое поле для редиректа -->
+            <input type="hidden" name="next" value="{% if next %}{{ next }}{% else %}{% url 'vault:dashboard' %}{% endif %}">
+
+            <!-- Логин -->
+            <div class="form-group">
+                <label for="id_username">Логин</label>
+                <input
+                    type="text"
+                    name="username"
+                    id="id_username"
+                    placeholder="Введите логин"
+                    value="{{ form.username.value|default:'' }}"
+                    required
+                    autocomplete="username"
+                    autofocus
+                >
+            </div>
+
+            <!-- Пароль -->
+            <div class="form-group">
+                <label for="id_password">Пароль</label>
+                <input
+                    type="password"
+                    name="password"
+                    id="id_password"
+                    placeholder="Введите пароль"
+                    required
+                    autocomplete="current-password"
+                >
+            </div>
+
+            <!-- Кнопка -->
+            <button type="submit" class="btn-login">
+                🔐 Войти в систему
+            </button>
+        </form>
+
+        <!-- 🔹 Футер -->
+<div class="login-footer">
+    <p>© 2026 Автошкола. Все права защищены.</p>
+    <!-- 🔹 Сброс пароля: пока отключено (нужна настройка SMTP) -->
+    <!--
+    <p style="margin-top: 8px;">
+        <a href="{% url 'password_reset' %}">Забыли пароль?</a>
+    </p>
+    -->
+</div>
+
+    <!-- 🔹 Автофокус на поле логина при ошибке -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const usernameInput = document.getElementById('id_username');
+            const passwordInput = document.getElementById('id_password');
+
+            // Если есть ошибки — фокус на пароль
             {% if form.errors %}
-                <div class="error">Неверный логин или пароль</div>
+                if (passwordInput) passwordInput.focus();
+            {% else %}
+                // Иначе — на логин
+                if (usernameInput) usernameInput.focus();
             {% endif %}
 
-            <div class="input-group">
-                {{ form.username }}  <!-- Django сам подставит input с name="username" -->
-            </div>
-
-            <div class="input-group">
-                {{ form.password }}  <!-- Django сам подставит input с name="password" -->
-            </div>
-
-            <!-- Скрытое поле для редиректа после успешного входа -->
-            <input type="hidden" name="next" value="{% if next %}{{ next }}{% else %}{% url 'vault:vault_list' %}{% endif %}">
-
-            <button type="submit">Войти</button>
-        </form>
-    </div>
+            // Эффект "пульсации" при фокусе
+            [usernameInput, passwordInput].forEach(input => {
+                if (input) {
+                    input.addEventListener('focus', function() {
+                        this.parentElement.style.transform = 'scale(1.02)';
+                        this.parentElement.style.transition = 'transform 0.2s';
+                    });
+                    input.addEventListener('blur', function() {
+                        this.parentElement.style.transform = 'scale(1)';
+                    });
+                }
+            });
+        });
+    </script>
 </body>
 </html>

@@ -11,6 +11,32 @@ admin.site.site_title = "Админ-панель"
 admin.site.index_title = "Выберите раздел"
 
 
+# 🔐 Ограничение доступа к админке
+def custom_has_permission(request):
+    """
+    Проверяет доступ к админке:
+    - Суперпользователи: Доступ разрешен
+    - Группа 'admin': Доступ разрешен
+    - Остальные (User, Guest): Доступ запрещен
+    """
+    # 1. Суперпользователь имеет доступ всегда
+    if request.user.is_superuser:
+        return True
+
+    # 2. Проверяем наличие группы 'admin'
+    if request.user.is_authenticated:
+        # Проверяем, состоит ли пользователь в группе 'admin'
+        if request.user.groups.filter(name='admin').exists():
+            return True
+
+    # 3. Остальным доступ закрыт
+    return False
+
+
+# 🔧 Подменяем метод проверки прав у стандартного сайта
+admin.site.has_permission = custom_has_permission
+
+
 class BaseAdmin(admin.ModelAdmin):
     """
     Базовая админка:

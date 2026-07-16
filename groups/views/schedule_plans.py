@@ -8,9 +8,9 @@ from django.contrib import messages
 from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse
 
-# ✅ ИСПРАВЛЕННЫЕ ИМПОРТЫ
+# ✅ ИМПОРТЫ МОДЕЛЕЙ
 from groups.models import Group, SchedulePlan
-from reference.models import GroupCategory  # Категории берутся отсюда
+from reference.models import GroupCategory, TrainingProgram
 from groups.forms import SchedulePlanForm
 from teachers.models import Teacher
 from classrooms.models import Classroom
@@ -37,7 +37,7 @@ def _check_schedule_duplicates(group, date_start, date_end, exclude_plan_id=None
 
 
 # =============================================================================
-#  Список план-графиков
+# 🔹 Список план-графиков
 # =============================================================================
 @login_required
 def schedule_plans_list(request):
@@ -115,12 +115,12 @@ def schedule_plan_create(request, plan_id=None):
                             except (ValueError, TypeError):
                                 continue
                     except json.JSONDecodeError as e:
-                        print(f" Ошибка JSON class_days: {e}")
+                        print(f"️ Ошибка JSON class_days: {e}")
                         schedule_plan.class_days = {}
                 else:
                     schedule_plan.class_days = {}
 
-                # 🔹 Сохранение преподавателя медицины
+                #  Сохранение преподавателя медицины
                 med_teacher_id = request.POST.get('med_teacher')
                 if med_teacher_id and med_teacher_id.isdigit():
                     schedule_plan.med_teacher_id = int(med_teacher_id)
@@ -157,7 +157,7 @@ def schedule_plan_create(request, plan_id=None):
                 messages.success(request, '✅ План-график сохранён!')
                 return redirect('groups:schedule_plan_step2', plan_id=schedule_plan.pk)
         else:
-            print(f" Ошибки формы: {form.errors}")
+            print(f"⚠️ Ошибки формы: {form.errors}")
             messages.error(request, '❌ Ошибка в форме')
     else:
         # GET-запрос
@@ -324,33 +324,58 @@ def schedule_plan_ajax_update_day(request, plan_id):
 
 
 # =============================================================================
-# 🔹 Шаг 2: Распределение часов
+# 🔹 Шаг 2: Распределение часов (ПОЛНОСТЬЮ ОБНОВЛЁННАЯ ВЕРСИЯ)
 # =============================================================================
 @login_required
 def schedule_plan_step2(request, plan_id):
-    """Шаг 2: Распределение часов по датам"""
+    """Шаг 2: Распределение часов по датам с поддержкой учебных планов"""
     plan = get_object_or_404(SchedulePlan, pk=plan_id)
 
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
             hours_data = data.get('hours', {})
-            category_code = data.get('category')  # 🔹 Получаем категорию
-            time_start = data.get('time_start')  # 🔹 Получаем время начала
-            time_end = data.get('time_end')  # 🔹 Получаем время конца
+            topics_data = data.get('topics', {})
+            category_code = data.get('category')
+            time_start = data.get('time_start')
+            time_end = data.get('time_end')
+
+            # 🔹 Сохранение мед. преподавателя
+            med_teacher_val = data.get('med_teacher')
 
             class_days = plan.class_days or {}
             if isinstance(class_days, str):
                 class_days = json.loads(class_days)
 
-            # Сохраняем часы по предметам
-            for subject, dates in hours_data.items():
-                for date_str, val in dates.items():
-                    if date_str not in class_days:
-                        class_days[date_str] = {}
-                    class_days[date_str][subject] = val
+            # Перебор всех дат и предметов
+            for date_str, subjects in topics_data.items():
+                if not isinstance(date_str, str): continue
 
-            # 🔹 Сохраняем категорию и время в class_days
+                if date_str not in class_days:
+                    class_days[date_str] = {}
+
+                for subject, topic_map in subjects.items():
+                    if not isinstance(topic_map, dict): continue
+
+                    # Считаем сумму часов из тем (источник истины)
+                    total_topic_hours = 0.0
+                    cleaned_topics = {}
+
+                    for tid, h in topic_map.items():
+                        try:
+                            val = float(h)
+                            if val > 0:
+                                cleaned_topics[str(tid)] = val
+                                total_topic_hours += val
+                        except (ValueError, TypeError):
+                            continue
+
+                    # Сохраняем темы и рассчитанные часы
+                    topic_key = f'{subject}_topics'
+                    class_days[date_str][topic_key] = cleaned_topics
+                    class_days[date_str][subject] = total_topic_hours
+
+            # Сохраняем метаданные
             if category_code:
                 class_days['_category'] = category_code
             if time_start:
@@ -358,12 +383,25 @@ def schedule_plan_step2(request, plan_id):
             if time_end:
                 class_days['_time_end'] = time_end
 
+            # Сохраняем преподавателя медицины
+            if med_teacher_val and str(med_teacher_val).isdigit():
+                plan.med_teacher_id = int(med_teacher_val)
+            else:
+                plan.med_teacher = None
+
             plan.class_days = class_days
-            plan.save(update_fields=['class_days'])
+            plan.save(update_fields=['class_days', 'med_teacher'])
             return JsonResponse({'success': True})
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             return JsonResponse({'success': False, 'error': str(e)}, status=400)
 
+    # =========================================================================
+    # GET ЗАПРОС — ПОДГОТОВКА ДАННЫХ ДЛЯ ШАБЛОНА
+    # =========================================================================
+
+    # Загружаем class_days
     raw_days = plan.class_days
     if isinstance(raw_days, str):
         try:
@@ -375,15 +413,54 @@ def schedule_plan_step2(request, plan_id):
     else:
         class_days = {}
 
-    # 🔹 Получаем время занятий и категорию из сохраненных данных
     time_start = class_days.get('_time_start', '09:00')
     time_end = class_days.get('_time_end', '17:00')
     saved_category = class_days.get('_category', '')
 
-    # Если категория не сохранена в class_days, берём из карточки группы
     if not saved_category and plan.group and plan.group.category:
         saved_category = plan.group.category.code
 
+    # 🔹 ОБРАБОТКА ВЫБОРА ПРОГРАММЫ (из URL или по категории)
+    selected_program_id = request.GET.get('program_id')
+    training_program = None
+
+    if selected_program_id:
+        try:
+            training_program = TrainingProgram.objects.get(pk=selected_program_id)
+        except TrainingProgram.DoesNotExist:
+            pass
+
+    # Если программа не выбрана явно, ищем первую подходящую по категории
+    if not training_program and saved_category:
+        training_program = TrainingProgram.objects.filter(
+            categories__code=saved_category
+        ).prefetch_related('subjects__subject').first()
+
+    # Формируем список предметов из выбранной программы
+    program_subjects = []
+    if training_program:
+        exam_item = None
+        other_subjects = []
+
+        for ps in training_program.subjects.select_related('subject').order_by('subject__short_name'):
+            subject = ps.subject
+            item = {
+                'code': subject.short_name,
+                'short_display': subject.short_name_display or subject.short_name.upper(),
+                'full_name': subject.name,
+                'hours': float(ps.hours),
+            }
+
+            if subject.short_name == 'exam':
+                exam_item = item
+            else:
+                other_subjects.append(item)
+
+        program_subjects = other_subjects
+        if exam_item:
+            program_subjects.append(exam_item)
+
+    # Группировка дней по месяцам для таблицы
     days_by_month = defaultdict(list)
     ru_months = {
         'January': 'Январь', 'February': 'Февраль', 'March': 'Март',
@@ -393,7 +470,7 @@ def schedule_plan_step2(request, plan_id):
     }
 
     for date_str in sorted(class_days.keys()):
-        if date_str.startswith('_'):
+        if not isinstance(date_str, str) or date_str.startswith('_'):
             continue
         try:
             date_obj = datetime.strptime(date_str, '%Y-%m-%d')
@@ -403,35 +480,70 @@ def schedule_plan_step2(request, plan_id):
             day_info = {
                 'day_num': date_obj.strftime('%d'),
                 'raw_date': date_str,
-                'pdd': day_data.get('pdd', ''),
-                'ua': day_data.get('ua', ''),
-                'bd': day_data.get('bd', ''),
-                'podd': day_data.get('podd', ''),
-                'med': day_data.get('med', ''),
-                'exam': day_data.get('exam', ''),
             }
+            for ps in program_subjects:
+                day_info[ps['code']] = day_data.get(ps['code'], '')
+
             days_by_month[month_name].append(day_info)
         except ValueError:
             continue
 
-    # 🔹 ЗАГРУЗКА КАТЕГОРИЙ ИЗ СПРАВОЧНИКА
+    # Категории для select (если нужно переключать)
     categories = list(GroupCategory.objects.values_list('code', 'description'))
+
+    # 🔹 Нормативы часов — ТОЛЬКО ИЗ ПРОГРАММЫ
+    required_hours = 0.0
+    defaults = {}
+    subjects_list_for_template = []
+
+    if program_subjects:
+        required_hours = float(training_program.total_hours) if training_program else 0.0
+        for item in program_subjects:
+            defaults[item['code']] = item['hours']
+            subjects_list_for_template.append((item['code'], item['short_display']))
+    else:
+        required_hours = float(plan.required_hours or 0)
+        subjects_list_for_template = []
+
+    # 🔹 Состояние тем для JavaScript (для восстановления при F5)
+    topics_state = {}
+    for date_str, day_data in class_days.items():
+        if not isinstance(date_str, str): continue
+        if date_str.startswith('_'): continue
+
+        for key, value in day_data.items():
+            if key.endswith('_topics') and isinstance(value, dict):
+                subject = key.replace('_topics', '')
+                if date_str not in topics_state:
+                    topics_state[date_str] = {}
+                clean_val = {str(k): float(v) for k, v in value.items()}
+                topics_state[date_str][subject] = clean_val
+
+    # 🔹 СПИСОК ВСЕХ ПРОГРАММ ДЛЯ ВЫПАДАЮЩЕГО СПИСКА
+    available_programs = TrainingProgram.objects.all().order_by('name')
 
     context = {
         'plan': plan,
         'days_by_month': dict(days_by_month),
         'plan_year': plan.date_start.year,
-        'required_hours': plan.required_hours,
+        'required_hours': required_hours,
         'title': 'Подтверждение план-графика',
-        'pdd_default': 100, 'ua_default': 6, 'bd_default': 38,
-        'podd_default': 8, 'med_default': 16, 'exam_default': 2,
         'location': plan.location or '',
         'teachers': Teacher.objects.filter(is_active=True).order_by('last_name', 'first_name'),
         'med_teacher': plan.med_teacher,
         'time_start': time_start,
         'time_end': time_end,
-        'categories': categories,  # 🔹 Передаём список категорий
-        'current_category': saved_category,  # 🔹 Передаём текущую категорию
+        'categories': categories,
+        'current_category': saved_category,
+
+        'subjects': subjects_list_for_template,
+        'defaults': defaults,
+
+        'topics_state_json': json.dumps(topics_state, default=str),
+        'training_program': training_program,
+        'program_subjects': program_subjects,
+        'available_programs': available_programs,
+        'training_program_id': training_program.id if training_program else None,
     }
     return render(request, 'groups/schedule_plan_step2.html', context)
 
@@ -453,3 +565,50 @@ def schedule_plan_delete(request, plan_id):
 
     messages.success(request, f'✅ План-график для группы "{group_number}" удалён.')
     return redirect('groups:schedule_plans_list')
+
+
+# =============================================================================
+# 🔹 Удаление/сброс план-графика (полная очистка)
+# =============================================================================
+@login_required
+def schedule_plan_reset(request, plan_id):
+    """Очистка таблицы распределения часов (step2)"""
+    if request.method != 'DELETE':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+    plan = get_object_or_404(SchedulePlan, pk=plan_id)
+
+    # Проверка прав
+    if plan.created_by != request.user and not request.user.is_superuser:
+        return JsonResponse({'error': 'Недостаточно прав'}, status=403)
+
+    try:
+        # Загружаем class_days
+        class_days = plan.class_days or {}
+        if isinstance(class_days, str):
+            class_days = json.loads(class_days)
+
+        # 🔹 Очищаем только часы предметов и тем, но сохраняем структуру дат
+        cleaned_days = {}
+
+        for date_str, day_data in class_days.items():
+            if date_str.startswith('_'):
+                cleaned_days[date_str] = day_data  # Метаданные
+            elif isinstance(day_data, dict):
+                cleaned_day = {}
+                if 'scheduled' in day_data:
+                    cleaned_day['scheduled'] = day_data['scheduled']  # Сохраняем флаг занятости дня
+                cleaned_days[date_str] = cleaned_day  # Даты остаются, часы удаляются
+
+        plan.class_days = cleaned_days
+        plan.save(update_fields=['class_days'])
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Все часы в таблице распределения очищены',
+            'action': 'hours_cleared'
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)

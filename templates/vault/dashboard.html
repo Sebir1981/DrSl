@@ -1,4 +1,5 @@
 {% load static %}
+{% load user_extras %}  {# ✅ Загружаем кастомный фильтр для проверки групп #}
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -102,10 +103,9 @@
         .collapse-icon {
             transition: transform 0.3s ease;
             font-size: 14px;
-            margin-left: auto; /* Сдвигаем стрелку вправо */
+            margin-left: auto;
         }
 
-        /* Когда свернуто */
         .collapsible-header.collapsed .collapse-icon {
             transform: rotate(-90deg);
         }
@@ -113,7 +113,7 @@
         .collapsible-content {
             overflow: hidden;
             transition: max-height 0.4s ease, opacity 0.4s ease;
-            max-height: 2000px; /* Достаточно большое значение для контента */
+            max-height: 2000px;
             opacity: 1;
         }
 
@@ -223,7 +223,7 @@
     </style>
 </head>
 <body>
-    <!-- 🔹 Правая панель (сайдбар) - БЕЗ ИЗМЕНЕНИЙ -->
+    <!-- 🔹 Правая панель (сайдбар) -->
     {% include 'includes/sidebar.html' %}
 
     <!-- 🔹 Верхняя панель -->
@@ -243,7 +243,7 @@
     <main class="main-content">
 
         <!-- 🔹 ОСНОВНЫЕ РАЗДЕЛЫ -->
-        <div class="section-title"> Основные разделы</div>
+        <div class="section-title">📋 Основные разделы</div>
         <div class="cards-grid">
             <!-- Группы -->
             <a href="{% url 'groups:dashboard' %}" class="card primary">
@@ -263,17 +263,17 @@
             <a href="{% url 'groups:credits_exams' %}" class="card primary">
                 <span class="icon">✅</span>
                 <span class="title">Зачёты и экзамены</span>
-                <span class="count"></span>
+                <span class="count">📊</span>
             </a>
         </div>
 
-        <!-- 🔹 СПРАВОЧНИКИ (Сворачиваемый) -->
+        <!-- 🔹 СПРАВОЧНИКИ (Сворачиваемый раздел) -->
         <div class="section-title collapsible-header" id="ref-toggle">
-            <span> Справочники</span>
+            <span>📁 Справочники</span>
             <span class="collapse-icon">▼</span>
         </div>
 
-        <!-- Карточки справочников (по умолчанию скрыты через JS) -->
+        <!-- Карточки справочников (по умолчанию скрыты) -->
         <div class="cards-grid collapsible-content" id="ref-content">
             <!-- Аудитории -->
             <a href="{% url 'classrooms:classroom_list' %}" class="card reference">
@@ -314,11 +314,12 @@
             <a href="#" class="card coming-soon">
                 <span class="icon">🚙</span>
                 <span class="title">Автопарк</span>
-                <span class="count"></span>
+                <span class="count">🔜</span>
             </a>
         </div>
 
-        <!-- 🔹 СИСТЕМНЫЕ РАЗДЕЛЫ -->
+        <!-- 🔹 СИСТЕМНЫЕ РАЗДЕЛЫ (Только для админов) -->
+        {% if user|is_in_group:"admin" or user.is_superuser %}
         <div class="section-title">⚙️ Системные</div>
         <div class="cards-grid">
             <!-- Хранилище -->
@@ -335,6 +336,7 @@
                 <span class="count"></span>
             </a>
         </div>
+        {% endif %}
 
     </main>
 
@@ -353,8 +355,7 @@
             // Обработчик клика
             header.addEventListener('click', toggleRef);
 
-            // 🔹 ПО УМОЛЧАНИЮ СВЕРНУТО (как вы просили)
-            // Если хотите по умолчанию развернуть, удалите эти две строки:
+            // 🔹 ПО УМОЛЧАНИЮ СВЕРНУТО
             header.classList.add('collapsed');
             content.classList.add('collapsed');
         });

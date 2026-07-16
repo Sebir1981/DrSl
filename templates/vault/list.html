@@ -13,25 +13,23 @@
 <div class="data-table">
     <table>
         <thead>
-            <tr>
-                <th>Название</th>
-                <th>Логин</th>
-                <th>Действия</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for entry in entries %}
-            <tr>
-                <td><strong>{{ entry.title }}</strong></td>
-                <td>{{ entry.username|default:"—" }}</td>
-                <td>
-                    <a href="{% url 'vault:vault_detail' entry.pk %}" class="btn btn-primary">Открыть</a>
-                </td>
-            </tr>
-            {% empty %}
-            <tr><td colspan="3" class="empty-state">📭 В хранилище пока нет записей.</td></tr>
-            {% endfor %}
-        </tbody>
+    <tr>
+        <th>ФИО</th>
+        <th>Логин</th>
+        <th>Действия</th>
+    </tr>
+</thead>
+<tbody>
+    {% for entry in entries %}
+    <tr>
+        <td><strong>{{ entry.full_name|default:"—" }}</strong></td>
+        <td>{{ entry.username }}</td>
+        <td>
+            <a href="{% url 'vault:vault_detail' entry.pk %}" class="btn btn-sm">Открыть</a>
+        </td>
+    </tr>
+    {% endfor %}
+</tbody>
     </table>
 </div>
 {% endblock %}

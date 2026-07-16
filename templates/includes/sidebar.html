@@ -1,4 +1,5 @@
 {% load static %}
+{% load user_extras %}
 <aside class="sidebar">
     <!-- 🔹 Заголовок — всегда виден при скролле -->
     <div class="sidebar-header">
@@ -7,20 +8,27 @@
 
     <!-- 🔹 Прокручиваемая область меню -->
     <nav class="sidebar-menu">
+        <!-- Главная -->
         <a href="{% url 'vault:dashboard' %}" class="menu-item {% if request.resolver_match.app_name == 'vault' or request.resolver_match.url_name == 'home' %}active{% endif %}">
             <span class="icon">🏠</span> Главная
         </a>
+
+        <!-- Группы -->
         <a href="{% url 'groups:dashboard' %}" class="menu-item {% if request.resolver_match.app_name == 'groups' %}active{% endif %}">
             <span class="icon">👥</span> Группы
         </a>
+
+        <!-- Учащиеся -->
         <a href="{% url 'students:dashboard' %}" class="menu-item {% if request.resolver_match.app_name == 'students' %}active{% endif %}">
             <span class="icon">🎓</span> Учащиеся
         </a>
+
+        <!-- Зачёты и экзамены -->
         <a href="{% url 'groups:credits_exams' %}" class="menu-item {% if request.resolver_match.url_name == 'credits_exams' or request.resolver_match.url_name == 'credits_exams_add' %}active{% endif %}">
             <span class="icon">✅</span> Зачёты и экзамены
         </a>
 
-        <!-- 🔹 НОВЫЙ ПУНКТ: Отчёты -->
+        <!-- Отчёты -->
         <a href="{% url 'reports:dashboard' %}" class="menu-item {% if request.resolver_match.app_name == 'reports' %}active{% endif %}">
             <span class="icon">📊</span> Отчёты
         </a>
@@ -28,7 +36,7 @@
         <!-- 🔹 РАЗДЕЛИТЕЛЬ -->
         <div class="menu-divider"></div>
 
-        <!-- 🔹 НОВАЯ ПАПКА: 📁 Справочники (раскрывающаяся) -->
+        <!-- 🔹 ПАПКА: 📁 Справочники (раскрывающаяся) -->
         <div class="menu-folder">
             <div class="menu-folder-header" onclick="toggleFolder('references-folder')">
                 <span class="icon">📁</span> Справочники
@@ -44,33 +52,41 @@
                 <a href="{% url 'masters:master_list' %}" class="menu-item sub-item {% if request.resolver_match.app_name == 'masters' %}active{% endif %}">
                     <span class="icon">🚗</span> Мастера
                 </a>
-                <a href="#" class="menu-item sub-item" style="opacity: 0.7;">
+                <a href="#" class="menu-item sub-item" style="opacity: 0.7; cursor: not-allowed;">
                     <span class="icon">🚙</span> Автопарк
                 </a>
                 <a href="{% url 'reference:topic_list' %}" class="menu-item sub-item {% if request.resolver_match.app_name == 'reference' %}active{% endif %}">
                     <span class="icon">📖</span> Темы занятий
                 </a>
-                <!-- Категории — это часть справочника Темы занятий, но можно добавить отдельную ссылку на админку -->
                 <a href="{% url 'admin:reference_groupcategory_changelist' %}" class="menu-item sub-item">
                     <span class="icon">📁</span> Категории
                 </a>
             </div>
         </div>
 
-        <!-- 🔹 Остальные пункты вне папки -->
-        <a href="{% url 'vault:vault_list' %}" class="menu-item">
+        <!-- 🔹 Хранилище — ТОЛЬКО ДЛЯ АДМИНОВ -->
+        {% if user|is_in_group:"admin" or user.is_superuser %}
+        <a href="{% url 'vault:vault_list' %}" class="menu-item {% if request.resolver_match.app_name == 'vault' %}active{% endif %}">
             <span class="icon">🔐</span> Хранилище
         </a>
+        {% endif %}
+
+        <!-- 🔹 Админка — ТОЛЬКО ДЛЯ АДМИНОВ -->
+        {% if user|is_in_group:"admin" or user.is_superuser %}
         <a href="{% url 'admin:index' %}" class="menu-item">
             <span class="icon">⚙️</span> Админка
         </a>
+        {% endif %}
     </nav>
 
     <!-- 🔹 Блок пользователя — всегда внизу -->
     <div class="sidebar-footer">
         <div class="user-info">
-            👤 {{ user.get_full_name|default:user.username }}
-            <a href="{% url 'admin:logout' %}?next={% url 'home' %}" class="logout-link">Выйти</a>
+            <form method="post" action="{% url 'admin:logout' %}" style="display:inline;">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{% url 'home' %}">
+                <button type="submit" class="logout-link" style="background:none;border:none;color:#4facfe;cursor:pointer;font-weight:600;text-decoration:none;padding:0;font-size:14px;">Выйти</button>
+            </form>
         </div>
     </div>
 </aside>
@@ -278,7 +294,7 @@
         border-bottom-color: #4facfe;
         transform: none;
     }
-    .menu-item.sub-item { display: none; } /* Скрываем подпункты на мобильных */
+    .menu-item.sub-item { display: none; }
     .menu-folder-content { display: none !important; }
 }
 </style>
@@ -319,4 +335,5 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 });
+</script>
 </script>

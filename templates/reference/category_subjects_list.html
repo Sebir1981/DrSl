@@ -1,0 +1,436 @@
+{% extends "base.html" %}
+{% block title %}Учебный план{% endblock %}
+
+{% block content %}
+<style>
+.programs-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+/* Шапка страницы */
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 32px;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.btn-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    background: #e2e8f0;
+    color: #334155;
+    text-decoration: none;
+    border-radius: 8px;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+.btn-back:hover {
+    background: #cbd5e1;
+}
+
+/* Сетка карточек */
+.programs-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 20px;
+}
+
+/* Стиль обычной карточки программы */
+.program-card {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    overflow: hidden;
+    transition: all 0.2s;
+    border: 1px solid #e2e8f0;
+}
+
+.program-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+}
+
+.card-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 20px;
+    position: relative;
+}
+
+.card-title {
+    margin: 0 0 8px 0;
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.card-hours {
+    display: inline-block;
+    background: rgba(255,255,255,0.2);
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.card-body {
+    padding: 20px;
+}
+
+.categories-list {
+    margin-bottom: 16px;
+}
+
+.category-badge {
+    display: inline-block;
+    background: #dbeafe;
+    color: #1e40af;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 13px;
+    margin-right: 6px;
+    margin-bottom: 6px;
+}
+
+.subjects-count {
+    color: #64748b;
+    font-size: 14px;
+    margin-bottom: 12px;
+}
+
+.card-footer {
+    padding: 16px 20px;
+    background: #f8fafc;
+    border-top: 1px solid #e2e8f0;
+    display: flex;
+    gap: 10px;
+}
+
+.btn-action {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    text-align: center;
+    transition: all 0.2s;
+}
+
+.btn-edit {
+    background: #3b82f6;
+    color: white;
+}
+
+.btn-edit:hover {
+    background: #2563eb;
+}
+
+.btn-delete {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+.btn-delete:hover {
+    background: #dc2626;
+    color: white;
+}
+
+.empty-state {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 60px 20px;
+    background: white;
+    border-radius: 12px;
+    color: #64748b;
+}
+
+/* 🔹 Стили для карточки "Создать новый план" */
+.create-card {
+    cursor: pointer;
+    border: 2px dashed #cbd5e1;
+    background: #f8fafc;
+    transition: all 0.3s ease;
+    display: flex;
+    flex-direction: column;
+}
+
+.create-card:hover {
+    border-color: #10b981;
+    background: #f0fdf4;
+    box-shadow: 0 8px 16px rgba(16, 185, 129, 0.15);
+    transform: translateY(-4px);
+}
+
+.create-card .card-header {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%); /* Зелёный градиент */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+
+.create-card .card-title {
+    margin-bottom: 4px;
+}
+
+.create-card .card-body {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    color: #64748b;
+}
+
+.create-card .card-footer {
+    background: transparent;
+    border-top: 1px solid #e2e8f0;
+    justify-content: center;
+    padding-top: 20px;
+    padding-bottom: 20px;
+}
+
+.create-btn-text {
+    color: #059669;
+    font-weight: 700;
+    font-size: 15px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Модальные окна */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    backdrop-filter: blur(2px);
+}
+
+.modal-box {
+    background: white;
+    padding: 32px;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 450px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    animation: slideIn 0.25s ease-out;
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.modal-icon {
+    font-size: 32px;
+}
+
+.modal-title {
+    margin: 0;
+    font-size: 20px;
+    color: #1e293b;
+}
+
+.modal-text {
+    color: #475569;
+    margin-bottom: 24px;
+    line-height: 1.6;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+.btn-modal {
+    padding: 10px 24px;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-cancel {
+    background: #e2e8f0;
+    color: #475569;
+}
+
+.btn-cancel:hover {
+    background: #cbd5e1;
+}
+
+.btn-confirm {
+    background: #10b981;
+    color: white;
+}
+
+.btn-confirm:hover {
+    background: #059669;
+}
+
+.btn-confirm-delete {
+    background: #dc2626;
+    color: white;
+}
+
+.btn-confirm-delete:hover {
+    background: #b91c1c;
+}
+
+@keyframes slideIn {
+    from { transform: translateY(-20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+</style>
+
+<div class="programs-container">
+    <div class="page-header">
+        <div>
+            <!-- 🔹 Изменено название -->
+            <h1 style="margin: 0 0 8px 0; color: #1e293b;">📋 Учебный план</h1>
+            <p style="margin: 0; color: #64748b;">Управление учебными планами подготовки водителей</p>
+        </div>
+            <a href="/groups/schedules/{{ plan_id|default:'19' }}/step2/" class="btn-back">← Назад к План-графику</a>
+         </div>
+
+    <div class="programs-grid">
+        <!-- 🔹 Список существующих программ -->
+        {% for program in programs %}
+        <div class="program-card">
+            <div class="card-header">
+                <h3 class="card-title">{{ program.name }}</h3>
+                <span class="card-hours">{{ program.total_hours }} ч.</span>
+            </div>
+            <div class="card-body">
+                <div class="categories-list">
+                    <strong style="color: #475569; font-size: 13px;">Категории:</strong>
+                    <div style="margin-top: 8px;">
+                        {% for cat in program.categories.all %}
+                        <span class="category-badge">{{ cat.code }}</span>
+                        {% empty %}
+                        <span style="color: #94a3b8; font-size: 13px;">Не выбраны</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="subjects-count">
+                    <strong>Предметов:</strong> {{ program.subjects.count }}
+                </div>
+            </div>
+            <div class="card-footer">
+                <a href="{% url 'reference:program_edit' program.pk %}" class="btn-action btn-edit">
+                    ✏️ Редактировать
+                </a>
+                <button class="btn-action btn-delete" onclick="showDeleteModal({{ program.pk }}, '{{ program.name }}')">
+                    🗑️ Удалить
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+
+        <!-- 🔹 Карточка "Создать новый план" (в конце списка) -->
+        <div class="program-card create-card" onclick="window.location.href='{% url 'reference:program_create' %}'">
+            <div class="card-header">
+                <h3 class="card-title">➕ Создать новый план</h3>
+                <span class="card-hours" style="background:none; padding:0; font-size:12px;">Нажмите для начала</span>
+            </div>
+            <div class="card-body">
+                <p style="margin:0;">Добавьте новый учебный план</p>
+            </div>
+            <div class="card-footer">
+                <span class="create-btn-text">📋 Создать</span>
+            </div>
+        </div>
+
+        <!-- Если программ вообще нет, показываем заглушку (хотя карточка Создать уже есть, это для красоты) -->
+        {% if not programs %}
+        <div class="empty-state">
+            <h3 style="margin: 0 0 12px 0; color: #1e293b;"> Планов пока нет</h3>
+            <p style="margin-bottom: 24px;">Используйте карточку ниже, чтобы создать первый учебный план.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- 🔹 Модальное окно удаления -->
+<div id="deleteModal" class="modal-overlay">
+    <div class="modal-box">
+        <div class="modal-header">
+            <span class="modal-icon">⚠️</span>
+            <h3 class="modal-title">Подтверждение удаления</h3>
+        </div>
+        <p class="modal-text">
+            Вы действительно хотите удалить программу <strong id="deleteProgramName"></strong>?<br>
+            <small style="color: #dc2626; font-weight: 500;">Это действие нельзя отменить.</small>
+        </p>
+        <div class="modal-actions">
+            <button class="btn-modal btn-cancel" onclick="closeDeleteModal()">Отмена</button>
+            <button class="btn-modal btn-confirm-delete" id="confirmDeleteBtn">🗑️ Удалить</button>
+        </div>
+    </div>
+</div>
+
+<script>
+let pendingDeleteId = null;
+
+function showDeleteModal(programId, programName) {
+    pendingDeleteId = programId;
+    document.getElementById('deleteProgramName').textContent = programName;
+    document.getElementById('deleteModal').style.display = 'flex';
+}
+
+function closeDeleteModal() {
+    document.getElementById('deleteModal').style.display = 'none';
+    pendingDeleteId = null;
+}
+
+document.getElementById('confirmDeleteBtn')?.addEventListener('click', function() {
+    if (pendingDeleteId) {
+        fetch(`/reference/programs/${pendingDeleteId}/delete/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            }
+        })
+        .then(r => r.json())
+        .then(result => {
+            if (result.success) {
+                location.reload();
+            } else {
+                alert('❌ Ошибка: ' + result.error);
+            }
+        })
+        .catch(err => alert('❌ Ошибка сети: ' + err));
+    }
+});
+
+document.querySelectorAll('.modal-overlay').forEach(modal => {
+    modal.addEventListener('click', function(e) {
+        if (e.target === this) closeDeleteModal();
+    });
+});
+
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeDeleteModal();
+});
+</script>
+{% endblock %}

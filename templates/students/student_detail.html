@@ -171,7 +171,7 @@
 
         <!-- ✅ Кнопки действий -->
         <div style="display:flex;gap:10px;justify-content:flex-end;padding-top:15px;border-top:1px solid #f1f5f9;flex-wrap:wrap;">
-            <a href="{% url 'admin:students_student_change' student.pk %}" style="padding:10px 20px;background:#4facfe;color:white;border-radius:8px;text-decoration:none;font-size:14px;font-weight:500;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 4px 12px rgba(79,172,254,0.3)'" onmouseout="this.style.transform='none';this.style.boxShadow='none'">✏️ Редактировать</a>
+            <a href="{% url 'students:student_edit' student.id %}" style="padding:10px 20px;background:#4facfe;color:white;border-radius:8px;text-decoration:none;font-size:14px;font-weight:500;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 4px 12px rgba(79,172,254,0.3)'" onmouseout="this.style.transform='none';this.style.boxShadow='none'">✏️ Редактировать</a>
 
             <div style="position:relative;">
                 <button type="button" id="actions-trigger" style="padding:10px 20px;background:#f1f5f9;color:#475569;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:6px;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f1f5f9'"> Действия ▼</button>

@@ -1,78 +1,258 @@
 {% extends "base.html" %}
 {% load static %}
+
 {% block title %}👥 Группы — Автошкола{% endblock %}
 
-{% block content %}
-<div class="page-header">
-    <h1>👥 Управление группами</h1>
-    <div>
-        <a href="{% url 'vault:dashboard' %}" class="btn" style="background:#e2e8f0;color:#334155;padding:10px 20px;border-radius:8px;text-decoration:none;">← На главную</a>
-    </div>
-</div>
-
-<!-- 🔹 СЕТКА КАРТОЧЕК -->
-<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px;max-width:1200px;margin:0 auto;">
-
-    <!-- ✅ Создание группы -->
-    <a href="{% url 'admin:groups_group_add' %}" class="card" style="background:linear-gradient(135deg,#4facfe,#00f2fe);color:white;padding:25px;border-radius:16px;text-decoration:none;box-shadow:0 4px 20px rgba(79,172,254,0.3);transition:transform 0.2s;">
-        <div style="font-size:32px;margin-bottom:12px;">➕</div>
-        <div style="font-size:18px;font-weight:600;margin-bottom:8px;">Создание группы</div>
-        <div style="font-size:13px;opacity:0.9;">Добавить новую учебную группу</div>
-    </a>
-
-    <!-- ✅ Список групп -->
-    <a href="{% url 'groups:group_list' %}" class="card" style="background:white;padding:25px;border-radius:16px;text-decoration:none;box-shadow:0 4px 20px rgba(0,0,0,0.08);border-left:4px solid #4facfe;transition:transform 0.2s;">
-        <div style="font-size:32px;margin-bottom:12px;">📋</div>
-        <div style="font-size:18px;font-weight:600;margin-bottom:8px;color:#1e293b;">Список групп</div>
-        <div style="font-size:13px;color:#64748b;">Просмотр, поиск и фильтры</div>
-        {% if total_groups %}
-        <div style="margin-top:12px;font-size:12px;color:#4facfe;font-weight:500;">
-            Всего групп: <strong>{{ total_groups }}</strong>
-        </div>
-        {% endif %}
-    </a>
-
-    <!-- ✅ План графики 1 (о) -->
-     <a href="{% url 'groups:schedule_plans_list' %}" class="card" style="background:white;padding:25px;border-radius:16px;text-decoration:none;box-shadow:0 4px 20px rgba(0,0,0,0.08);border-left:4px solid #4facfe;transition:transform 0.2s;">
-        <div style="font-size:32px;margin-bottom:12px;">📊</div>
-        <div style="font-size:18px;font-weight:600;margin-bottom:8px;color:#1e293b;">План-графики 1 (о)</div>
-        <div style="font-size:13px;color:#64748b;">Создание и редактирование расписания</div>
-    </a>
-
-    <!-- 🔜 План графики 2 (р) -->
-    <div class="card" style="background:#f8fafc;padding:25px;border-radius:16px;box-shadow:0 4px 20px rgba(0,0,0,0.05);border-left:4px solid #94a3b8;opacity:0.7;">
-        <div style="font-size:32px;margin-bottom:12px;">📈</div>
-        <div style="font-size:18px;font-weight:600;margin-bottom:8px;color:#475569;">План графики 2 (р)</div>
-        <div style="font-size:13px;color:#94a3b8;">Функция в разработке</div>
-        <div style="margin-top:12px;font-size:11px;color:#f59e0b;font-weight:500;">🔜 Скоро</div>
-    </div>
-
-    <!-- 🔜 Расписание -->
-    <div class="card" style="background:#f8fafc;padding:25px;border-radius:16px;box-shadow:0 4px 20px rgba(0,0,0,0.05);border-left:4px solid #94a3b8;opacity:0.7;">
-        <div style="font-size:32px;margin-bottom:12px;">🗓️</div>
-        <div style="font-size:18px;font-weight:600;margin-bottom:8px;color:#475569;">Расписание</div>
-        <div style="font-size:13px;color:#94a3b8;">Функция в разработке</div>
-        <div style="margin-top:12px;font-size:11px;color:#f59e0b;font-weight:500;">🔜 Скоро</div>
-    </div>
-
-    <!-- 🔜 Закрытие групп -->
-    <div class="card" style="background:#f8fafc;padding:25px;border-radius:16px;box-shadow:0 4px 20px rgba(0,0,0,0.05);border-left:4px solid #94a3b8;opacity:0.7;">
-        <div style="font-size:32px;margin-bottom:12px;">🔒</div>
-        <div style="font-size:18px;font-weight:600;margin-bottom:8px;color:#475569;">Закрытие групп</div>
-        <div style="font-size:13px;color:#94a3b8;">Функция в разработке</div>
-        <div style="margin-top:12px;font-size:11px;color:#f59e0b;font-weight:500;">🔜 Скоро</div>
-    </div>
-
-</div>
-
-<!-- 🔹 Анимация при наведении на активные карточки -->
+{% block extra_css %}
 <style>
-.card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 8px 30px rgba(0,0,0,0.12) !important;
+.groups-dashboard {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
 }
-.card a:hover, .card:hover {
+
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 40px;
+}
+
+.page-header h1 {
+    font-size: 32px;
+    color: white;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.cards-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 24px;
+    margin-bottom: 30px;
+}
+
+/* 🔹 Стили для карточек */
+.card {
+    background: white;
+    border-radius: 16px;
+    padding: 28px;
     text-decoration: none;
+    color: #334155;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+}
+
+.card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(135deg, #4facfe, #00f2fe);
+    transform: scaleX(0);
+    transition: transform 0.3s ease;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+}
+
+.card:hover::before {
+    transform: scaleX(1);
+}
+
+.card-icon {
+    width: 60px;
+    height: 60px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    color: white;
+}
+
+.card.primary .card-icon {
+    background: linear-gradient(135deg, #4facfe, #00f2fe);
+}
+
+.card.success .card-icon {
+    background: linear-gradient(135deg, #10b981, #059669);
+}
+
+.card.warning .card-icon {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+
+.card.info .card-icon {
+    background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+}
+
+.card-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0;
+}
+
+.card-description {
+    font-size: 14px;
+    color: #64748b;
+    margin: 0;
+    line-height: 1.5;
+}
+
+.card-count {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: #e0f2fe;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #0369a1;
+    width: fit-content;
+}
+
+/* 🔹 Карточка "Создание группы" */
+.card.create {
+    background: linear-gradient(135deg, #4facfe, #00f2fe);
+    color: white;
+    border: 2px dashed rgba(255,255,255,0.5);
+}
+
+.card.create .card-icon {
+    background: rgba(255,255,255,0.3);
+    font-size: 40px;
+}
+
+.card.create .card-title,
+.card.create .card-description {
+    color: white;
+}
+
+.card.create:hover {
+    background: linear-gradient(135deg, #00f2fe, #4facfe);
+    border-color: white;
+    box-shadow: 0 12px 40px rgba(79,172,254,0.4);
+}
+
+/* 🔹 Карточки в разработке */
+.card.coming-soon {
+    opacity: 0.7;
+    background: #f8fafc;
+    border: 2px solid #e2e8f0;
+}
+
+.card.coming-soon .card-icon {
+    background: #cbd5e1;
+}
+
+.card-badge {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    padding: 4px 10px;
+    background: #fbbf24;
+    color: #78350f;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+/* 🔹 Адаптив */
+@media (max-width: 768px) {
+    .page-header h1 {
+        font-size: 24px;
+    }
+    .cards-container {
+        grid-template-columns: 1fr;
+    }
 }
 </style>
+{% endblock %}
+
+{% block content %}
+<div class="groups-dashboard">
+    <div class="page-header">
+        <h1>👥 Управление группами</h1>
+        <a href="{% url 'vault:dashboard' %}" class="btn btn-secondary" style="padding: 10px 20px; background: white; color: #667eea; border-radius: 8px; text-decoration: none; font-weight: 600;">
+            ← На главную
+        </a>
+    </div>
+
+    <div class="cards-container">
+        <!-- 🔹 Создание группы (исправленная карточка) -->
+        <a href="{% url 'groups:group_form' %}" class="card create">
+            <div class="card-icon">➕</div>
+            <div>
+                <h3 class="card-title">Создание группы</h3>
+                <p class="card-description">Добавить новую учебную группу</p>
+            </div>
+        </a>
+
+        <!-- 🔹 Список групп -->
+        <a href="{% url 'groups:group_list' %}" class="card primary">
+            <div class="card-icon">📋</div>
+            <div>
+                <h3 class="card-title">Список групп</h3>
+                <p class="card-description">Просмотр, поиск и фильтры</p>
+                <span class="card-count">Всего групп: {{ groups_count|default:0 }}</span>
+            </div>
+        </a>
+
+        <!-- 🔹 План-графики 1 -->
+        <a href="{% url 'groups:schedule_plans_list' %}" class="card success">
+            <div class="card-icon">📊</div>
+            <div>
+                <h3 class="card-title">План-графики 1 (о)</h3>
+                <p class="card-description">Создание и редактирование расписания</p>
+            </div>
+        </a>
+
+        <!-- 🔹 План-графики 2 -->
+        <div class="card coming-soon">
+            <span class="card-badge">Скоро</span>
+            <div class="card-icon">📈</div>
+            <div>
+                <h3 class="card-title">План-графики 2 (р)</h3>
+                <p class="card-description">Функция в разработке</p>
+            </div>
+        </div>
+
+        <!-- 🔹 Расписание -->
+        <div class="card coming-soon">
+            <span class="card-badge">Скоро</span>
+            <div class="card-icon">📅</div>
+            <div>
+                <h3 class="card-title">Расписание</h3>
+                <p class="card-description">Функция в разработке</p>
+            </div>
+        </div>
+
+        <!-- 🔹 Закрытие групп -->
+        <div class="card coming-soon">
+            <span class="card-badge">Скоро</span>
+            <div class="card-icon">🔒</div>
+            <div>
+                <h3 class="card-title">Закрытие групп</h3>
+                <p class="card-description">Функция в разработке</p>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}

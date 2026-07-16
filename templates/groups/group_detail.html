@@ -140,71 +140,100 @@
     </div>
 
     <!-- 🔹 Форма настроек + дат -->
-    <form method="post">
-        {% csrf_token %}
-
-        <div class="form-grid">
-            <div class="field">
-                <label>📅 Начало договора</label>
-                <input type="date" name="contract_start" value="{{ group.contract_start|date:'Y-m-d' }}">
-            </div>
-            <div class="field">
-                <label>📅 Окончание договора</label>
-                <input type="date" name="contract_end" value="{{ group.contract_end|date:'Y-m-d' }}">
-            </div>
-            <div class="field">
-                <label>📚 ПДД (внутр.)</label>
-                <input type="date" name="exam_internal_theory_date" value="{{ group.exam_internal_theory_date|date:'Y-m-d' }}">
-            </div>
-            <div class="field">
-                <label> Вождение (внутр.)</label>
-                <input type="date" name="exam_internal_driving_date" value="{{ group.exam_internal_driving_date|date:'Y-m-d' }}">
-            </div>
-            <div class="field">
-                <label>🏁 Экзамен ГАИ</label>
-                <input type="date" name="exam_gai_date" value="{{ group.exam_gai_date|date:'Y-m-d' }}">
-            </div>
-            <div class="field">
-                <label>🚦 Статус</label>
-                <select name="status">
-                    <option value="active" {% if group.status == 'active' %}selected{% endif %}>🟢 Активна</option>
-                    <option value="paused" {% if group.status == 'paused' %}selected{% endif %}>🟡 Приостановлена</option>
-                    <option value="closed" {% if group.status == 'closed' %}selected{% endif %}> Закрыта</option>
-                </select>
-            </div>
-            <div class="field">
-                <label>🏫 Аудитория</label>
-                <select name="classroom">
-                    <option value="">— Не назначена —</option>
-                    {% for c in classrooms %}
-                    <option value="{{ c.id }}" {% if group.classroom and group.classroom.id == c.id %}selected{% endif %}>
-                        {{ c.classroom_number }} — {{ c.address|default:"—" }}
-                    </option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="field">
-                <label>👨‍🏫 Преподаватель</label>
-                <select name="teacher">
-                    <option value="">— Не назначен —</option>
-                    {% for t in teachers %}
-                    <option value="{{ t.id }}" {% if group.teacher and group.teacher.id == t.id %}selected{% endif %}>
-                        {{ t.last_name }} {{ t.first_name|slice:":1" }}.
-                    </option>
-                    {% endfor %}
-                </select>
-            </div>
+<form method="post">
+    {% csrf_token %}
+    <div class="form-grid">
+        <!-- Даты договора -->
+        <div class="field">
+            <label>📅 Начало договора</label>
+            <input type="date" name="contract_start" value="{{ group.contract_start|date:'Y-m-d' }}">
+        </div>
+        <div class="field">
+            <label>📅 Окончание договора</label>
+            <input type="date" name="contract_end" value="{{ group.contract_end|date:'Y-m-d' }}">
         </div>
 
-        <div class="field" style="margin-top:10px;">
-            <label>📝 Комментарий</label>
-            <textarea name="comments" rows="2" placeholder="Заметки...">{{ group.comments }}</textarea>
+        <!-- Даты экзаменов -->
+        <div class="field">
+            <label>📚 ПДД (внутр.)</label>
+            <input type="date" name="exam_internal_theory_date" value="{{ group.exam_internal_theory_date|date:'Y-m-d' }}">
+        </div>
+        <div class="field">
+            <label>🚗 Вождение (внутр.)</label>
+            <input type="date" name="exam_internal_driving_date" value="{{ group.exam_internal_driving_date|date:'Y-m-d' }}">
+        </div>
+        <div class="field">
+            <label>🏁 Экзамен ГАИ</label>
+            <input type="date" name="exam_gai_date" value="{{ group.exam_gai_date|date:'Y-m-d' }}">
         </div>
 
-        <div class="actions">
-            <button type="submit" name="save_group" class="btn btn-primary">💾 Сохранить</button>
+        <!-- Статус -->
+        <div class="field">
+            <label>🚦 Статус</label>
+            <select name="status">
+                <option value="active" {% if group.status == 'active' %}selected{% endif %}>🟢 Активна</option>
+                <option value="paused" {% if group.status == 'paused' %}selected{% endif %}>🟡 Приостановлена</option>
+                <option value="closed" {% if group.status == 'closed' %}selected{% endif %}>🔒 Закрыта</option>
+            </select>
         </div>
-    </form>
+
+        <!-- 🔹 НОВОЕ: Тип расписания -->
+        <div class="field">
+            <label>🗓️ Тип расписания</label>
+            <select name="schedule_type">
+                <option value="directed" {% if group.schedule_type == 'directed' %}selected{% endif %}>📅 По указанию</option>
+                <option value="odd" {% if group.schedule_type == 'odd' %}selected{% endif %}>📅 Нечётные дни (пн-пт)</option>
+                <option value="even" {% if group.schedule_type == 'even' %}selected{% endif %}>📅 Чётные дни (пн-пт)</option>
+                <option value="weekend" {% if group.schedule_type == 'weekend' %}selected{% endif %}>📅 Выходные (сб-вс)</option>
+            </select>
+        </div>
+
+        <!-- 🔹 НОВОЕ: Срок обучения -->
+        <div class="field">
+            <label>⏱️ Срок обучения</label>
+            <select name="duration">
+                <option value="standard" {% if group.duration == 'standard' %}selected{% endif %}>Стандартный</option>
+                <option value="accelerated" {% if group.duration == 'accelerated' %}selected{% endif %}>Ускоренный</option>
+            </select>
+        </div>
+
+        <!-- Аудитория -->
+        <div class="field">
+            <label>🏫 Аудитория</label>
+            <select name="classroom">
+                <option value="">— Не назначена —</option>
+                {% for c in classrooms %}
+                <option value="{{ c.id }}" {% if group.classroom and group.classroom.id == c.id %}selected{% endif %}>
+                    {{ c.classroom_number }} — {{ c.address|default:"—" }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Преподаватель -->
+        <div class="field">
+            <label>👨‍🏫 Преподаватель</label>
+            <select name="teacher">
+                <option value="">— Не назначен —</option>
+                {% for t in teachers %}
+                <option value="{{ t.id }}" {% if group.teacher and group.teacher.id == t.id %}selected{% endif %}>
+                    {{ t.last_name }} {{ t.first_name|slice:":1" }}.
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+
+    <!-- Комментарий -->
+    <div class="field" style="margin-top:10px;">
+        <label>📝 Комментарий</label>
+        <textarea name="comments" rows="2" placeholder="Заметки...">{{ group.comments }}</textarea>
+    </div>
+
+    <div class="actions">
+        <button type="submit" name="save_group" class="btn btn-primary">💾 Сохранить</button>
+    </div>
+</form>
 
     <!-- 🔹 Учащиеся -->
     <div style="margin-top:10px;padding-top:10px;border-top:1px solid #e2e8f0;">

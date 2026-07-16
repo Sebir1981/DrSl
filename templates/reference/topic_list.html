@@ -1,0 +1,408 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} — Справочники{% endblock %}
+
+{% block content %}
+<style>
+.topics-wrapper {
+    display: flex;
+    gap: 24px;
+    max-width: 1400px;
+    margin: 0 auto;
+    align-items: flex-start;
+}
+
+/* 🔹 Левая панель с предметами */
+.subjects-sidebar {
+    width: 280px;
+    flex-shrink: 0;
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    position: sticky;
+    top: 20px;
+}
+
+.manage-subjects-link {
+    display: block;
+    width: 92%;
+    padding: 12px;
+    margin-bottom: 16px;
+    background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    text-align: center;
+    text-decoration: none;
+    transition: all 0.2s;
+}
+.manage-subjects-link:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+    color: white;
+}
+
+.subjects-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.subject-link {
+    padding: 12px 16px;
+    border-radius: 8px;
+    text-decoration: none;
+    color: inherit;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: all 0.2s;
+    border: 2px solid transparent;
+}
+.subject-link:hover {
+    background: #f8fafc;
+    transform: translateX(4px);
+}
+.subject-link.active {
+    background: #dbeafe;
+    border-color: #3b82f6;
+    color: #1e40af;
+    font-weight: 600;
+}
+.subject-count {
+    background: #e2e8f0;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #64748b;
+}
+
+/* 🔹 Основная область */
+.main-area {
+    flex: 1;
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.page-header {
+    margin-bottom: 24px;
+}
+.page-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0 0 4px 0;
+}
+.page-subtitle {
+    color: #64748b;
+    font-size: 14px;
+    margin: 0;
+}
+
+/* 🔹 Форма добавления */
+.add-form {
+    background: #f8fafc;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 24px;
+    display: grid;
+    grid-template-columns: 100px 1fr auto;
+    gap: 12px;
+    align-items: end;
+}
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.form-group label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #64748b;
+}
+.form-group input {
+    padding: 8px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    font-size: 14px;
+}
+.btn-submit {
+    padding: 8px 24px;
+    background: #10b981;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    height: 38px;
+}
+.btn-submit:hover {
+    background: #059669;
+}
+
+/* 🔹 Таблица тем */
+.topics-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    /* Убрали table-layout: fixed, чтобы колонка контента занимала всё свободное место */
+}
+
+.topics-table th {
+    background: #f8fafc;
+    padding: 12px;
+    text-align: left;
+    font-weight: 600;
+    color: #475569;
+    border-bottom: 2px solid #e2e8f0;
+}
+
+.topics-table td {
+    padding: 12px;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: middle;
+}
+
+.topics-table tr:hover {
+    background: #f8fafc;
+}
+
+.topic-number {
+    font-weight: 700;
+    color: #1e293b;
+    width: 60px;
+    text-align: center;
+}
+
+.topic-content {
+    color: #334155;
+    line-height: 1.5;
+    word-break: break-word;
+    /* Колонка автоматически займёт оставшееся пространство */
+}
+
+.topic-actions {
+    width: 50px;
+    text-align: right;
+}
+.btn-delete {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 4px;
+    font-size: 18px;
+    transition: all 0.2s;
+}
+.btn-delete:hover {
+    background: #fee2e2;
+    color: #dc2626;
+}
+.empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: #94a3b8;
+}
+
+/* 🔹 Модальное окно */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    backdrop-filter: blur(2px);
+}
+.modal-box {
+    background: white;
+    padding: 24px;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 420px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.25);
+    animation: slideIn 0.25s ease-out;
+}
+.modal-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+.modal-icon { font-size: 28px; }
+.modal-title { margin: 0; font-size: 18px; color: #1e293b; }
+.modal-text { color: #475569; margin-bottom: 24px; line-height: 1.5; }
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+}
+.btn-modal {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.btn-cancel { background: #e2e8f0; color: #475569; }
+.btn-cancel:hover { background: #cbd5e1; }
+.btn-confirm-delete { background: #dc2626; color: white; }
+.btn-confirm-delete:hover { background: #b91c1c; }
+
+@keyframes slideIn {
+    from { transform: translateY(-20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+@media (max-width: 900px) {
+    .topics-wrapper { flex-direction: column; }
+    .subjects-sidebar { width: 100%; position: static; }
+    .add-form { grid-template-columns: 1fr; }
+}
+</style>
+
+<div class="topics-wrapper">
+    <!-- 🔹 ЛЕВАЯ ПАНЕЛЬ: Список предметов -->
+    <aside class="subjects-sidebar">
+        <a href="{% url 'reference:subject_list' %}" class="manage-subjects-link">
+            ⚙️ Управление предметами
+        </a>
+
+        <div style="font-size: 13px; font-weight: 600; color: #64748b; margin-bottom: 12px;">
+            📁 Предметы
+        </div>
+
+        <nav class="subjects-list">
+            {% for subject in subjects_with_counts %}
+            <a href="?category={{ subject.code }}"
+               class="subject-link {% if current_code == subject.code %}active{% endif %}">
+                <span>{{ subject.name }}</span>
+                <span class="subject-count">{{ subject.count }}</span>
+            </a>
+            {% endfor %}
+        </nav>
+    </aside>
+
+    <!-- 🔹 ОСНОВНАЯ ОБЛАСТЬ: Темы выбранного предмета -->
+    <main class="main-area">
+        <div class="page-header">
+            <h1 class="page-title">{{ current_subject.name }}</h1>
+            <p class="page-subtitle">Код: <strong>{{ current_code }}</strong></p>
+        </div>
+
+        <!-- Форма добавления темы -->
+        <form method="post" class="add-form" id="addTopicForm">
+            {% csrf_token %}
+            <div class="form-group">
+                <label>Тема №</label>
+                <input type="number" name="topic_number" required
+                       placeholder="1" min="1">
+            </div>
+            <div class="form-group">
+                <label>Содержание темы</label>
+                <input type="text" name="content" required
+                       placeholder="Введите название темы...">
+            </div>
+            <button type="submit" class="btn-submit">➕ Добавить</button>
+        </form>
+
+        <!-- 🔹 Таблица тем -->
+        <table class="topics-table">
+            <thead>
+                <tr>
+                    <th style="width: 60px; text-align: center;">№</th>
+                    <th>Содержание темы</th>
+                    <th style="width: 50px;"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for topic in topics %}
+                <tr data-topic-id="{{ topic.id }}">
+                    <td class="topic-number">{{ topic.topic_number }}</td>
+                    <td class="topic-content">{{ topic.content }}</td>
+                    <td class="topic-actions">
+                        <button class="btn-delete" onclick="showDeleteModal({{ topic.id }})"
+                                title="Удалить тему">🗑️</button>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="3" class="empty-state">
+                        📭 В предмете «{{ current_subject.name }}» пока нет тем.<br>
+                        <small>Добавьте первую тему используя форму выше</small>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </main>
+</div>
+
+<!-- 🔹 МОДАЛЬНОЕ ОКНО ПОДТВЕРЖДЕНИЯ УДАЛЕНИЯ -->
+<div id="deleteModal" class="modal-overlay">
+    <div class="modal-box">
+        <div class="modal-header">
+            <span class="modal-icon">️</span>
+            <h3 class="modal-title">Подтверждение удаления</h3>
+        </div>
+        <p class="modal-text">
+            Вы действительно хотите удалить эту тему?<br>
+            <small style="color: #dc2626; font-weight: 500;">Это действие нельзя отменить.</small>
+        </p>
+        <div class="modal-actions">
+            <button class="btn-modal btn-cancel" onclick="closeDeleteModal()">Отмена</button>
+            <button class="btn-modal btn-confirm-delete" onclick="confirmDelete()">🗑️ Удалить</button>
+        </div>
+    </div>
+</div>
+
+<script>
+let pendingTopicId = null;
+
+function showDeleteModal(topicId) {
+    pendingTopicId = topicId;
+    document.getElementById('deleteModal').style.display = 'flex';
+}
+
+function closeDeleteModal() {
+    document.getElementById('deleteModal').style.display = 'none';
+    pendingTopicId = null;
+}
+
+function confirmDelete() {
+    if (pendingTopicId) {
+        window.location.href = `/reference/topics/delete/${pendingTopicId}/?category={{ current_code }}`;
+    }
+}
+
+// Закрытие по клику вне окна
+document.getElementById('deleteModal').addEventListener('click', function(e) {
+    if (e.target === this) closeDeleteModal();
+});
+
+// Закрытие по ESC
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeDeleteModal();
+});
+
+// Автофокус и отправка по Enter
+document.addEventListener('DOMContentLoaded', function() {
+    const contentInput = document.querySelector('input[name="content"]');
+    if (contentInput && {{ topics|length }} === 0) {
+        contentInput.focus();
+    }
+    contentInput?.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            document.getElementById('addTopicForm').submit();
+        }
+    });
+});
+</script>
+{% endblock %}

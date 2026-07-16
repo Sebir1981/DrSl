@@ -12,7 +12,13 @@ class SchedulePlan(models.Model):
         ('weekend', 'Выходные дни'),
         ('custom', 'По указанию'),
     ]
-
+    training_program = models.ForeignKey(
+        'reference.TrainingProgram',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name='Учебная программа'
+    )
     # 🔹 НОВЫЕ ПОЛЯ ДЛЯ ЛОГА ДАТ
     excluded_dates = models.JSONField(
         default=list,

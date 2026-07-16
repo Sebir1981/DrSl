@@ -19,6 +19,13 @@
                     <div class="error">{{ field.errors|striptags }}</div>
                 {% endif %}
             </div>
+            <div class="form-group">
+                <label for="id_full_name">ФИО *</label>
+                <input type="text" name="full_name" id="id_full_name"
+                       class="form-control" required
+                       placeholder="Иванов Иван Иванович"
+                       value="{{ form.full_name.value|default:'' }}">
+            </div>
         {% endfor %}
         <button type="submit">💾 Сохранить</button>
     </form>

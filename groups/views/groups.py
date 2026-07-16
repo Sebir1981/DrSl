@@ -69,6 +69,11 @@ def group_detail(request, group_id):
         group.exam_internal_driving_date = request.POST.get('exam_internal_driving_date') or None
         group.exam_gai_date = request.POST.get('exam_gai_date') or None
         group.status = request.POST.get('status', 'active')
+
+        # 🔹 НОВОЕ: Сохранение типа расписания и срока обучения
+        group.schedule_type = request.POST.get('schedule_type', 'directed')
+        group.duration = request.POST.get('duration', 'standard')
+
         group.comments = request.POST.get('comments', '')
 
         # Аудитория
@@ -133,3 +138,87 @@ def group_detail(request, group_id):
         'teachers': teachers,
     }
     return render(request, 'groups/group_detail.html', context)
+
+
+@login_required
+def group_form(request, group_id=None):
+    """Фронтенд-страница создания/редактирования группы"""
+    group = None
+    is_edit = False
+
+    if group_id:
+        group = get_object_or_404(Group, pk=group_id)
+        is_edit = True
+
+    if request.method == 'POST':
+        # 🔹 Сбор данных из формы
+        group_number = request.POST.get('group_number', '').strip().upper()
+        category_id = request.POST.get('category')
+        classroom_id = request.POST.get('classroom')
+        teacher_id = request.POST.get('teacher')
+
+        contract_start = request.POST.get('contract_start') or None
+        contract_end = request.POST.get('contract_end') or None
+        exam_internal_theory_date = request.POST.get('exam_internal_theory_date') or None
+        exam_internal_driving_date = request.POST.get('exam_internal_driving_date') or None
+        exam_gai_date = request.POST.get('exam_gai_date') or None
+
+        status = request.POST.get('status', 'active')
+        schedule_type = request.POST.get('schedule_type', 'directed')
+        duration = request.POST.get('duration', 'standard')
+        comments = request.POST.get('comments', '').strip()
+
+        # 🔹 Валидация
+        if not group_number:
+            messages.error(request, '❌ Номер группы обязателен')
+            return redirect('groups:group_form', group_id=group_id) if is_edit else redirect('groups:group_form')
+
+        # Проверка уникальности номера группы
+        existing = Group.objects.filter(group_number=group_number)
+        if group:
+            existing = existing.exclude(pk=group.pk)
+        if existing.exists():
+            messages.error(request, f'❌ Группа с номером "{group_number}" уже существует')
+            return redirect('groups:group_form', group_id=group_id) if is_edit else redirect('groups:group_form')
+
+        # 🔹 Создание или обновление
+        if not group:
+            group = Group()
+            group.created_at = timezone.now()
+
+        group.group_number = group_number
+        group.category_id = category_id if category_id and category_id.isdigit() else None
+        group.classroom_id = classroom_id if classroom_id and classroom_id.isdigit() else None
+        group.teacher_id = teacher_id if teacher_id and teacher_id.isdigit() else None
+
+        group.contract_start = contract_start
+        group.contract_end = contract_end
+        group.exam_internal_theory_date = exam_internal_theory_date
+        group.exam_internal_driving_date = exam_internal_driving_date
+        group.exam_gai_date = exam_gai_date
+
+        group.status = status
+        group.schedule_type = schedule_type
+        group.duration = duration
+        group.comments = comments
+        group.updated_at = timezone.now()
+
+        group.save()
+
+        messages.success(request, f'✅ Группа "{group.group_number}" {"обновлена" if is_edit else "создана"}!')
+        return redirect('groups:group_detail', group_id=group.pk)
+
+    # 🔹 GET-запрос: подготовка данных для формы
+    categories = GroupCategory.objects.all().order_by('code')
+    classrooms = Classroom.objects.all().order_by('classroom_number')
+    teachers = Teacher.objects.filter(is_active=True).order_by('last_name', 'first_name')
+
+    context = {
+        'title': '✏️ Редактирование группы' if is_edit else '➕ Создание группы',
+        'group': group,
+        'categories': categories,
+        'classrooms': classrooms,
+        'teachers': teachers,
+        'is_edit': is_edit,
+    }
+    return render(request, 'groups/group_form.html', context)

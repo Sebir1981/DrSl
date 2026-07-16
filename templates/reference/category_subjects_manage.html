@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>📚 Предметы категории {{ category.code }}</h2>
+        <a href="{% url 'reference:category_subjects_list' %}" class="btn btn-outline-secondary">
+            ← Назад к категориям
+        </a>
+    </div>
+
+    <div class="alert alert-info">
+        <strong>{{ category.description }}</strong>
+    </div>
+
+    <form method="post">
+        {% csrf_token %}
+
+        <div class="card mb-4">
+            <div class="card-header">
+                <strong>Выберите предметы для категории {{ category.code }}</strong>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    {% for subject in all_subjects %}
+                    <div class="col-md-6 mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input"
+                                   type="checkbox"
+                                   name="subjects"
+                                   value="{{ subject.short_name }}"
+                                   id="subject_{{ subject.short_name }}"
+                                   {% if subject.short_name in assigned_codes %}checked{% endif %}>
+                            <label class="form-check-label" for="subject_{{ subject.short_name }}">
+                                <strong>{{ subject.short_name|upper }}</strong> —
+                                {{ subject.name }}
+                            </label>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="col-12">
+                        <div class="alert alert-warning">
+                            ⚠️ Предметы не созданы.
+                            <a href="{% url 'reference:subject_list' %}">Создайте предметы</a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="card-footer">
+                <button type="submit" class="btn btn-primary btn-lg">
+                    💾 Сохранить состав предметов
+                </button>
+                <span class="ms-3 text-muted">
+                    Выбрано: <strong id="selected-count">{{ assigned_codes|length }}</strong> предметов
+                </span>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+// Подсчёт выбранных предметов
+document.querySelectorAll('input[name="subjects"]').forEach(checkbox => {
+    checkbox.addEventListener('change', function() {
+        const count = document.querySelectorAll('input[name="subjects"]:checked').length;
+        document.getElementById('selected-count').textContent = count;
+    });
+});
+</script>
+{% endblock %}

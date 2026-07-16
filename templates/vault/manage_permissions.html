@@ -1,0 +1,270 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %} Доступы — {{ entry.full_name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.perm-container { max-width: 750px; margin: 40px auto; background: white; border-radius: 16px; padding: 30px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+.perm-title { font-size: 20px; font-weight: 700; color: #1e293b; margin-bottom: 25px; text-align: center; }
+
+.perm-category { margin-bottom: 12px; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; }
+.perm-category-header {
+    padding: 14px 18px;
+    background: #f8fafc;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 600;
+    color: #334155;
+    transition: background 0.2s;
+    user-select: none;
+}
+.perm-category-header:hover { background: #f1f5f9; }
+.perm-category-header.active { background: #e0f2fe; color: #0369a1; }
+
+.section-header-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    flex: 1;
+}
+.arrow { transition: transform 0.3s; font-size: 12px; }
+.perm-category-header.active .arrow { transform: rotate(180deg); }
+
+.perm-category-body { display: none; padding: 16px; background: white; border-top: 1px solid #e2e8f0; }
+.perm-category-body.open { display: block; }
+.perm-category-body.disabled .perm-item { opacity: 0.4; pointer-events: none; }
+
+.perm-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f1f5f9; }
+.perm-item:last-child { border-bottom: none; }
+.perm-label { font-size: 14px; color: #475569; display: flex; align-items: center; gap: 8px; }
+
+/* Toggle Switch Base */
+.toggle { position: relative; width: 44px; height: 24px; }
+.toggle input { opacity: 0; width: 0; height: 0; }
+.toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: #cbd5e1; transition: .3s; border-radius: 34px; }
+.toggle-slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background: white; transition: .3s; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.15); }
+.toggle input:checked + .toggle-slider { background: linear-gradient(135deg, #4facfe, #00f2fe); }
+.toggle input:checked + .toggle-slider:before { transform: translateX(20px); }
+
+/* Master Toggle (Раздел) */
+.toggle-main { width: 52px; height: 28px; }
+.toggle-main .toggle-slider { width: 52px; height: 28px; }
+.toggle-main .toggle-slider:before { height: 22px; width: 22px; left: 3px; bottom: 3px; }
+.toggle-main input:checked + .toggle-slider { background: linear-gradient(135deg, #10b981, #059669); }
+.toggle-main input:checked + .toggle-slider:before { transform: translateX(24px); }
+
+.btn-save { width: 100%; margin-top: 25px; padding: 14px; background: linear-gradient(135deg, #4facfe, #00f2fe); color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+.btn-save:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(79,172,254,0.4); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="perm-container">
+    <div class="perm-title">⚙️ Разрешённые разделы и функции</div>
+    <form method="post" id="perm-form">
+        {% csrf_token %}
+
+        <!-- 👥 ГРУППЫ -->
+        <div class="perm-category">
+            <div class="perm-category-header {% if perm.can_view_groups %}active{% endif %}" id="header-grp">
+                <div class="section-header-left" onclick="toggleCat('grp')">
+                    <span>👥 Группы</span><span class="arrow">▼</span>
+                </div>
+                <label class="toggle toggle-main" onclick="event.stopPropagation()">
+                    <input type="hidden" name="can_view_groups" value="off">
+                    <input type="checkbox" name="can_view_groups" value="on" id="toggle-grp"
+                           {% if perm.can_view_groups %}checked{% endif %}
+                           onchange="toggleMasterSection('grp')">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+            <div class="perm-category-body {% if perm.can_view_groups %}open{% endif %} {% if not perm.can_view_groups %}disabled{% endif %}" id="cat-grp">
+                <div class="perm-item"><span class="perm-label">➕ Создание группы</span><label class="toggle"><input type="hidden" name="perm_grp_create" value="off"><input type="checkbox" name="perm_grp_create" value="on" {% if perm.perm_grp_create %}checked{% endif %} {% if not perm.can_view_groups %}disabled{% endif %}><span class="toggle-slider"></span></label></div>
+                <div class="perm-item"><span class="perm-label">📋 Список групп</span><label class="toggle"><input type="hidden" name="perm_grp_list" value="off"><input type="checkbox" name="perm_grp_list" value="on" {% if perm.perm_grp_list %}checked{% endif %} {% if not perm.can_view_groups %}disabled{% endif %}><span class="toggle-slider"></span></label></div>
+                <div class="perm-item"><span class="perm-label">📊 План-графики 1</span><label class="toggle"><input type="hidden" name="perm_grp_schedule1" value="off"><input type="checkbox" name="perm_grp_schedule1" value="on" {% if perm.perm_grp_schedule1 %}checked{% endif %} {% if not perm.can_view_groups %}disabled{% endif %}><span class="toggle-slider"></span></label></div>
+                <div class="perm-item"><span class="perm-label">📄 План-графики 2</span><label class="toggle"><input type="hidden" name="perm_grp_schedule2" value="off"><input type="checkbox" name="perm_grp_schedule2" value="on" {% if perm.perm_grp_schedule2 %}checked{% endif %} {% if not perm.can_view_groups %}disabled{% endif %}><span class="toggle-slider"></span></label></div>
+                <div class="perm-item"><span class="perm-label"> Расписание</span><label class="toggle"><input type="hidden" name="perm_grp_timetable" value="off"><input type="checkbox" name="perm_grp_timetable" value="on" {% if perm.perm_grp_timetable %}checked{% endif %} {% if not perm.can_view_groups %}disabled{% endif %}><span class="toggle-slider"></span></label></div>
+                <div class="perm-item"><span class="perm-label">🔒 Закрытие групп</span><label class="toggle"><input type="hidden" name="perm_grp_close" value="off"><input type="checkbox" name="perm_grp_close" value="on" {% if perm.perm_grp_close %}checked{% endif %} {% if not perm.can_view_groups %}disabled{% endif %}><span class="toggle-slider"></span></label></div>
+            </div>
+        </div>
+
+        <!-- 🎓 УЧАЩИЕСЯ -->
+        <div class="perm-category">
+            <div class="perm-category-header {% if perm.can_view_students %}active{% endif %}" id="header-stu">
+                <div class="section-header-left" onclick="toggleCat('stu')">
+                    <span> Учащиеся</span><span class="arrow">▼</span>
+                </div>
+                <label class="toggle toggle-main" onclick="event.stopPropagation()">
+                    <input type="hidden" name="can_view_students" value="off">
+                    <input type="checkbox" name="can_view_students" value="on" id="toggle-stu"
+                           {% if perm.can_view_students %}checked{% endif %}
+                           onchange="toggleMasterSection('stu')">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+            <div class="perm-category-body {% if perm.can_view_students %}open{% endif %} {% if not perm.can_view_students %}disabled{% endif %}" id="cat-stu">
+                <div class="perm-item"><span class="perm-label">➕ Добавить ученика</span><label class="toggle"><input type="hidden" name="perm_stu_add" value="off"><input type="checkbox" name="perm_stu_add" value="on" {% if perm.perm_stu_add %}checked{% endif %} {% if not perm.can_view_students %}disabled{% endif %}><span class="toggle-slider"></span></label></div>
+                <div class="perm-item"><span class="perm-label">📋 Информация о учениках</span><label class="toggle"><input type="hidden" name="perm_stu_info" value="off"><input type="checkbox" name="perm_stu_info" value="on" {% if perm.perm_stu_info %}checked{% endif %} {% if not perm.can_view_students %}disabled{% endif %}><span class="toggle-slider"></span></label></div>
+                <div class="perm-item"><span class="perm-label">🔄 Перевод в другую группу</span><label class="toggle"><input type="hidden" name="perm_stu_transfer" value="off"><input type="checkbox" name="perm_stu_transfer" value="on" {% if perm.perm_stu_transfer %}checked{% endif %} {% if not perm.can_view_students %}disabled{% endif %}><span class="toggle-slider"></span></label></div>
+                <div class="perm-item"><span class="perm-label">⏸️ Приостановка обучения</span><label class="toggle"><input type="hidden" name="perm_stu_suspend" value="off"><input type="checkbox" name="perm_stu_suspend" value="on" {% if perm.perm_stu_suspend %}checked{% endif %} {% if not perm.can_view_students %}disabled{% endif %}><span class="toggle-slider"></span></label></div>
+                <div class="perm-item"><span class="perm-label">🚫 Отказ от обучения</span><label class="toggle"><input type="hidden" name="perm_stu_refusal" value="off"><input type="checkbox" name="perm_stu_refusal" value="on" {% if perm.perm_stu_refusal %}checked{% endif %} {% if not perm.can_view_students %}disabled{% endif %}><span class="toggle-slider"></span></label></div>
+                <div class="perm-item"><span class="perm-label">❌ Отчисление учащихся</span><label class="toggle"><input type="hidden" name="perm_stu_dismiss" value="off"><input type="checkbox" name="perm_stu_dismiss" value="on" {% if perm.perm_stu_dismiss %}checked{% endif %} {% if not perm.can_view_students %}disabled{% endif %}><span class="toggle-slider"></span></label></div>
+                <div class="perm-item"><span class="perm-label">📄 Продление договора</span><label class="toggle"><input type="hidden" name="perm_stu_contract_renew" value="off"><input type="checkbox" name="perm_stu_contract_renew" value="on" {% if perm.perm_stu_contract_renew %}checked{% endif %} {% if not perm.can_view_students %}disabled{% endif %}><span class="toggle-slider"></span></label></div>
+                <div class="perm-item"><span class="perm-label"> Оплаты</span><label class="toggle"><input type="hidden" name="perm_stu_payments" value="off"><input type="checkbox" name="perm_stu_payments" value="on" {% if perm.perm_stu_payments %}checked{% endif %} {% if not perm.can_view_students %}disabled{% endif %}><span class="toggle-slider"></span></label></div>
+                <div class="perm-item"><span class="perm-label">🔔 Уведомления</span><label class="toggle"><input type="hidden" name="perm_stu_notifications" value="off"><input type="checkbox" name="perm_stu_notifications" value="on" {% if perm.perm_stu_notifications %}checked{% endif %} {% if not perm.can_view_students %}disabled{% endif %}><span class="toggle-slider"></span></label></div>
+            </div>
+        </div>
+
+        <!-- ✅ ЗАЧЁТЫ И ЭКЗАМЕНЫ -->
+        <div class="perm-category">
+            <div class="perm-category-header {% if perm.can_view_credits %}active{% endif %}" id="header-cred">
+                <div class="section-header-left" onclick="toggleCat('cred')">
+                    <span>✅ Зачёты и экзамены</span><span class="arrow">▼</span>
+                </div>
+                <label class="toggle toggle-main" onclick="event.stopPropagation()">
+                    <input type="hidden" name="can_view_credits" value="off">
+                    <input type="checkbox" name="can_view_credits" value="on" id="toggle-cred"
+                           {% if perm.can_view_credits %}checked{% endif %}
+                           onchange="toggleMasterSection('cred')">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+            <div class="perm-category-body {% if perm.can_view_credits %}open{% endif %} {% if not perm.can_view_credits %}disabled{% endif %}" id="cat-cred">
+                <div class="perm-item"><span class="perm-label">📊 Панель зачётов</span><label class="toggle"><input type="hidden" name="perm_cred_dashboard" value="off"><input type="checkbox" name="perm_cred_dashboard" value="on" {% if perm.perm_cred_dashboard %}checked{% endif %} {% if not perm.can_view_credits %}disabled{% endif %}><span class="toggle-slider"></span></label></div>
+                <div class="perm-item"><span class="perm-label">➕ Добавление зачёта</span><label class="toggle"><input type="hidden" name="perm_cred_add" value="off"><input type="checkbox" name="perm_cred_add" value="on" {% if perm.perm_cred_add %}checked{% endif %} {% if not perm.can_view_credits %}disabled{% endif %}><span class="toggle-slider"></span></label></div>
+                <div class="perm-item"><span class="perm-label">📑 Отчёты по экзаменам</span><label class="toggle"><input type="hidden" name="perm_cred_reports" value="off"><input type="checkbox" name="perm_cred_reports" value="on" {% if perm.perm_cred_reports %}checked{% endif %} {% if not perm.can_view_credits %}disabled{% endif %}><span class="toggle-slider"></span></label></div>
+            </div>
+        </div>
+
+        <!-- 📊 ОТЧЁТЫ -->
+        <div class="perm-category">
+            <div class="perm-category-header {% if perm.can_view_reports %}active{% endif %}" id="header-rep">
+                <div class="section-header-left" onclick="toggleCat('rep')">
+                    <span>📊 Отчёты</span><span class="arrow">▼</span>
+                </div>
+                <label class="toggle toggle-main" onclick="event.stopPropagation()">
+                    <input type="hidden" name="can_view_reports" value="off">
+                    <input type="checkbox" name="can_view_reports" value="on" id="toggle-rep"
+                           {% if perm.can_view_reports %}checked{% endif %}
+                           onchange="toggleMasterSection('rep')">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+            <div class="perm-category-body {% if perm.can_view_reports %}open{% endif %} {% if not perm.can_view_reports %}disabled{% endif %}" id="cat-rep">
+                <div class="perm-item"><span class="perm-label">📊 Панель отчётов</span><label class="toggle"><input type="hidden" name="perm_rep_dashboard" value="off"><input type="checkbox" name="perm_rep_dashboard" value="on" {% if perm.perm_rep_dashboard %}checked{% endif %} {% if not perm.can_view_reports %}disabled{% endif %}><span class="toggle-slider"></span></label></div>
+                <div class="perm-item"><span class="perm-label">🛠️ Генерация отчётов</span><label class="toggle"><input type="hidden" name="perm_rep_generate" value="off"><input type="checkbox" name="perm_rep_generate" value="on" {% if perm.perm_rep_generate %}checked{% endif %} {% if not perm.can_view_reports %}disabled{% endif %}><span class="toggle-slider"></span></label></div>
+                <div class="perm-item"><span class="perm-label">📥 Экспорт данных</span><label class="toggle"><input type="hidden" name="perm_rep_export" value="off"><input type="checkbox" name="perm_rep_export" value="on" {% if perm.perm_rep_export %}checked{% endif %} {% if not perm.can_view_reports %}disabled{% endif %}><span class="toggle-slider"></span></label></div>
+            </div>
+        </div>
+
+        <!-- 📁 СПРАВОЧНИКИ -->
+        <div class="perm-category">
+            <div class="perm-category-header {% if perm.can_view_references %}active{% endif %}" id="header-ref">
+                <div class="section-header-left" onclick="toggleCat('ref')">
+                    <span> Справочники</span><span class="arrow">▼</span>
+                </div>
+                <label class="toggle toggle-main" onclick="event.stopPropagation()">
+                    <input type="hidden" name="can_view_references" value="off">
+                    <input type="checkbox" name="can_view_references" value="on" id="toggle-ref"
+                           {% if perm.can_view_references %}checked{% endif %}
+                           onchange="toggleMasterSection('ref')">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+            <div class="perm-category-body {% if perm.can_view_references %}open{% endif %} {% if not perm.can_view_references %}disabled{% endif %}" id="cat-ref">
+                <div class="perm-item"><span class="perm-label">🏫 Аудитории</span><label class="toggle"><input type="hidden" name="perm_ref_classrooms" value="off"><input type="checkbox" name="perm_ref_classrooms" value="on" {% if perm.perm_ref_classrooms %}checked{% endif %} {% if not perm.can_view_references %}disabled{% endif %}><span class="toggle-slider"></span></label></div>
+                <div class="perm-item"><span class="perm-label">📚 Преподаватели</span><label class="toggle"><input type="hidden" name="perm_ref_teachers" value="off"><input type="checkbox" name="perm_ref_teachers" value="on" {% if perm.perm_ref_teachers %}checked{% endif %} {% if not perm.can_view_references %}disabled{% endif %}><span class="toggle-slider"></span></label></div>
+                <div class="perm-item"><span class="perm-label">🚗 Мастера</span><label class="toggle"><input type="hidden" name="perm_ref_masters" value="off"><input type="checkbox" name="perm_ref_masters" value="on" {% if perm.perm_ref_masters %}checked{% endif %} {% if not perm.can_view_references %}disabled{% endif %}><span class="toggle-slider"></span></label></div>
+                <div class="perm-item"><span class="perm-label">📖 Темы занятий</span><label class="toggle"><input type="hidden" name="perm_ref_topics" value="off"><input type="checkbox" name="perm_ref_topics" value="on" {% if perm.perm_ref_topics %}checked{% endif %} {% if not perm.can_view_references %}disabled{% endif %}><span class="toggle-slider"></span></label></div>
+                <div class="perm-item"><span class="perm-label">📁 Категории</span><label class="toggle"><input type="hidden" name="perm_ref_categories" value="off"><input type="checkbox" name="perm_ref_categories" value="on" {% if perm.perm_ref_categories %}checked{% endif %} {% if not perm.can_view_references %}disabled{% endif %}><span class="toggle-slider"></span></label></div>
+            </div>
+        </div>
+
+        <!-- 🔐 ХРАНИЛИЩЕ -->
+        <div class="perm-category">
+            <div class="perm-category-header {% if perm.can_view_vault %}active{% endif %}" id="header-vault">
+                <div class="section-header-left" onclick="toggleCat('vault')">
+                    <span>🔐 Хранилище</span><span class="arrow">▼</span>
+                </div>
+                <label class="toggle toggle-main" onclick="event.stopPropagation()">
+                    <input type="hidden" name="can_view_vault" value="off">
+                    <input type="checkbox" name="can_view_vault" value="on" id="toggle-vault"
+                           {% if perm.can_view_vault %}checked{% endif %}
+                           onchange="toggleMasterSection('vault')">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+            <div class="perm-category-body {% if perm.can_view_vault %}open{% endif %} {% if not perm.can_view_vault %}disabled{% endif %}" id="cat-vault">
+                <div class="perm-item"><span class="perm-label">📋 Список записей</span><label class="toggle"><input type="hidden" name="perm_vault_list" value="off"><input type="checkbox" name="perm_vault_list" value="on" {% if perm.perm_vault_list %}checked{% endif %} {% if not perm.can_view_vault %}disabled{% endif %}><span class="toggle-slider"></span></label></div>
+                <div class="perm-item"><span class="perm-label"> Добавление записи</span><label class="toggle"><input type="hidden" name="perm_vault_add" value="off"><input type="checkbox" name="perm_vault_add" value="on" {% if perm.perm_vault_add %}checked{% endif %} {% if not perm.can_view_vault %}disabled{% endif %}><span class="toggle-slider"></span></label></div>
+                <div class="perm-item"><span class="perm-label">⚙️ Управление доступом</span><label class="toggle"><input type="hidden" name="perm_vault_manage" value="off"><input type="checkbox" name="perm_vault_manage" value="on" {% if perm.perm_vault_manage %}checked{% endif %} {% if not perm.can_view_vault %}disabled{% endif %}><span class="toggle-slider"></span></label></div>
+            </div>
+        </div>
+
+        <!-- ⚙️ АДМИНКА -->
+        <div class="perm-category">
+            <div class="perm-category-header {% if perm.perm_admin_access %}active{% endif %}" id="header-admin">
+                <div class="section-header-left" onclick="toggleCat('admin')">
+                    <span>⚙️ Админка</span><span class="arrow">▼</span>
+                </div>
+                <label class="toggle toggle-main" onclick="event.stopPropagation()">
+                    <input type="hidden" name="perm_admin_access" value="off">
+                    <input type="checkbox" name="perm_admin_access" value="on" id="toggle-admin"
+                           {% if perm.perm_admin_access %}checked{% endif %}
+                           onchange="toggleMasterSection('admin')">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+            <div class="perm-category-body {% if perm.perm_admin_access %}open{% endif %} {% if not perm.perm_admin_access %}disabled{% endif %}" id="cat-admin">
+                <div class="perm-item"><span class="perm-label"> Доступ к админ-панели</span><label class="toggle"><input type="hidden" name="perm_admin_full" value="off"><input type="checkbox" name="perm_admin_full" value="on" {% if perm.perm_admin_full %}checked{% endif %} {% if not perm.perm_admin_access %}disabled{% endif %}><span class="toggle-slider"></span></label></div>
+            </div>
+        </div>
+
+        <button type="submit" class="btn-save">💾 Сохранить настройки</button>
+    </form>
+</div>
+
+<script>
+// Сворачивание/разворачивание аккордеона
+function toggleCat(id) {
+    const header = document.getElementById('header-' + id);
+    const body = document.getElementById('cat-' + id);
+    header.classList.toggle('active');
+    body.classList.toggle('open');
+}
+
+// Логика главного переключателя раздела
+function toggleMasterSection(id) {
+    const masterCheck = document.getElementById('toggle-' + id);
+    const body = document.getElementById('cat-' + id);
+    const header = document.getElementById('header-' + id);
+    const subChecks = body.querySelectorAll('input[type="checkbox"]');
+
+    if (masterCheck.checked) {
+        // Включаем раздел
+        body.classList.remove('disabled');
+        header.classList.add('active');
+        subChecks.forEach(c => c.disabled = false);
+    } else {
+        // Выключаем раздел
+        body.classList.add('disabled');
+        header.classList.remove('active');
+        subChecks.forEach(c => {
+            c.disabled = true;
+            c.checked = false; // Снимаем все галочки внутри
+        });
+    }
+}
+
+// Инициализация при загрузке страницы
+document.addEventListener('DOMContentLoaded', function() {
+    const sections = ['grp', 'stu', 'cred', 'rep', 'ref', 'vault', 'admin'];
+    sections.forEach(id => {
+        // Применяем состояние блокировки на основе текущего значения
+        toggleMasterSection(id);
+    });
+});
+</script>
+{% endblock %}

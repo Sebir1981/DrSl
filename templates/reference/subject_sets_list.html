@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<style>
+/* Заголовок страницы */
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+/* Сетка карточек */
+.sets-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 20px;
+}
+
+/* Карточка набора */
+.set-card {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    overflow: hidden;
+    transition: all 0.2s;
+    border: 2px solid #e2e8f0;
+}
+
+.set-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+    border-color: #3b82f6;
+}
+
+.card-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 20px;
+}
+
+.card-title {
+    font-size: 18px;
+    font-weight: 700;
+    margin: 0 0 8px 0;
+}
+
+.card-subtitle {
+    font-size: 13px;
+    opacity: 0.9;
+    margin: 0;
+}
+
+.card-body {
+    padding: 20px;
+}
+
+.badge-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.badge-category {
+    background: #dbeafe;
+    color: #1e40af;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-weight: 700;
+    font-size: 13px;
+}
+
+.badge-count {
+    background: #e2e8f0;
+    color: #475569;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+}
+
+.subjects-preview {
+    font-size: 13px;
+    color: #64748b;
+    line-height: 1.6;
+}
+
+.card-footer {
+    padding: 16px 20px;
+    background: #f8fafc;
+    border-top: 1px solid #e2e8f0;
+    display: flex;
+    gap: 10px;
+}
+
+.btn-action {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    text-align: center;
+    transition: all 0.2s;
+}
+
+.btn-edit {
+    background: #3b82f6;
+    color: white;
+}
+.btn-edit:hover {
+    background: #2563eb;
+}
+
+.btn-delete {
+    background: #fee2e2;
+    color: #dc2626;
+}
+.btn-delete:hover {
+    background: #dc2626;
+    color: white;
+}
+
+.btn-add-new {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 24px;
+    background: #10b981;
+    color: white;
+    text-decoration: none;
+    border-radius: 8px;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+.btn-add-new:hover {
+    background: #059669;
+    transform: translateY(-2px);
+}
+
+.empty-state {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 60px 20px;
+    background: white;
+    border-radius: 12px;
+    color: #64748b;
+}
+</style>
+
+<div class="page-header">
+    <div>
+        <h1 style="margin: 0; color: #1e293b;">📦 {{ title }}</h1>
+        <p style="margin: 4px 0 0; color: #64748b;">
+            Группируйте предметы по категориям транспортных средств
+        </p>
+    </div>
+
+    <a href="{% url 'reference:subject_set_create' %}" class="btn-add-new">
+        ➕ Добавить набор
+    </a>
+</div>
+
+<div class="sets-grid">
+    {% for subject_set in subject_sets %}
+    <div class="set-card">
+        <div class="card-header">
+            <h3 class="card-title">{{ subject_set.name }}</h3>
+            {% if subject_set.description %}
+            <p class="card-subtitle">{{ subject_set.description }}</p>
+            {% endif %}
+        </div>
+
+        <div class="card-body">
+            <div class="badge-container">
+                <span class="badge-count">
+                    📚 {{ subject_set.subjects.count }} предметов
+                </span>
+                {% for cat in subject_set.categories.all %}
+                <span class="badge-category">{{ cat.code }}</span>
+                {% endfor %}
+            </div>
+
+            <div class="subjects-preview">
+                <strong>Предметы:</strong><br>
+                {% for subject in subject_set.subjects.all %}
+                • {{ subject.name }}<br>
+                {% empty %}
+                <span class="text-muted">Предметы не добавлены</span>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="card-footer">
+            <a href="{% url 'reference:subject_set_edit' subject_set.pk %}"
+               class="btn-action btn-edit">
+                ✏️ Редактировать
+            </a>
+            <a href="{% url 'reference:subject_set_delete' subject_set.pk %}"
+               class="btn-action btn-delete">
+                🗑️ Удалить
+            </a>
+        </div>
+    </div>
+    {% empty %}
+    <div class="empty-state">
+        <h3>📭 Нет созданных наборов</h3>
+        <p>Создайте первый набор предметов для категорий транспортных средств</p>
+        <a href="{% url 'reference:subject_set_create' %}" class="btn-add-new" style="margin-top: 16px;">
+            ➕ Создать набор
+        </a>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

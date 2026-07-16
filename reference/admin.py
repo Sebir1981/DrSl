@@ -1,35 +1,25 @@
 from django.contrib import admin
-from .models import GroupCategory, Credit, LessonTopic  # 🔹 Добавили LessonTopic
+from .models import SubjectDictionary, GroupCategory, Credit, LessonTopic
 
+@admin.register(SubjectDictionary)
+class SubjectDictionaryAdmin(admin.ModelAdmin):
+    list_display = ('short_name', 'name', 'description')
+    search_fields = ('name', 'short_name')
+    ordering = ('name',)
 
 @admin.register(GroupCategory)
 class GroupCategoryAdmin(admin.ModelAdmin):
-    list_display = ['code', 'description']
-    search_fields = ['code', 'description']
-
+    list_display = ('code', 'description')
+    search_fields = ('code', 'description')
 
 @admin.register(Credit)
 class CreditAdmin(admin.ModelAdmin):
-    list_display = ['number', 'topic']
-    ordering = ['number']
-    search_fields = ['topic']
+    list_display = ('number', 'topic')
+    search_fields = ('topic',)
 
-    def has_add_permission(self, request):
-        return False
-
-    def has_delete_permission(self, request, obj=None):
-        return False
-
-
-# 🔹 НОВОЕ: Админка для тем занятий
 @admin.register(LessonTopic)
 class LessonTopicAdmin(admin.ModelAdmin):
-    list_display = ('category', 'topic_number', 'hours', 'content_preview')
-    list_filter = ('category',)
-    search_fields = ('content', 'topic_number')
-    ordering = ('category', 'topic_number')
-
-    def content_preview(self, obj):
-        return obj.content[:60] + "..." if len(obj.content) > 60 else obj.content
-
-    content_preview.short_description = "Содержание"
+    list_display = ('subject', 'topic_number', 'hours', 'content')
+    list_filter = ('subject',)
+    search_fields = ('content',)
+    ordering = ('subject', 'topic_number')

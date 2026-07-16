@@ -1,0 +1,281 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ title }} — Автошкола{% endblock %}
+
+{% block extra_css %}
+<style>
+.form-container {
+    background: white;
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    max-width: 900px;
+    margin: 0 auto;
+}
+.form-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 2px solid #f1f5f9;
+}
+.form-header h1 {
+    margin: 0;
+    font-size: 22px;
+    color: #1e293b;
+}
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+}
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.form-group.full-width {
+    grid-column: span 2;
+}
+.form-group label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #475569;
+}
+.form-group input,
+.form-group select,
+.form-group textarea {
+    padding: 10px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    font-size: 14px;
+    background: #fff;
+    transition: border-color 0.2s;
+}
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+    outline: none;
+    border-color: #4facfe;
+    box-shadow: 0 0 0 3px rgba(79,172,254,0.15);
+}
+.form-group textarea {
+    resize: vertical;
+    min-height: 60px;
+}
+.form-section {
+    background: #f8fafc;
+    padding: 16px;
+    border-radius: 10px;
+    margin-bottom: 16px;
+    border: 1px solid #e2e8f0;
+}
+.form-section-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1e293b;
+    margin: 0 0 12px 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    padding-top: 20px;
+    border-top: 1px solid #e2e8f0;
+}
+.btn {
+    padding: 10px 24px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s;
+}
+.btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+.btn-primary {
+    background: #4facfe;
+    color: white;
+}
+.btn-secondary {
+    background: #e2e8f0;
+    color: #334155;
+}
+.btn-danger {
+    background: #ef4444;
+    color: white;
+}
+@media (max-width: 768px) {
+    .form-grid { grid-template-columns: 1fr; }
+    .form-group.full-width { grid-column: span 1; }
+    .form-actions { flex-direction: column-reverse; }
+    .btn { width: 100%; justify-content: center; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>{{ title }}</h1>
+    <a href="{% url 'groups:group_list' %}" class="btn btn-secondary">← Назад к списку</a>
+</div>
+
+<div class="form-container">
+    <form method="post">
+        {% csrf_token %}
+
+        <!-- 🔹 Идентификаторы -->
+        <div class="form-section">
+            <div class="form-section-title">🔢 Идентификаторы</div>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Номер группы *</label>
+                    <input type="text" name="group_number" required
+                           value="{{ group.group_number|default:'' }}"
+                           placeholder="Например: 130-Б"
+                           style="text-transform: uppercase;"
+                           maxlength="20">
+                </div>
+                <div class="form-group">
+                    <label>Категория</label>
+                    <select name="category">
+                        <option value="">— Не выбрана —</option>
+                        {% for cat in categories %}
+                        <option value="{{ cat.pk }}" {% if group and group.category_id == cat.pk %}selected{% endif %}>
+                            {{ cat.code }} — {{ cat.description }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Аудитория</label>
+                    <select name="classroom">
+                        <option value="">— Не назначена —</option>
+                        {% for c in classrooms %}
+                        <option value="{{ c.pk }}" {% if group and group.classroom_id == c.pk %}selected{% endif %}>
+                            {{ c.classroom_number }} — {{ c.address|default:"—" }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Преподаватель</label>
+                    <select name="teacher">
+                        <option value="">— Не назначен —</option>
+                        {% for t in teachers %}
+                        <option value="{{ t.pk }}" {% if group and group.teacher_id == t.pk %}selected{% endif %}>
+                            {{ t.last_name }} {{ t.first_name|slice:":1" }}.
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- 🔹 Договор и экзамены -->
+        <div class="form-section">
+            <div class="form-section-title">📅 Договор и экзамены</div>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Договор: с</label>
+                    <input type="text" name="contract_start"
+                           value="{% if group and group.contract_start %}{{ group.contract_start|date:'d.m.Y' }}{% endif %}"
+                           placeholder="дд.мм.гггг" class="ru-date-input">
+                </div>
+                <div class="form-group">
+                    <label>по</label>
+                    <input type="text" name="contract_end"
+                           value="{% if group and group.contract_end %}{{ group.contract_end|date:'d.m.Y' }}{% endif %}"
+                           placeholder="дд.мм.гггг" class="ru-date-input">
+                </div>
+                <div class="form-group">
+                    <label>📚 ПДД (внутр.)</label>
+                    <input type="text" name="exam_internal_theory_date"
+                           value="{% if group and group.exam_internal_theory_date %}{{ group.exam_internal_theory_date|date:'d.m.Y' }}{% endif %}"
+                           placeholder="дд.мм.гггг" class="ru-date-input">
+                </div>
+                <div class="form-group">
+                    <label>🚗 Вождение (внутр.)</label>
+                    <input type="text" name="exam_internal_driving_date"
+                           value="{% if group and group.exam_internal_driving_date %}{{ group.exam_internal_driving_date|date:'d.m.Y' }}{% endif %}"
+                           placeholder="дд.мм.гггг" class="ru-date-input">
+                </div>
+                <div class="form-group">
+                    <label>🏁 Экзамен ГАИ</label>
+                    <input type="text" name="exam_gai_date"
+                           value="{% if group and group.exam_gai_date %}{{ group.exam_gai_date|date:'d.m.Y' }}{% endif %}"
+                           placeholder="дд.мм.гггг" class="ru-date-input">
+                </div>
+                <div class="form-group">
+                    <label>🚦 Статус</label>
+                    <select name="status">
+                        <option value="active" {% if not group or group.status == 'active' %}selected{% endif %}>🟢 Активна</option>
+                        <option value="paused" {% if group and group.status == 'paused' %}selected{% endif %}>🟡 Приостановлена</option>
+                        <option value="closed" {% if group and group.status == 'closed' %}selected{% endif %}>🔒 Закрыта</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- 🔹 Расписание -->
+        <div class="form-section">
+            <div class="form-section-title">🗓️ Расписание</div>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Тип расписания</label>
+                    <select name="schedule_type">
+                        <option value="directed" {% if not group or group.schedule_type == 'directed' %}selected{% endif %}>📅 По указанию</option>
+                        <option value="odd" {% if group and group.schedule_type == 'odd' %}selected{% endif %}>📅 Нечётные дни (пн-пт)</option>
+                        <option value="even" {% if group and group.schedule_type == 'even' %}selected{% endif %}>📅 Чётные дни (пн-пт)</option>
+                        <option value="weekend" {% if group and group.schedule_type == 'weekend' %}selected{% endif %}>📅 Выходные (сб-вс)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Срок обучения</label>
+                    <select name="duration">
+                        <option value="standard" {% if not group or group.duration == 'standard' %}selected{% endif %}>Стандартный</option>
+                        <option value="accelerated" {% if group and group.duration == 'accelerated' %}selected{% endif %}>Ускоренный</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- 🔹 Комментарий -->
+        <div class="form-section">
+            <div class="form-section-title">📝 Комментарий</div>
+            <div class="form-group full-width">
+                <textarea name="comments" placeholder="Внутренние заметки по группе...">{{ group.comments|default:'' }}</textarea>
+            </div>
+        </div>
+
+        <!-- 🔹 Кнопки -->
+        <div class="form-actions">
+            <a href="{% if is_edit %}{% url 'groups:group_detail' group.pk %}{% else %}{% url 'groups:group_list' %}{% endif %}"
+               class="btn btn-secondary">✕ Отмена</a>
+            {% if is_edit %}
+            <a href="{% url 'admin:groups_group_delete' group.pk %}"
+               class="btn btn-danger"
+               onclick="return confirm('⚠️ Удалить группу? Это действие нельзя отменить.')">🗑️ Удалить</a>
+            {% endif %}
+            <button type="submit" class="btn btn-primary">💾 Сохранить группу</button>
+        </div>
+    </form>
+</div>
+
+<!-- 🔹 Подключение скриптов масок -->
+{% if not debug %}
+<script src="{% static 'js/date-mask.js' %}" defer></script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+{% block title %}Справочник предметов{% endblock %}
+
+{% block content %}
+<style>
+/* 🔹 Основные стили */
+.subjects-container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+.form-card { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 24px; }
+.form-title { font-size: 18px; font-weight: 700; color: #1e293b; margin-bottom: 20px; display: flex; align-items: center; gap: 8px; }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+.form-group { display: flex; flex-direction: column; gap: 6px; }
+.form-label { font-size: 13px; font-weight: 600; color: #475569; }
+.form-input { padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; transition: border-color 0.2s; }
+.form-input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+.form-hint { font-size: 11px; color: #94a3b8; }
+
+/* 🔹 Чекбоксы */
+.categories-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; padding: 16px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 20px; max-height: 200px; overflow-y: auto; }
+.cat-checkbox { display: flex; align-items: center; gap: 10px; padding: 8px; background: white; border: 1px solid #e2e8f0; border-radius: 6px; cursor: pointer; transition: all 0.2s; }
+.cat-checkbox:hover { border-color: #3b82f6; background: #f0f9ff; }
+.cat-code { font-weight: 700; color: #1e40af; font-size: 14px; width: 30px; }
+.cat-desc { font-size: 12px; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* 🔹 Кнопки */
+.btn-save { padding: 12px 32px; background: #10b981; color: white; border: none; border-radius: 8px; font-weight: 600; font-size: 15px; cursor: pointer; transition: all 0.2s; }
+.btn-save:hover { background: #059669; transform: translateY(-1px); }
+.btn-cancel { padding: 12px 24px; background: #e2e8f0; color: #475569; border: none; border-radius: 8px; font-weight: 600; font-size: 15px; cursor: pointer; text-decoration: none; margin-left: 12px; }
+
+/*  Таблица */
+.table-card { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+.subjects-table { width: 100%; border-collapse: collapse; }
+.subjects-table th { background: #f8fafc; padding: 12px 16px; text-align: left; font-weight: 600; color: #475569; border-bottom: 2px solid #e2e8f0; }
+.subjects-table td { padding: 12px 16px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+.subjects-table tr:hover { background: #f8fafc; }
+.badge-code { display: inline-block; padding: 4px 8px; background: #f1f5f9; border-radius: 4px; font-family: monospace; font-size: 13px; color: #475569; }
+.badge-display { display: inline-block; padding: 4px 10px; background: #dbeafe; color: #1e40af; border-radius: 6px; font-weight: 700; font-size: 13px; }
+
+/* 🔹 Кнопки действий в таблице */
+.action-links { display: flex; gap: 8px; }
+.btn-action { text-decoration: none; font-size: 13px; font-weight: 500; padding: 6px 12px; border-radius: 6px; transition: all 0.2s; border: 1px solid transparent; }
+.btn-topics { background: #e0f2fe; color: #0369a1; }
+.btn-topics:hover { background: #0369a1; color: white; }
+.btn-edit { background: #fef3c7; color: #b45309; }
+.btn-edit:hover { background: #f59e0b; color: white; }
+.btn-delete { background: #fee2e2; color: #dc2626; border: none; cursor: pointer; }
+.btn-delete:hover { background: #dc2626; color: white; }
+.empty-state { text-align: center; padding: 40px; color: #94a3b8; }
+
+/* 🔹 Модальное окно */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); display: none; align-items: center; justify-content: center; z-index: 9999; backdrop-filter: blur(2px); }
+.modal-box { background: white; padding: 24px; border-radius: 12px; width: 90%; max-width: 420px; box-shadow: 0 20px 50px rgba(0,0,0,0.25); animation: slideIn 0.25s ease-out; }
+.modal-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.modal-icon { font-size: 28px; }
+.modal-title { margin: 0; font-size: 18px; color: #1e293b; }
+.modal-text { color: #475569; margin-bottom: 24px; line-height: 1.5; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 12px; }
+.btn-modal { padding: 10px 20px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+.btn-cancel-modal { background: #e2e8f0; color: #475569; }
+.btn-cancel-modal:hover { background: #cbd5e1; }
+.btn-confirm-delete { background: #dc2626; color: white; }
+.btn-confirm-delete:hover { background: #b91c1c; }
+@keyframes slideIn { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+</style>
+
+<div class="subjects-container">
+    <!-- 🔹 ФОРМА (Адаптивная: Создание или Редактирование) -->
+        <div class="form-card">
+        <div class="form-title">
+            {% if edit_subject %}✏️ Редактирование предмета{% else %}➕ Добавить новый предмет{% endif %}
+        </div>
+
+        <!-- Форма создания/редактирования -->
+        <form method="post" action="{% if edit_subject %}{% url 'reference:subject_edit' edit_subject.pk %}{% else %}{% url 'reference:subject_list' %}{% endif %}">
+            {% csrf_token %}
+
+            <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+                <div class="form-group">
+                    <label class="form-label">Код (латиницей) *</label>
+                    <input type="text" name="short_name" class="form-input"
+                           value="{{ edit_subject.short_name|default:'' }}"
+                           placeholder="Например: pdd" pattern="[a-z]+" required>
+                    <span class="form-hint">Используется в базе данных</span>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Краткое обозначение (кириллицей)</label>
+                    <input type="text" name="short_name_display" class="form-input"
+                           value="{{ edit_subject.short_name_display|default:'' }}"
+                           placeholder="Например: ПДД">
+                    <span class="form-hint">Отображается в таблицах</span>
+                </div>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 20px;">
+                <label class="form-label">Полное название предмета *</label>
+                <input type="text" name="name" class="form-input"
+                       value="{{ edit_subject.name|default:'' }}"
+                       placeholder="Например: Правила дорожного движения" required>
+            </div>
+
+            <!-- 🔹 БЛОК КАТЕГОРИЙ УДАЛЕН -->
+
+            <div style="display: flex; align-items: center;">
+                <button type="submit" class="btn-save">
+                    {% if edit_subject %}💾 Сохранить изменения{% else %}💾 Сохранить предмет{% endif %}
+                </button>
+
+                {% if edit_subject %}
+                <a href="{% url 'reference:subject_list' %}" class="btn-cancel">✖ Отмена</a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+
+    <!-- 🔹 ТАБЛИЦА ПРЕДМЕТОВ -->
+    <div class="table-card">
+        <table class="subjects-table">
+            <thead>
+                <tr>
+                    <th style="width: 100px;">Код (БД)</th>
+                    <th style="width: 120px;">Краткое</th>
+                    <th>Полное название</th>
+                    <th style="width: 220px; text-align: right;">Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for subject in subjects %}
+                <tr>
+                    <td><span class="badge-code">{{ subject.short_name }}</span></td>
+                    <td><span class="badge-display">{{ subject.short_name_display|default:subject.short_name|upper }}</span></td>
+                    <td>{{ subject.name }}</td>
+                    <td style="text-align: right;">
+                        <div class="action-links" style="justify-content: flex-end;">
+                            <!-- 🔹 Кнопка РЕДАКТИРОВАТЬ -->
+                            <a href="{% url 'reference:subject_edit' subject.pk %}" class="btn-action btn-edit">✏️ Ред.</a>
+
+                            <a href="{% url 'reference:topic_list' %}?category={{ subject.short_name }}" class="btn-action btn-topics">Темы</a>
+
+                            <!-- 🔹 Кнопка УДАЛИТЬ (вызывает модальное окно) -->
+                            <button class="btn-action btn-delete" onclick="showDeleteModal({{ subject.pk }}, '{{ subject.name }}')">🗑️</button>
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="4" class="empty-state">📭 Справочник пуст.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- 🔹 МОДАЛЬНОЕ ОКНО ПОДТВЕРЖДЕНИЯ УДАЛЕНИЯ -->
+<div id="deleteModal" class="modal-overlay">
+    <div class="modal-box">
+        <div class="modal-header">
+            <span class="modal-icon">️</span>
+            <h3 class="modal-title">Подтверждение удаления</h3>
+        </div>
+        <p class="modal-text">
+            Вы действительно хотите удалить предмет <strong id="deleteItemName"></strong>?<br>
+            <small style="color: #dc2626; font-weight: 500;">Это действие нельзя отменить. Связанные темы также будут удалены.</small>
+        </p>
+        <div class="modal-actions">
+            <button class="btn-modal btn-cancel-modal" onclick="closeDeleteModal()">Отмена</button>
+            <button class="btn-modal btn-confirm-delete" id="confirmDeleteBtn">🗑️ Удалить</button>
+        </div>
+    </div>
+</div>
+
+<script>
+let pendingDeleteUrl = null;
+
+function showDeleteModal(subjectId, subjectName) {
+    // Формируем URL удаления динамически
+    pendingDeleteUrl = `/reference/subjects/delete/${subjectId}/`;
+    document.getElementById('deleteItemName').textContent = subjectName;
+    document.getElementById('deleteModal').style.display = 'flex';
+}
+
+function closeDeleteModal() {
+    document.getElementById('deleteModal').style.display = 'none';
+    pendingDeleteUrl = null;
+}
+
+// Обработка клика по кнопке "Удалить" в модалке
+document.getElementById('confirmDeleteBtn').addEventListener('click', function() {
+    if (pendingDeleteUrl) {
+        window.location.href = pendingDeleteUrl;
+    }
+});
+
+// Закрытие по клику вне окна
+document.getElementById('deleteModal').addEventListener('click', function(e) {
+    if (e.target === this) closeDeleteModal();
+});
+
+// Закрытие по ESC
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeDeleteModal();
+});
+</script>
+{% endblock %}

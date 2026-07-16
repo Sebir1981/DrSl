@@ -1,0 +1,868 @@
+{% extends "base.html" %}
+{% load custom_filters %}
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<style>
+.builder-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    background: white;
+    border-radius: 12px;
+    padding: 32px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+}
+
+.builder-header {
+    margin-bottom: 32px;
+    padding-bottom: 24px;
+    border-bottom: 2px solid #e2e8f0;
+}
+
+/* Выбор категорий */
+.categories-section {
+    margin-bottom: 32px;
+}
+
+.section-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.categories-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 12px;
+}
+
+.category-checkbox {
+    position: relative;
+}
+
+.category-checkbox input {
+    position: absolute;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.category-label {
+    display: block;
+    padding: 12px;
+    background: #f1f5f9;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-weight: 600;
+}
+
+.category-checkbox input:checked + .category-label {
+    background: #dbeafe;
+    border-color: #3b82f6;
+    color: #1e40af;
+}
+
+.category-label.selected {
+    background: #dbeafe;
+    border-color: #3b82f6;
+    color: #1e40af;
+    font-weight: 700;
+}
+
+/* Поле часов обучения */
+.total-hours-section {
+    margin-bottom: 32px;
+    padding: 20px;
+    background: #f0f9ff;
+    border-radius: 8px;
+    border: 2px solid #bae6fd;
+}
+
+.hours-input {
+    width: 150px;
+    padding: 10px;
+    font-size: 18px;
+    font-weight: 700;
+    border: 2px solid #0ea5e9;
+    border-radius: 6px;
+    text-align: center;
+}
+
+/* Предметы */
+.subjects-section {
+    margin-bottom: 32px;
+}
+
+.subject-card {
+    border: 2px solid #e2e8f0;
+    border-radius: 10px;
+    margin-bottom: 16px;
+    overflow: hidden;
+}
+
+.subject-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px;
+    background: #f8fafc;
+    cursor: pointer;
+}
+
+.subject-toggle {
+    width: 50px;
+    height: 26px;
+    background: #cbd5e1;
+    border-radius: 13px;
+    position: relative;
+    cursor: pointer;
+    transition: background 0.3s;
+}
+
+.subject-toggle.active {
+    background: #10b981;
+}
+
+.subject-toggle::after {
+    content: '';
+    position: absolute;
+    width: 22px;
+    height: 22px;
+    background: white;
+    border-radius: 50%;
+    top: 2px;
+    left: 2px;
+    transition: transform 0.3s;
+}
+
+.subject-toggle.active::after {
+    transform: translateX(24px);
+}
+
+.subject-info {
+    flex: 1;
+}
+
+.subject-name {
+    font-weight: 700;
+    font-size: 16px;
+    color: #1e293b;
+}
+
+.subject-code {
+    color: #64748b;
+    font-size: 13px;
+}
+
+.subject-hours-input {
+    width: 100px;
+    padding: 8px;
+    border: 2px solid #e2e8f0;
+    border-radius: 6px;
+    text-align: center;
+    font-weight: 600;
+}
+
+/* Счётчик часов предмета */
+.hours-counter {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: #f8fafc;
+    border-radius: 6px;
+    font-size: 13px;
+    transition: all 0.3s;
+}
+
+.hours-counter.valid {
+    background: #dcfce7;
+}
+
+.hours-counter.invalid {
+    background: #fee2e2;
+}
+
+.target-hours {
+    font-weight: 700;
+    color: #1e40af;
+}
+
+/* Темы предмета */
+.subject-topics {
+    display: none;
+    padding: 16px;
+    background: white;
+}
+
+.subject-topics.show {
+    display: block;
+}
+
+.topics-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.topics-table th {
+    text-align: left;
+    padding: 10px;
+    background: #f8fafc;
+    font-weight: 600;
+    color: #475569;
+    border-bottom: 2px solid #e2e8f0;
+}
+
+.topics-table td {
+    padding: 10px;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.topic-hours-input {
+    width: 80px;
+    padding: 6px;
+    border: 2px solid #e2e8f0;
+    border-radius: 4px;
+    text-align: center;
+}
+
+/* Счётчик общий */
+.counter-section {
+    position: sticky;
+    bottom: 0;
+    background: white;
+    padding: 20px;
+    border-top: 3px solid #e2e8f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 -4px 12px rgba(0,0,0,0.1);
+    z-index: 100;
+}
+
+.counter-display {
+    font-size: 20px;
+    font-weight: 700;
+}
+
+.counter-total {
+    color: #059669;
+}
+
+.counter-sum {
+    color: #3b82f6;
+}
+
+.counter-diff {
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-weight: 600;
+}
+
+.counter-diff.ok {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.counter-diff.error {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+/* Кнопки */
+.form-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+}
+
+.btn-primary {
+    padding: 12px 32px;
+    background: #3b82f6;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 15px;
+    cursor: pointer;
+}
+
+.btn-primary:hover {
+    background: #2563eb;
+}
+
+.btn-secondary {
+    padding: 12px 32px;
+    background: #e2e8f0;
+    color: #475569;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 15px;
+    cursor: pointer;
+    text-decoration: none;
+}
+
+/* 🔹 Модальные окна */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    backdrop-filter: blur(2px);
+}
+
+.modal-box {
+    background: white;
+    padding: 32px;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 450px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    animation: slideIn 0.25s ease-out;
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.modal-icon {
+    font-size: 32px;
+}
+
+.modal-title {
+    margin: 0;
+    font-size: 20px;
+    color: #1e293b;
+}
+
+.modal-text {
+    color: #475569;
+    margin-bottom: 24px;
+    line-height: 1.6;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+.btn-modal {
+    padding: 10px 24px;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-cancel {
+    background: #e2e8f0;
+    color: #475569;
+}
+
+.btn-cancel:hover {
+    background: #cbd5e1;
+}
+
+.btn-confirm {
+    background: #10b981;
+    color: white;
+}
+
+.btn-confirm:hover {
+    background: #059669;
+}
+
+@keyframes slideIn {
+    from { transform: translateY(-20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+</style>
+
+<div class="builder-container">
+    <div class="builder-header">
+        <h1 style="margin: 0 0 8px 0;">
+            📋 {{ title }}
+            {% if preselected_category %}
+            <span style="font-size: 14px; color: #64748b; font-weight: 400;">
+                для категории {{ preselected_category }}
+            </span>
+            {% endif %}
+        </h1>
+        <p style="margin: 0; color: #64748b;">Настройте состав предметов и тем для выбранных категорий</p>
+    </div>
+
+    <form id="programForm">
+        {% csrf_token %}
+        <input type="hidden" id="programId" value="{{ program.id|default:'' }}">
+
+        <!-- Название программы -->
+        <div class="form-group" style="margin-bottom: 24px;">
+            <label style="display: block; font-weight: 600; margin-bottom: 8px;">Название программы *</label>
+            <input type="text" id="programName" class="form-control"
+                   value="{{ program.name|default:'' }}"
+                   placeholder="Например: Программа категории B"
+                   required
+                   style="width: 100%; padding: 10px; border: 2px solid #e2e8f0; border-radius: 6px;">
+        </div>
+
+        <!-- Выбор категорий -->
+        <div class="categories-section">
+            <div class="section-title">🚗 Категории транспортных средств</div>
+            <div class="categories-grid">
+                {% for category in all_categories %}
+                <label class="category-checkbox">
+                    <input type="checkbox" name="category" value="{{ category.code }}"
+                           {% if program and category in program.categories.all %}checked{% endif %}>
+                    <span class="category-label">{{ category.code }}</span>
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Часов обучения -->
+        <div class="total-hours-section">
+            <label style="display: block; font-weight: 600; margin-bottom: 8px;">
+                ⏱️ Часов обучения (общее количество)
+            </label>
+            <input type="number" id="totalHours" class="hours-input"
+                   value="{{ program.total_hours|default:0 }}"
+                   step="0.5" min="0" required>
+            <span style="margin-left: 12px; color: #64748b;">часов</span>
+        </div>
+
+        <!-- Предметы -->
+        <div class="subjects-section">
+            <div class="section-title">📚 Предметы и темы</div>
+
+            {% for subject in all_subjects %}
+            <div class="subject-card" data-subject="{{ subject.short_name }}">
+                <div class="subject-header" onclick="toggleSubjectCard('{{ subject.short_name }}')">
+                    <div class="subject-toggle" id="toggle-{{ subject.short_name }}"
+                         onclick="toggleSubject(event, '{{ subject.short_name }}')"></div>
+
+                    <div class="subject-info">
+                        <div class="subject-name">{{ subject.name }}</div>
+                        <div class="subject-code">{{ subject.short_name|upper }}</div>
+                    </div>
+
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <!-- 🔹 СЧЁТЧИК ЧАСОВ ПРЕДМЕТА -->
+                        <div class="hours-counter" id="hours-counter-{{ subject.short_name }}">
+                           <span id="counter-display-{{ subject.short_name }}" style="font-weight: 600; color: #64748b;">
+                                0 / <span class="target-hours">0</span>
+                            </span>
+                            <span id="counter-icon-{{ subject.short_name }}" style="font-size: 16px;">⚠️</span>
+                        </div>
+
+                        <input type="number" class="subject-hours-input"
+                               id="hours-{{ subject.short_name }}"
+                               placeholder="0" step="0.5" min="0"
+                               onclick="event.stopPropagation()"
+                               onchange="updateSubjectCounter('{{ subject.short_name }}'); updateTotalCounter()">
+                        <span style="margin-left: 4px;">ч.</span>
+                    </div>
+                </div>
+
+                <div class="subject-topics" id="topics-{{ subject.short_name }}">
+                    <table class="topics-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 50px;">№</th>
+                                <th>Содержание темы</th>
+                                <th style="width: 120px;">Часов</th>
+                            </tr>
+                        </thead>
+                        <tbody id="topics-body-{{ subject.short_name }}">
+                            <tr>
+                                <td colspan="3" style="text-align: center; color: #94a3b8; padding: 20px;">
+                                    Загрузка тем...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Счётчик и кнопки -->
+        <div class="counter-section">
+            <div class="counter-display">
+                <span class="counter-total" id="counterTotal">0</span> /
+                <span class="counter-sum" id="counterSum">0</span> часов
+                <span class="counter-diff" id="counterDiff">−</span>
+            </div>
+
+            <div class="form-actions">
+                <a href="{% url 'reference:category_subjects_list' %}" class="btn-secondary">
+                    ✖ Отмена
+                </a>
+                <button type="button" class="btn-primary" onclick="saveProgram()">
+                    💾 Сохранить программу
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- 🔹 МОДАЛЬНОЕ ОКНО ПОДТВЕРЖДЕНИЯ СОХРАНЕНИЯ -->
+<div id="saveModal" class="modal-overlay">
+    <div class="modal-box">
+        <div class="modal-header">
+            <span class="modal-icon">✅</span>
+            <h3 class="modal-title">Программа сохранена</h3>
+        </div>
+        <p class="modal-text">
+            Программа успешно сохранена!<br>
+            <small>Перенаправление на страницу категорий...</small>
+        </p>
+        <div class="modal-actions">
+            <button class="btn-modal btn-cancel" onclick="closeSaveModal()">Отмена</button>
+            <button class="btn-modal btn-confirm" id="confirmSaveBtn">OK</button>
+        </div>
+    </div>
+</div>
+
+<script>
+let programSubjects = {};
+try {
+    const raw = '{{ program_subjects_json|escapejs }}';
+    if (raw && raw !== 'None') {
+        programSubjects = JSON.parse(raw);
+    }
+} catch (e) {
+    console.error('❌ Ошибка парсинга programSubjects:', e);
+    programSubjects = {};
+}
+let saveRedirectUrl = '/reference/categories/';
+
+// 🔹 Функции модального окна сохранения
+function showSaveModal() {
+    document.getElementById('saveModal').style.display = 'flex';
+}
+
+function closeSaveModal() {
+    document.getElementById('saveModal').style.display = 'none';
+}
+
+// 🔹 Подсчёт суммы часов по темам предмета
+function getTopicHoursSum(subjectCode) {
+    let sum = 0;
+    const inputs = document.querySelectorAll(`#topics-body-${subjectCode} .topic-hours-input`);
+    inputs.forEach(input => {
+        sum += parseFloat(input.value) || 0;
+    });
+    return sum;
+}
+
+// 🔹 Обновление счётчика для конкретного предмета
+function updateSubjectCounter(subjectCode) {
+    const topicSum = getTopicHoursSum(subjectCode);
+    const targetInput = document.getElementById(`hours-${subjectCode}`);
+    const targetHours = parseFloat(targetInput.value) || 0;
+
+    const counterDisplay = document.getElementById(`counter-display-${subjectCode}`);
+    const counterIcon = document.getElementById(`counter-icon-${subjectCode}`);
+    const counterBox = document.getElementById(`hours-counter-${subjectCode}`);
+
+    if (counterDisplay) {
+        counterDisplay.innerHTML = `${topicSum.toFixed(1)} / <span class="target-hours">${targetHours.toFixed(1)}</span>`;
+
+        // Визуальная индикация
+        if (Math.abs(topicSum - targetHours) < 0.01) {
+            counterDisplay.style.color = '#059669';
+            counterIcon.textContent = '✅';
+            counterBox.classList.add('valid');
+            counterBox.classList.remove('invalid');
+        } else {
+            counterDisplay.style.color = '#dc2626';
+            counterIcon.textContent = '⚠️';
+            counterBox.classList.add('invalid');
+            counterBox.classList.remove('valid');
+        }
+    }
+}
+
+// 🔹 Обновление общего счётчика
+function updateTotalCounter() {
+    const totalInput = document.getElementById('totalHours');
+    const totalHours = parseFloat(totalInput.value) || 0;
+
+    let subjectSum = 0;
+    document.querySelectorAll('.subject-hours-input').forEach(input => {
+        subjectSum += parseFloat(input.value) || 0;
+    });
+
+    const counterTotal = document.getElementById('counterTotal');
+    const counterSum = document.getElementById('counterSum');
+    const counterDiff = document.getElementById('counterDiff');
+
+    if (counterTotal && counterSum) {
+        counterTotal.textContent = totalHours.toFixed(1);
+        counterSum.textContent = subjectSum.toFixed(1);
+
+        const diff = totalHours - subjectSum;
+
+        if (Math.abs(diff) < 0.01) {
+            counterDiff.textContent = '✓';
+            counterDiff.className = 'counter-diff ok';
+        } else if (diff > 0) {
+            counterDiff.textContent = `+${diff.toFixed(1)} не распределено`;
+            counterDiff.className = 'counter-diff error';
+        } else {
+            counterDiff.textContent = `${diff.toFixed(1)} превышение`;
+            counterDiff.className = 'counter-diff error';
+        }
+    }
+}
+
+// 🔹 Переключение карточки предмета
+function toggleSubjectCard(code) {
+    const topics = document.getElementById(`topics-${code}`);
+    topics.classList.toggle('show');
+}
+
+// 🔹 Включение/выключение предмета
+function toggleSubject(event, code, update = true) {
+    if (event) event.stopPropagation();
+
+    const toggle = document.getElementById(`toggle-${code}`);
+    const topics = document.getElementById(`topics-${code}`);
+
+    toggle.classList.toggle('active');
+
+    if (toggle.classList.contains('active')) {
+        topics.classList.add('show');
+        loadSubjectTopics(code);
+    } else {
+        topics.classList.remove('show');
+    }
+
+    if (update) {
+        updateSubjectCounter(code);
+        updateTotalCounter();
+    }
+}
+
+// 🔹 Загрузка тем для предмета
+function loadSubjectTopics(code) {
+    return fetch(`/reference/api/subject-topics/?subject_code=${code}`)
+        .then(r => r.json())
+        .then(data => {
+            const tbody = document.getElementById(`topics-body-${code}`);
+            if (data.success && data.topics.length > 0) {
+                tbody.innerHTML = data.topics.map(t => `
+                    <tr>
+                        <td>${t.number}</td>
+                        <td>${t.name || t.content || 'Без названия'}</td>
+                        <td>
+                            <input type="number" class="topic-hours-input"
+                                   data-topic="${t.id}"
+                                   data-code="${code}"
+                                   value="0"
+                                   step="0.5" min="0"
+                                   onchange="updateSubjectCounter('${code}'); updateTotalCounter()">
+                        </td>
+                    </tr>
+                `).join('');
+            } else {
+                tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#94a3b8;">Нет тем</td></tr>';
+            }
+        });
+}
+
+// 🔹 Валидация и сохранение программы
+function saveProgram() {
+    const programId = document.getElementById('programId').value;
+    const name = document.getElementById('programName').value;
+    const totalHours = parseFloat(document.getElementById('totalHours').value) || 0;
+
+    if (!name) {
+        alert('Введите название программы');
+        return;
+    }
+
+    const categories = Array.from(document.querySelectorAll('input[name="category"]:checked'))
+        .map(cb => cb.value);
+
+    if (categories.length === 0) {
+        alert('Выберите хотя бы одну категорию');
+        return;
+    }
+
+    // 🔹 ПРОВЕРКА: сумма часов тем должна совпадать с часами предмета
+    let hasErrors = false;
+    let errorMessage = '';
+
+    document.querySelectorAll('.subject-card').forEach(card => {
+        const code = card.dataset.subject;
+        const toggle = document.getElementById(`toggle-${code}`);
+
+        if (toggle.classList.contains('active')) {
+            const topicSum = getTopicHoursSum(code);
+            const targetHours = parseFloat(document.getElementById(`hours-${code}`).value) || 0;
+
+            if (Math.abs(topicSum - targetHours) > 0.01) {
+                hasErrors = true;
+                const subjectName = card.querySelector('.subject-name').textContent;
+                errorMessage += `• ${subjectName}: сумма тем (${topicSum}) ≠ ${targetHours}\n`;
+            }
+        }
+    });
+
+    if (hasErrors) {
+        alert('⚠️ Обнаружены несоответствия в часах:\n\n' + errorMessage + '\nСумма часов по темам должна совпадать с общим количеством часов предмета.');
+        return;
+    }
+
+    const subjects = [];
+    document.querySelectorAll('.subject-card').forEach(card => {
+        const code = card.dataset.subject;
+        const toggle = document.getElementById(`toggle-${code}`);
+
+        if (toggle.classList.contains('active')) {
+            const hours = parseFloat(document.getElementById(`hours-${code}`).value) || 0;
+            const topics = [];
+
+            card.querySelectorAll('.topic-hours-input').forEach(input => {
+                const topicHours = parseFloat(input.value) || 0;
+                if (topicHours > 0) {
+                    topics.push({
+                        id: parseInt(input.dataset.topic),
+                        hours: topicHours
+                    });
+                }
+            });
+
+            subjects.push({
+                code: code,
+                is_enabled: true,
+                hours: hours,
+                topics: topics
+            });
+        }
+    });
+
+    const data = {
+        program_id: programId ? parseInt(programId) : null,
+        name: name,
+        total_hours: totalHours,
+        categories: categories,
+        subjects: subjects
+    };
+
+    fetch('{% url "reference:program_save" %}', {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+    },
+    body: JSON.stringify(data)
+})
+.then(r => r.json())
+.then(result => {
+    console.log('Результат сохранения:', result);  // ← Добавьте это
+
+    if (result.success) {
+        console.log('Программа ID:', result.program_id);
+        console.log('Редирект на:', result.redirect_url);
+
+        showSaveModal();
+
+        if (result.redirect_url) {
+            saveRedirectUrl = result.redirect_url;
+        }
+    } else {
+        console.error('Ошибка сохранения:', result.error);
+        alert('❌ Ошибка: ' + result.error);
+    }
+})
+.catch(err => {
+    console.error('Ошибка сети:', err);
+    alert('❌ Ошибка сети: ' + err);
+});
+}
+
+// 🔹 Инициализация при загрузке
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Загруженные данные программы:', programSubjects);
+    console.log('Количество предметов:', Object.keys(programSubjects).length);
+
+    // 1. Восстанавливаем сохранённые данные программы
+    for (const [code, data] of Object.entries(programSubjects)) {
+        if (data.is_enabled) {
+            // Включаем тумблер предмета
+            const toggle = document.getElementById(`toggle-${code}`);
+            const topicsDiv = document.getElementById(`topics-${code}`);
+            if (toggle) toggle.classList.add('active');
+            if (topicsDiv) topicsDiv.classList.add('show');
+
+            // Устанавливаем часы предмета
+            const hoursInput = document.getElementById(`hours-${code}`);
+            if (hoursInput) hoursInput.value = data.hours;
+
+            // Загружаем темы и заполняем их часы
+            loadSubjectTopics(code).then(() => {
+                for (const [topicId, hours] of Object.entries(data.topics)) {
+                    const input = document.querySelector(`#topics-body-${code} input[data-topic="${topicId}"]`);
+                    if (input) input.value = hours;
+                }
+                // Обновляем счётчик после загрузки тем
+                updateSubjectCounter(code);
+            });
+        }
+    }
+
+    // 2. Автовыбор категории из URL (если есть ?category=B)
+    const urlParams = new URLSearchParams(window.location.search);
+    const preselectedCategory = urlParams.get('category');
+    if (preselectedCategory) {
+        const checkbox = document.querySelector(`input[name="category"][value="${preselectedCategory}"]`);
+        if (checkbox) {
+            checkbox.checked = true;
+            checkbox.closest('.category-checkbox').querySelector('.category-label').classList.add('selected');
+        }
+    }
+
+    // 3. Финальный расчёт общих часов (с небольшой задержкой для уверенности)
+    setTimeout(() => {
+        updateTotalCounter();
+    }, 300);
+});
+
+// 🔹 Обработка подтверждения сохранения
+document.getElementById('confirmSaveBtn')?.addEventListener('click', function() {
+    closeSaveModal();
+    window.location.href = saveRedirectUrl;
+});
+
+// Закрытие модального окна по клику вне его
+document.getElementById('saveModal')?.addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeSaveModal();
+    }
+});
+
+// Закрытие по ESC
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeSaveModal();
+    }
+});
+</script>
+{% endblock %}

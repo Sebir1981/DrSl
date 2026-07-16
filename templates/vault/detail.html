@@ -1,27 +1,384 @@
 {% extends "base.html" %}
-{% block content %}
-<div class="vault-detail">
-  <h2>{{ entry.title }}</h2>
-  <table>
-    <tr><th>Логин:</th><td>{{ entry.username|default:"—" }}</td></tr>
-    <tr><th>Пароль:</th><td id="pass-field">••••••••</td></tr>
-    <tr><th>Ссылка:</th><td><a href="{{ entry.url }}" target="_blank">{{ entry.url|default:"—" }}</a></td></tr>
-    <tr><th>Заметки:</th><td>{{ entry.notes|linebreaks }}</td></tr>
-  </table>
+{% load static %}
+{% load user_extras %}
+{% block title %}🔐 {{ entry.full_name|default:"Запись" }} — Хранилище{% endblock %}
 
-  <button onclick="togglePassword()">👁️ Показать/Скрыть</button>
-  <button onclick="copyPassword()">📋 Копировать</button>
+{% block extra_css %}
+<style>
+.detail-container {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.detail-header {
+    background: white;
+    border-radius: 16px;
+    padding: 30px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.detail-title {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.detail-icon {
+    width: 60px;
+    height: 60px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    color: white;
+}
+
+.detail-name h1 {
+    margin: 0;
+    font-size: 24px;
+    color: #1e293b;
+    font-weight: 700;
+}
+
+.detail-meta {
+    margin-top: 5px;
+    font-size: 13px;
+    color: #64748b;
+}
+
+.detail-card {
+    background: white;
+    border-radius: 16px;
+    padding: 30px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+}
+
+.field-group {
+    margin-bottom: 25px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.field-group:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
+.field-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #64748b;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.field-value {
+    font-size: 16px;
+    color: #1e293b;
+    padding: 12px 16px;
+    background: #f8fafc;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    word-break: break-all;
+}
+
+.field-value.monospace {
+    font-family: 'Courier New', monospace;
+    background: #f1f5f9;
+}
+
+.password-wrapper {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.password-input {
+    flex: 1;
+    font-family: 'Courier New', monospace;
+    font-size: 16px;
+    padding: 12px 16px;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+}
+
+.btn-copy {
+    padding: 10px 16px;
+    background: #4facfe;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.btn-copy:hover {
+    background: #00f2fe;
+    transform: translateY(-1px);
+}
+
+.btn-copy.copied {
+    background: #10b981;
+}
+
+.btn-toggle {
+    padding: 10px 16px;
+    background: #e2e8f0;
+    color: #334155;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.btn-toggle:hover {
+    background: #cbd5e1;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 12px;
+    margin-top: 30px;
+    padding-top: 25px;
+    border-top: 2px solid #e2e8f0;
+}
+
+.btn {
+    padding: 12px 24px;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 600;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+    border: none;
+    cursor: pointer;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #4facfe, #00f2fe);
+    color: white;
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(79,172,254,0.4);
+}
+
+.btn-secondary {
+    background: #e2e8f0;
+    color: #334155;
+}
+
+.btn-secondary:hover {
+    background: #cbd5e1;
+}
+
+.btn-danger {
+    background: #ef4444;
+    color: white;
+}
+
+.btn-danger:hover {
+    background: #dc2626;
+}
+
+.badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.badge-success {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.badge-warning {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.empty-value {
+    color: #94a3b8;
+    font-style: italic;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="detail-container">
+    <!-- Заголовок -->
+    <div class="detail-header">
+        <div class="detail-title">
+            <div class="detail-icon">👤</div>
+            <div class="detail-name">
+                <h1>{{ entry.full_name|default:"Без имени" }}</h1>
+                <div class="detail-meta">
+                    {% if entry.created_at %}
+                    Создано: {{ entry.created_at|date:"d.m.Y H:i" }}
+                    {% if entry.created_by %} от {{ entry.created_by.get_full_name|default:entry.created_by.username }}{% endif %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <a href="{% url 'vault:vault_list' %}" class="btn btn-secondary">
+            ← Назад к списку
+        </a>
+    </div>
+
+    <!-- Основная карточка -->
+    <div class="detail-card">
+        <!-- Логин -->
+        <div class="field-group">
+            <div class="field-label">
+                <span>👤</span> Логин
+            </div>
+            <div class="field-value monospace">
+                {{ entry.username|default:"—" }}
+            </div>
+        </div>
+
+        <!-- Пароль -->
+        <div class="field-group">
+            <div class="field-label">
+                <span>🔑</span> Пароль
+            </div>
+            <div class="password-wrapper">
+                <input type="password"
+                       id="password-field"
+                       class="password-input monospace"
+                       value="{{ decrypted_password|default:'Не удалось расшифровать' }}"
+                       readonly>
+                <button type="button" class="btn-toggle" onclick="togglePassword()">
+                    👁️ Показать
+                </button>
+                <button type="button" class="btn-copy" onclick="copyPassword()">
+                    📋 Копировать
+                </button>
+            </div>
+        </div>
+
+        <!-- Ссылка -->
+        {% if entry.url %}
+        <div class="field-group">
+            <div class="field-label">
+                <span>🔗</span> Ссылка
+            </div>
+            <div class="field-value">
+                <a href="{{ entry.url }}" target="_blank" style="color: #4facfe; text-decoration: none;">
+                    {{ entry.url }} ↗
+                </a>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Заметки -->
+        {% if entry.notes %}
+        <div class="field-group">
+            <div class="field-label">
+                <span>📝</span> Заметки
+            </div>
+            <div class="field-value" style="white-space: pre-wrap;">
+                {{ entry.notes }}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Разрешённые роли -->
+        <div class="field-group">
+            <div class="field-label">
+                <span>🔐</span> Доступ разрешён
+            </div>
+            <div class="field-value">
+                {% for role in entry.allowed_roles.all %}
+                <span class="badge badge-success" style="margin-right: 8px; margin-bottom: 4px; display: inline-block;">
+                    {{ role.name }}
+                </span>
+                {% empty %}
+                <span class="empty-value">Только администраторы</span>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Кнопки действий -->
+        <div class="action-buttons">
+            {% if user|is_in_group:"admin" or user.is_superuser %}
+            <a href="{% url 'vault:edit_entry' entry.pk %}" class="btn btn-primary">
+                ✏️ Редактировать
+            </a>
+            <a href="{% url 'vault:manage_permissions' entry.pk %}" class="btn" style="background: #8b5cf6; color: white;">
+                🔐 Управление доступом
+            </a>
+            <a href="{% url 'vault:delete_entry' entry.pk %}" class="btn btn-danger"
+               onclick="return confirm('⚠️ Вы уверены, что хотите удалить эту запись?')">
+                🗑️ Удалить
+            </a>
+            {% endif %}
+            <a href="{% url 'vault:vault_list' %}" class="btn btn-secondary">
+                ← К списку
+            </a>
+        </div>
+    </div>
 </div>
 
 <script>
-  const realPassword = "{{ decrypted_password|escapejs }}";
-  function togglePassword() {
-    const el = document.getElementById('pass-field');
-    el.textContent = el.textContent === '••••••••' ? realPassword : '••••••••';
-  }
-  function copyPassword() {
-    navigator.clipboard.writeText(realPassword);
-    alert('Пароль скопирован!');
-  }
+function togglePassword() {
+    const field = document.getElementById('password-field');
+    const btn = event.target;
+
+    if (field.type === 'password') {
+        field.type = 'text';
+        btn.textContent = '🙈 Скрыть';
+    } else {
+        field.type = 'password';
+        btn.textContent = '👁️ Показать';
+    }
+}
+
+function copyPassword() {
+    const field = document.getElementById('password-field');
+    const btn = event.target;
+
+    field.select();
+    field.setSelectionRange(0, 99999); // Для мобильных
+
+    navigator.clipboard.writeText(field.value).then(() => {
+        const originalText = btn.textContent;
+        btn.textContent = '✅ Скопировано!';
+        btn.classList.add('copied');
+
+        setTimeout(() => {
+            btn.textContent = originalText;
+            btn.classList.remove('copied');
+        }, 2000);
+    }).catch(err => {
+        alert('❌ Не удалось скопировать');
+        console.error('Copy error:', err);
+    });
+}
 </script>
 {% endblock %}

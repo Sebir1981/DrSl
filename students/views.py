@@ -497,3 +497,56 @@ def surname_suggestions(request):
     ).values_list('last_name', flat=True).distinct()[:10]
 
     return JsonResponse({'suggestions': list(suggestions)})
+
+
+# students/views.py (добавить в конец)
+
+@login_required
+def student_edit(request, student_id):
+    """Фронтенд-страница редактирования учащегося"""
+    student = get_object_or_404(Student, pk=student_id)
+
+    if request.method == 'POST':
+        # Обновляем поля из формы
+        student.last_name = request.POST.get('last_name', '').strip()
+        student.first_name = request.POST.get('first_name', '').strip()
+        student.patronymic = request.POST.get('patronymic', '').strip()
+        student.phone = request.POST.get('phone', '').strip()
+
+        # Даты и адреса
+        student.birth_date = request.POST.get('birth_date') or None
+        student.place_of_birth = request.POST.get('place_of_birth', '').strip()
+        student.place_of_residence = request.POST.get('place_of_residence', '').strip()
+        student.place_of_registration = request.POST.get('place_of_registration', '').strip()
+        student.work_study_place = request.POST.get('work_study_place', '').strip()
+        student.position = request.POST.get('position', '').strip()
+
+        # Связи
+        group_id = request.POST.get('group')
+        teacher_id = request.POST.get('teacher')
+        master_id = request.POST.get('master')
+
+        student.group_id = group_id if group_id and group_id.isdigit() else None
+        student.teacher_id = teacher_id if teacher_id and teacher_id.isdigit() else None
+        student.master_id = master_id if master_id and master_id.isdigit() else None
+
+        student.gearbox_type = request.POST.get('gearbox_type', '')
+        student.enrolled_date = request.POST.get('enrolled_date') or None
+
+        student.save()
+        messages.success(request, f'✅ Данные учащегося {student.last_name} обновлены!')
+        return redirect('students:student_detail', student_id=student.pk)
+
+    # GET-запрос: подготовка данных для формы
+    groups = Group.objects.filter(status='active').order_by('group_number')
+    teachers = Teacher.objects.filter(is_active=True).order_by('last_name', 'first_name')
+    masters = Master.objects.all().order_by('last_name', 'first_name')
+
+    context = {
+        'title': '✏️ Редактирование учащегося',
+        'student': student,  # Передаем ученика, чтобы заполнить поля
+        'groups': groups,
+        'teachers': teachers,
+        'masters': masters,
+    }
+    return render(request, 'students/student_edit.html', context)
