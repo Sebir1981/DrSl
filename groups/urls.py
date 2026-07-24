@@ -1,6 +1,7 @@
 # groups/urls.py
 from django.urls import path
 from . import views
+from groups.views.export import export_schedule_to_excel
 
 app_name = 'groups'
 
@@ -30,4 +31,5 @@ urlpatterns = [
     path('api/instructor/availability/', views.check_instructor_availability, name='check_instructor_availability'),
     path('api/groups/<int:group_id>/data/', views.group_api_data, name='group_api_data'),
     path('api/teacher-schedule/', views.get_teacher_schedules, name='get_teacher_schedules'),
+    path('schedules/<int:plan_id>/export/', export_schedule_to_excel, name='schedule_export'),
 ]

@@ -5,969 +5,102 @@
 
 {% block extra_css %}
 <style>
-/* 🟢 Стили для модального окна */
-.modal { animation: fadeIn 0.3s; }
-@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-.topic-row {
-    display: grid;
-    grid-template-columns: 1fr 120px 80px 100px;
-    gap: 12px;
-    padding: 12px;
-    margin-bottom: 8px;
-    background: #f8fafc;
-    border-radius: 8px;
-    align-items: center;
-    border: 1px solid #e2e8f0;
-    transition: all 0.2s;
+/* === COMPACT CSS STYLES === */
+.med-day-highlight {
+    border: 2px solid #16a34a !important;
+    background-color: #f0fdf4 !important;
 }
-.topic-row:hover { background: #f1f5f9; border-color: #cbd5e1; }
-.topic-row.hidden-topic { display: none !important; }
-.topic-name { font-weight: 600; color: #1e293b; font-size: 14px; line-height: 1.4; }
-.topic-required { color: #64748b; font-size: 13px; text-align: center; padding: 6px; background: white; border-radius: 4px; min-width: 120px; }
-.topic-input { padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; text-align: center; width: 100%; box-sizing: border-box; }
-.topic-input:focus { outline: none; border-color: #4facfe; box-shadow: 0 0 0 3px rgba(79,172,254,0.1); }
-.topic-input::-webkit-outer-spin-button,
-.topic-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-.topic-input[type=number] { -moz-appearance: textfield; }
-.subject-group { margin-bottom: 24px; border: 2px solid #e2e8f0; border-radius: 12px; overflow: hidden; }
-.subject-header { background: linear-gradient(135deg, #4facfe, #00f2fe); color: white; padding: 12px 16px; font-weight: 700; font-size: 16px; }
-.topic-row.pz { background: #fef3c7; border-left: 4px solid #f59e0b; }
-
-/*  Подсветка корректных/некорректных значений */
-.hours-input.subject-hours { transition: all 0.2s; }
-.hours-input.subject-hours[style*="border-color: rgb(134, 239, 172)"] { border-color: #86efac !important; background: #f0fdf4 !important; }
-.hours-input.subject-hours[style*="border-color: rgb(252, 165, 165)"] { border-color: #fca5a5 !important; background: #fef2f2 !important; }
-.hours-input.total { font-weight: 700; cursor: not-allowed; }
-
-/* 🔹 Визуальное разделение по месяцам */
-.distribution-table th.month-header { background: #dbeafe; font-weight: 700; color: #1e40af; padding: 8px 4px; border-left: 3px solid #3b82f6; border-right: 3px solid #3b82f6; }
-.distribution-table th.month-header:first-child { border-left: 3px solid #3b82f6; }
-.distribution-table th.date-header { background: #eff6ff; border-left: 1px solid #bfdbfe; }
-.distribution-table th.date-header:first-child, .distribution-table td:first-child { border-left: 3px solid #3b82f6; }
-.month-separator { border-left: 3px solid #3b82f6 !important; }
-.distribution-table tbody tr:nth-child(odd) { background: #f8fafc; }
-.distribution-table tbody tr:nth-child(even) { background: #ffffff; }
-.distribution-table td:hover { background: #dbeafe; transition: background 0.2s; }
-
-tr.completed-subject {
-    background: #f1f5f9 !important;
-    opacity: 0.6;
+.med-day-highlight input.hours-input {
+    border-color: #16a34a !important;
+    background-color: #fff !important;
 }
-
-tr.completed-subject .subject-cell {
-    background: #e2e8f0 !important;
-    font-weight: 500;
-}
-
-tr.completed-subject .hours-input {
-    background: #e2e8f0 !important;
-    color: #64748b;
-}
-
-
-
-.step2-container { background: white; border-radius: 16px; padding: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); max-width: 100%; margin: 0 auto; overflow-x: auto; }
 .info-block { background: #f8fafc; border-radius: 12px; padding: 24px; margin-bottom: 24px; border: 1px solid #e2e8f0; }
 .info-title { margin: 0 0 20px 0; color: #1e293b; font-size: 18px; font-weight: 700; text-align: center; }
 .info-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; }
 .info-column { display: flex; flex-direction: column; gap: 16px; }
 .info-field { display: flex; flex-direction: column; gap: 4px; }
 .info-label { font-size: 11px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
-.info-value { font-size: 15px; color: #1e293b; font-weight: 600; }
-.info-select { width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; background: #fff; transition: border-color 0.2s; }
-.info-select:focus { outline: none; border-color: #4facfe; box-shadow: 0 0 0 2px rgba(79,172,254,0.15); }
-.schedule-year { text-align: center; font-size: 20px; font-weight: 700; color: #1e293b; margin: 0 0 16px 0; padding-bottom: 8px; border-bottom: 2px solid #e2e8f0; }
+.info-value { font-size: 14px; color: #1e293b; font-weight: 600; }
 .distribution-table { width: 100%; border-collapse: collapse; font-size: 12px; margin: 16px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.1); table-layout: fixed; }
 .distribution-table th, .distribution-table td { border: 1px solid #cbd5e1; padding: 4px; text-align: center; vertical-align: middle; }
 .distribution-table th { background: #f1f5f9; font-weight: 600; color: #475569; }
-.distribution-table .subject-cell { background: #f8fafc; font-weight: 600; text-align: left; padding-left: 12px; position: sticky; left: 0; z-index: 10; min-width: 180px; width: 180px; cursor: help; }
-.distribution-table .month-header { background: #dbeafe; font-weight: 700; color: #1e40af; padding: 8px 4px; white-space: nowrap; }
-.distribution-table .date-header { background: #eff6ff; font-size: 11px; color: #64748b; font-weight: 500; width: 48px; min-width: 48px; max-width: 48px; padding: 6px 2px; }
-.hours-input { width: 100%; height: 28px; padding: 0; border: 1px solid #cbd5e1; border-radius: 3px; text-align: center; font-size: 12px; font-weight: 600; box-sizing: border-box; transition: all 0.2s; -moz-appearance: textfield; }
-.hours-input::-webkit-outer-spin-button, .hours-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-.hours-input:focus { outline: none; border-color: #4facfe; box-shadow: 0 0 0 2px rgba(79,172,254,0.2); }
-.hours-input.total { background: #fef3c7; border-color: #fcd34d; font-weight: 700; color: #92400e; }
-.hours-input[readonly] { background: #f1f5f9; color: #64748b; cursor: not-allowed; border-color: #e2e8f0; }
-
-/* 🔹 Скрыть стрелки у поля "Часов обучения" */
-#total-hours-display::-webkit-outer-spin-button,
-#total-hours-display::-webkit-inner-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
-}
-#total-hours-display {
-    -moz-appearance: textfield;
-    cursor: not-allowed;
-}
-
+.distribution-table .subject-cell { background: #f8fafc; font-weight: 600; text-align: left; padding-left: 12px; position: relative; z-index: 10; min-width: 180px; width: 180px; cursor: help; }
+.subject-cell .cell-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; line-height: 1.3; padding-right: 8px; font-weight: 600; display: block; }
+.subject-cell .tooltip-box { display: none; position: absolute; bottom: 100%; left: 0; background: #1e293b; color: white; padding: 10px 14px; border-radius: 6px; font-size: 13px; font-weight: 400; white-space: normal; z-index: 100; box-shadow: 0 4px 20px rgba(0,0,0,0.25); max-width: 320px; width: max-content; line-height: 1.4; pointer-events: none; }
+.subject-cell:hover .tooltip-box { display: block; animation: tooltipFadeIn 0.15s ease-out; }
+.subject-cell .tooltip-box::after { content: ''; position: absolute; bottom: -6px; left: 20px; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 6px solid #1e293b; }
+.subject-cell:hover .tooltip-box { display: block; animation: tooltipFadeIn 0.15s ease-out; }
+@keyframes tooltipFadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.hours-input { width: 100%; height: 28px; padding: 0; border: 1px solid #cbd5e1; border-radius: 3px; text-align: center; font-size: 12px; font-weight: 600; box-sizing: border-box; transition: all 0.2s; background: white !important; }
+.hours-input.total { background: #fef3c7 !important; border-color: #fcd34d; font-weight: 700; color: #92400e; }
+.subject-hours { background: white !important; }
+.hours-input:hover { border-color: #4facfe; }
+.hours-input:focus { outline: none; border-color: #4facfe; box-shadow: 0 0 0 2px rgba(79,172,254,0.2); background: white !important; }
+.distribution-table td { background: white; }
 .action-buttons { display: flex; gap: 16px; justify-content: flex-end; margin-top: 24px; padding-top: 24px; border-top: 2px solid #e2e8f0; }
 .btn-back { padding: 12px 32px; background: #e2e8f0; color: #334155; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none; }
 .btn-confirm { padding: 12px 32px; background: #4facfe; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
-.btn-confirm:disabled { background: #cbd5e1; cursor: not-allowed; }
 .print-btn { padding: 12px 24px; background: #10b981; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; margin-right: auto; }
-
-/* 🔹 Tooltip для предметов */
-.tooltip-box {
-    display: none;
-    position: absolute;
-    bottom: 100%;
-    left: 0;
-    background: #1e293b;
-    color: white;
-    padding: 8px 12px;
-    border-radius: 6px;
-    font-size: 12px;
-    white-space: nowrap;
-    z-index: 100;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    max-width: 300px;
-}
-.tooltip-box::after {
-    content: '';
-    position: absolute;
-    bottom: -6px;
-    left: 20px;
-    width: 12px;
-    height: 12px;
-    background: #1e293b;
-    transform: rotate(45deg);
-}
-.subject-cell:hover .tooltip-box { display: block; }
-
-/*  Выделение экзамена */
-tr.row-exam {
-    background: #fef3c7 !important;
-    font-weight: 700;
-    border-top: 3px solid #f59e0b;
-}
-tr.row-exam .subject-cell {
-    background: #fde68a !important;
-    border-left-color: #f59e0b;
-}
-
-@media print { .action-buttons, .page-header { display: none; } .step2-container { box-shadow: none; overflow: visible; } .hours-input { border: none; } .subject-cell { position: static; } }
-@media (max-width: 900px) { .info-grid { grid-template-columns: 1fr; } }
+.btn-delete { padding: 12px 24px; background: #ef4444; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
+.schedule-year { text-align: center; font-size: 20px; font-weight: 700; color: #1e293b; margin: 0 0 16px 0; padding-bottom: 8px; border-bottom: 2px solid #e2e8f0; }
+input[type="number"]::-webkit-outer-spin-button, input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+input[type="number"] { -moz-appearance: textfield; }
+/* Модальное окно */
+#topic-modal .topic-row { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; gap: 16px; transition: all 0.2s; }
+#topic-modal .topic-row:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-color: #cbd5e1; }
+#topic-modal .topic-row.pz { background: #fef9c3; border-left: 4px solid #eab308; }
+#topic-modal .topic-name { flex: 1; font-size: 14px; color: #1e293b; font-weight: 500; line-height: 1.4; }
+#topic-modal .topic-required { font-size: 12px; color: #64748b; font-weight: 600; min-width: 80px; text-align: right; }
+#topic-modal .topic-input { width: 100px; height: 36px; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; font-weight: 600; text-align: center; background: white; transition: all 0.2s; }
+#topic-modal .topic-input:focus { outline: none; border-color: #4facfe; box-shadow: 0 0 0 3px rgba(79,172,254,0.1); }
+#topic-modal .topic-input[disabled] { background: #f1f5f9; color: #94a3b8; cursor: not-allowed; }
+#topic-modal .topic-max { font-size: 11px; color: #64748b; min-width: 60px; text-align: left; }
 </style>
 {% endblock %}
 
 {% block content %}
+<!-- 🔹 Кнопки навигации -->
 <div class="page-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 16px;">
     <h1 style="margin: 0; font-size: 24px; color: #1e293b;">{{ title }}</h1>
-
     <div style="display: flex; gap: 12px;">
-        <!-- 🔹 КНОПКА: Настройка учебного плана -->
-        <a href="{% url 'reference:category_subjects_list' %}?plan_id={{ plan_id }}" class="btn" style="background: #3b82f6; color: white; text-decoration: none; padding: 10px 20px; border-radius: 8px;">
-            📋 Настройка учебного плана
-        </a>
-
-        <!-- Существующая кнопка -->
-        <a href="{% url 'groups:schedule_plans_list' %}"
-           class="btn"
-           style="background: #e2e8f0; color: #334155; text-decoration: none; padding: 10px 20px; border-radius: 8px; font-weight: 600;">
-            ← Назад к списку
-        </a>
+        <a href="{% url 'reference:category_subjects_list' %}?plan_id={{ plan.pk }}" class="btn" style="background: #3b82f6; color: white; text-decoration: none; padding: 10px 20px; border-radius: 8px; font-weight: 600;"> Настройка учебного плана</a>
+        <a href="{% url 'groups:schedule_plans_list' %}" class="btn" style="background: #e2e8f0; color: #334155; text-decoration: none; padding: 10px 20px; border-radius: 8px; font-weight: 600;">← Назад к списку</a>
     </div>
 </div>
 
-<div class="info-block">
-    <h2 class="info-title">План-график выполнения единой программы подготовки водителей МТС категории "{{ plan.group.category.code|default:'B' }}"</h2>
-    <div class="info-grid">
-        <div class="info-column">
-            <div class="info-field"><span class="info-label">Учебная группа</span><span class="info-value">{{ plan.group }}</span></div>
-            <div class="info-field"><span class="info-label">Аудитория</span><span class="info-value">{{ location|default:"—" }}</span></div>
-        </div>
-        <div class="info-column">
-            <div class="info-field"><span class="info-label">Преподаватель</span><span class="info-value">{{ plan.teacher }}</span></div>
-            <div class="info-field"><span class="info-label">Преподаватель медицины</span><span class="info-value">{{ plan.med_teacher|default:"—" }}</span></div>
-        </div>
-        <div class="info-column">
-            <div class="info-field"><span class="info-label">Период обучения</span><span class="info-value">{{ plan.date_start|date:"d.m.Y" }} — {{ plan.date_end|date:"d.m.Y" }}</span></div>
-            <div class="info-field">
-                <span class="info-label">Расписание занятий</span>
-                <div style="display: flex; gap: 8px; align-items: center;">
-                    <input type="time" id="time-start" value="{{ time_start }}" style="padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 13px; width: 50px;">
-                    <span style="color: #64748b;">—</span>
-                    <input type="time" id="time-end" value="{{ time_end }}" style="padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 13px; width: 50px;">
-                </div>
-            </div>
-        </div>
-        <div class="info-column">
-             <div class="info-field">
-                 <span class="info-label">Часов обучения</span>
-                 <input type="text"
-                        id="total-hours-display"
-                        value="{{ training_program.total_hours|default:required_hours|default:0 }}"
-                        readonly
-                        style="width: 38%; height: 18px; padding: 4px 8px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 12px; font-weight: 600; color: #1e40af; background: #f1f5f9; text-align: center; cursor: not-allowed;">
-             </div>
-             <div class="info-field">
-                 <span class="info-label" style="position: relative; top: -9px;">Учебный план</span>
-                 <!-- 🔹 Убран onchange, теперь обработчик в JS -->
-                 <select id="training-program-select"
-                         name="training_program"
-                         style="width: 100%; height: 28px; padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 12px; background: white; font-weight: 600; color: #1e40af; cursor: pointer;">
-                     <option value="">— Выберите программу —</option>
-                     {% for program in available_programs %}
-                     <option value="{{ program.id }}"
-                             data-hours="{{ program.total_hours }}"
-                             {% if training_program and training_program.id == program.id %}selected{% endif %}>
-                         {{ program.name }} ({{ program.total_hours }} ч.)
-                     </option>
-                     {% empty %}
-                     <option value="" disabled>Нет доступных программ</option>
-                     {% endfor %}
-                 </select>
-             </div>
-        </div>
-    </div>
-</div>
+<!-- 🔹 Информационный блок -->
+{% include "groups/schedule_plan_step2/_info_block.html" %}
 
+<!-- 🔹 Заголовок года -->
 <div class="schedule-year">{{ plan_year }} год</div>
 
+<!-- 🔹 Таблица распределения -->
 <form id="hours-form" method="post" action="{% url 'groups:schedule_plan_step2' plan.pk %}">
-{% csrf_token %}
+    {% csrf_token %}
+    {% include "groups/schedule_plan_step2/_distribution_table.html" %}
 
-<!-- 🔹 СКРЫТОЕ ПОЛЕ С JSON ДАННЫХ ДЛЯ JS -->
-<input type="hidden" id="topics-state-json" value='{{ topics_state_json|default:"{}"|escapejs }}'>
-
-<table class="distribution-table" style="table-layout: fixed; border-collapse: collapse; width: 100%;">
-<thead>
-    <tr>
-        <th rowspan="2" style="width: 180px; min-width: 180px; background: #f8fafc; border: 1px solid #cbd5e1; text-align: left; padding-left: 12px;">Занятия</th>
-        {% for month, days in days_by_month.items %}
-        <th colspan="{{ days|length }}" class="month-header" style="border: 1px solid #cbd5e1; text-align: center; padding: 8px 0;">{{ month }}</th>
-        {% endfor %}
-        <th rowspan="2" style="width: 80px; min-width: 80px; background:#fef3c7; border: 1px solid #cbd5e1; font-weight: 700;">ИТОГО</th>
-    </tr>
-    <tr>
-        {% for month, days in days_by_month.items %}
-            {% for day in days %}
-            <th class="date-header" style="width: 28px; min-width: 28px; border: 1px solid #cbd5e1; padding: 4px 0; font-size: 10px; color: #64748b;">{{ day.day_num }}</th>
-            {% endfor %}
-        {% endfor %}
-    </tr>
-</thead>
-<tbody>
-    <tr style="background:#e0f2fe; font-weight:700;">
-        <td class="subject-cell" style="border: 1px solid #cbd5e1;">Всего часов</td>
-        {% for month, days in days_by_month.items %}
-            {% for day in days %}
-            <td data-date="{{ day.raw_date }}" data-subject="total" style="border: 1px solid #cbd5e1; padding: 0;">
-                <input type="number" step="0.5" class="hours-input total day-total" data-date="{{ day.raw_date }}" value="0" readonly style="width: 100%; height: 28px; background:#dbeafe; font-weight:700; border: none; text-align: center;">
-            </td>
-            {% endfor %}
-        {% endfor %}
-        <td style="border: 1px solid #cbd5e1; padding: 0;">
-            <input type="number" step="1" class="hours-input total grand-total" id="grand-total" value="0" readonly style="width: 100%; height: 28px; background:#bbf7d0; font-weight:700; border: none; text-align: center;">
-        </td>
-    </tr>
-
-    <!-- 🔹 Предметы из учебного плана (с tooltip) -->
-    {% for subject_item in program_subjects %}
-    <tr{% if subject_item.code == 'med' %} class="row-medicine"{% endif %}>
-        <td class="subject-cell" style="border: 1px solid #cbd5e1; position: relative;">
-            <!-- 🔹 КРАТКОЕ НАЗВАНИЕ + Tooltip с полным названием -->
-            <span style="cursor: help;">{{ subject_item.short_display }}</span>
-            <div class="tooltip-box">{{ subject_item.full_name }}</div>
-        </td>
-        {% for month, days in days_by_month.items %}
-            {% for day in days %}
-            <!-- 🔹 Класс med-cell для медицины (для CSS) -->
-            <td data-subject="{{ subject_item.code }}" data-date="{{ day.raw_date }}"
-                class="{% if subject_item.code == 'med' %}med-cell{% endif %}"
-                style="border: 1px solid #cbd5e1; padding: 0;">
-                <input type="number" step="0.5" class="hours-input subject-hours{% if subject_item.code == 'med' %} med-input{% endif %}"
-                    data-subject="{{ subject_item.code }}" data-date="{{ day.raw_date }}"
-                    value="{{ day|get_item:subject_item.code|default:0 }}" min="0" readonly
-                    style="width: 100%; height: 28px; border: 1px solid #cbd5e1; text-align: center; background: transparent;">
-            </td>
-            {% endfor %}
-        {% endfor %}
-        <td style="border: 1px solid #cbd5e1; padding: 0;">
-            <div class="hours-input total subject-total-display" id="{{ subject_item.code }}-total-display"
-                style="width: 100%; height: 28px; background: #fef2f2; border: 1px solid #fca5a5; text-align: center; font-weight: 600; line-height: 28px;">
-                {{ subject_item.hours|default:0 }} / 0
-            </div>
-            <input type="hidden" class="subject-total" id="{{ subject_item.code }}-total" value="{{ subject_item.hours|default:0 }}">
-        </td>
-    </tr>
-    {% endfor %}
-
-</tbody>
-</table>
-
-<div class="action-buttons">
-    <button type="button" onclick="window.print()" class="print-btn">🖨️ Печать</button>
-    <a href="{% url 'groups:schedule_plan_edit' plan.pk %}" class="btn-back">← Назад</a>
-
-    <!-- 🔹 КНОПКА УДАЛЕНИЯ ПЛАН-ГРАФИКА -->
-    <button type="button" onclick="confirmDeleteSchedule()"
-            class="btn"
-            style="background: #ef4444; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; cursor: pointer; margin-right: auto;">
-        🗑️ Очистить план-график
-    </button>
-
-    <button type="submit" id="btn-save" class="btn-confirm">✅ Сохранить распределение</button>
-</div>
-
-<!--  МОДАЛЬНОЕ ОКНО ПОДТВЕРЖДЕНИЯ УДАЛЕНИЯ -->
-<div id="deleteModal" style="display: none; position: fixed; z-index: 9999; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5);">
-    <div style="background: white; margin: 15% auto; padding: 32px; border-radius: 12px; width: 90%; max-width: 500px; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
-        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
-            <span style="font-size: 32px;">⚠️</span>
-            <h3 style="margin: 0; color: #1e293b; font-size: 20px;">Очистить план-график?</h3>
-        </div>
-        <p style="color: #64748b; margin-bottom: 24px; line-height: 1.6;">
-            Это действие <strong>необратимо</strong>. Будут удалены:<br>
-            • Все распределённые часы<br>
-            <br>
-            План-график группы <strong>{{ plan.group }}</strong> будет полностью очищен.
-        </p>
-        <div style="display: flex; justify-content: flex-end; gap: 12px;">
-            <button type="button" onclick="closeDeleteModal()"
-                    style="padding: 10px 24px; background: #e2e8f0; color: #334155; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">
-                Отмена
-            </button>
-            <button type="button" onclick="deleteSchedule()"
-                    style="padding: 10px 24px; background: #ef4444; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">
-                🗑️ Очистить
-            </button>
-        </div>
+    <!-- 🔹 Кнопки управления -->
+    <div class="action-buttons">
+        <a href="{% url 'groups:schedule_export' plan.pk %}" class="print-btn" style="background: #22c55e;">📊 Excel</a>
+        <a href="{% url 'groups:schedule_plan_edit' plan.pk %}" class="btn-back">← Назад</a>
+        <button type="button" onclick="confirmDeleteSchedule()" class="btn-delete">️ Очистить план-график</button>
+        <button type="submit" id="btn-save" class="btn-confirm">✅ Сохранить распределение</button>
     </div>
-</div>
+</form>
 
-<!--  МОДАЛЬНОЕ ОКНО ВЫБОРА ТЕМЫ -->
-<div id="topic-modal" class="modal" style="display: none; position: fixed; z-index: 9999; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5);">
-    <div style="background: white; margin: 5% auto; padding: 30px; border-radius: 16px; width: 80%; max-width: 900px; max-height: 80vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #e2e8f0;">
-            <h2 style="margin: 0; color: #1e293b; font-size: 22px;">📚 Выбор тем занятий на <span id="modal-date" style="color: #4facfe;"></span></h2>
-            <button id="modal-close-btn" type="button" style="background: none; border: none; font-size: 28px; cursor: pointer; color: #64748b;">&times;</button>
-        </div>
+<!-- 🔹 Модальные окна -->
+{% include "groups/schedule_plan_step2/_modals.html" %}
 
-        <!-- 🔹 Блок статистики + КНОПКИ УПРАВЛЕНИЯ -->
-        <div style="padding: 0 16px 16px 16px; border-bottom: 2px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
-            <div style="background:#e0f2fe;padding:12px;border-radius:8px;display:flex;justify-content:space-between;align-items:center;flex:1;min-width:200px;">
-                <span style="font-weight:600;color:#0369a1;">📊 Распределение часов</span>
-                <span style="color:#0369a1;">Всего: <strong id="modal-total-required"></strong> ч. | Осталось: <strong id="modal-remaining-total"></strong> ч.</span>
-            </div>
-            <div style="display: flex; gap: 12px;">
-                <!-- 🔹 ВАЖНО: type="button" чтобы не отправлять форму -->
-                <button id="modal-cancel-btn" type="button" style="padding: 10px 20px; background: #e2e8f0; color: #334155; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;">Закрыть</button>
-                <button id="modal-save-btn" type="button" style="padding: 10px 20px; background: #4facfe; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;">💾 Сохранить</button>
-            </div>
-        </div>
-
-        <div id="modal-content" style="padding: 16px;">
-            <div style="text-align: center; padding: 40px; color: #64748b;">Загрузка тем...</div>
-        </div>
-    </div>
-</div>
-
-<!-- 🔹 Безопасная передача данных через data-атрибуты (с escapejs для совместимости) -->
-<div id="plan-data-container"
+<!-- 🔹 Скрытые данные -->
+<div id="plan-data-container" style="display: none;" hidden
      data-plan-id="{{ plan.pk }}"
      data-program-id="{{ training_program_id|default:'' }}"
      data-required-hours="{{ training_program.total_hours|default:required_hours|default:0 }}"
      data-defaults='{{ defaults|escapejs|default:"{}" }}'
      data-topics-state='{{ topics_state_json|escapejs|default:"{}" }}'
-     style="display: none;"
-     hidden>
-</div>
-    <div id="debug-info" style="display: none;"
-     data-plan-id="{{ plan.pk|default:'0' }}"
-     data-plan="{{ plan }}">
+     data-list-url="{% url 'groups:schedule_plans_list' %}">
 </div>
 
-<script>
-// =============================================================================
-// 🔹 ИНИЦИАЛИЗАЦИЯ ДАННЫХ
-// =============================================================================
-
-// Читаем простые значения из hidden input
-const PLAN_ID = parseInt(document.querySelector('#plan-data-container')?.dataset.planId) || 0;
-let REQUIRED_HOURS = parseFloat(document.getElementById('required-hours')?.value.replace(',', '.') || '0') || 0;
-const MAX_HOURS_PER_DAY = 12;
-
-// 🔹 Безопасный парсинг topicsState из скрытого input
-window.topicsState = {};
-try {
-    const rawInput = document.getElementById('topics-state-json')?.value || '{}';
-    if (rawInput && rawInput !== '{}' && rawInput !== 'null') {
-        // Декодируем escapejs: заменяем экранированные кавычки
-        const decoded = rawInput.replace(/\\'/g, "'").replace(/\\"/g, '"').replace(/\\\\/g, '\\');
-        window.topicsState = JSON.parse(decoded);
-    }
-} catch (e) {
-    console.warn('⚠️ Ошибка парсинга topicsState:', e);
-    window.topicsState = {};
-}
-
-// Глобальные переменные для модального окна
-let currentModalDate = null;
-let currentModalSubject = null;
-
-// Кэш ячеек таблицы
-const cellsMap = {};
-
-// Элементы DOM
-const form = document.getElementById('hours-form');
-const btnSave = document.getElementById('btn-save');
-const grandTotalInput = document.getElementById('grand-total');
-
-// =============================================================================
-// 🔹 ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
-// =============================================================================
-
-function formatHours(value) {
-    const num = parseFloat(value);
-    if (isNaN(num)) return '';
-    return Number.isInteger(num) ? num.toString() : num.toFixed(1);
-}
-
-// =============================================================================
-// 🔹 ЛОГИКА ПЕРСИСТЕНТНОСТИ (localStorage)
-// =============================================================================
-
-function saveStateToStorage() {
-    localStorage.setItem(`topicsState_${PLAN_ID}`, JSON.stringify(window.topicsState));
-}
-
-function loadStateFromStorage() {
-    try {
-        const stored = localStorage.getItem(`topicsState_${PLAN_ID}`);
-        if (stored && stored !== 'null' && stored !== '{}') {
-            Object.assign(window.topicsState, JSON.parse(stored));
-        }
-    } catch (e) { console.error("Ошибка загрузки состояния:", e); }
-}
-
-// =============================================================================
-// 🔹 РАБОТА С ТАБЛИЦЕЙ
-// =============================================================================
-
-function buildCellsMap() {
-    document.querySelectorAll('.subject-hours').forEach(el => {
-        cellsMap[`${el.dataset.date}_${el.dataset.subject}`] = el;
-    });
-}
-
-function syncDOMFromState() {
-    for (const date in window.topicsState) {
-        const dayTopics = window.topicsState[date];
-        for (const subject in dayTopics) {
-            let daySum = 0;
-            const topicMap = dayTopics[subject];
-            for (const tid in topicMap) {
-                daySum += parseFloat(topicMap[tid]) || 0;
-            }
-            const key = `${date}_${subject}`;
-            const cell = cellsMap[key];
-            if (cell) {
-                cell.value = daySum > 0 ? formatHours(daySum) : '';
-            }
-        }
-    }
-    recalculateTotals();
-    updateMedicineHighlight();
-}
-
-function recalculateTotals() {
-    const dates = new Set(Object.keys(cellsMap).map(k => k.split('_')[0]));
-    let grandTotal = 0;
-
-    dates.forEach(date => {
-        let daySum = 0;
-        // Перебираем предметы динамически из DOM
-        document.querySelectorAll('.subject-total').forEach(el => {
-            const subject = el.id.replace('-total', '');
-            const cell = cellsMap[`${date}_${subject}`];
-            if (cell) daySum += parseFloat(cell.value) || 0;
-        });
-
-        const dayTotalCell = document.querySelector(`.day-total[data-date="${date}"]`);
-        if (dayTotalCell) {
-            dayTotalCell.value = formatHours(daySum);
-            dayTotalCell.style.background = daySum > 0 ? '#bbf7d0' : '#dbeafe';
-        }
-        grandTotal += daySum;
-    });
-
-    if (grandTotalInput) {
-        grandTotalInput.value = Math.round(grandTotal);
-        const diff = grandTotal - REQUIRED_HOURS;
-        grandTotalInput.style.background = Math.abs(diff) < 0.01 ? '#86efac' : (diff > 0 ? '#fecaca' : '#fef3c7');
-    }
-
-    // 🔹 ОБНОВЛЯЕМ ИТОГИ ПО КАЖДОМУ ПРЕДМЕТУ
-    document.querySelectorAll('.subject-total-display').forEach(displayEl => {
-        const subjectCode = displayEl.id.replace('-total-display', '');
-        const hiddenInput = document.getElementById(`${subjectCode}-total`);
-
-        if (hiddenInput) {
-            const requiredHours = parseFloat(hiddenInput.value) || 0;
-            let distributedHours = 0;
-
-            // Считаем все распределённые часы для этого предмета
-            document.querySelectorAll(`.subject-hours[data-subject="${subjectCode}"]`).forEach(cell => {
-                distributedHours += parseFloat(cell.value) || 0;
-            });
-
-            // Обновляем отображение "распределено / требуется"
-            displayEl.textContent = `${formatHours(distributedHours)} / ${formatHours(requiredHours)}`;
-
-            // 🔹 МЕНЯЕМ ЦВЕТ СТРОКИ если всё распределено
-            const row = displayEl.closest('tr');
-            if (row) {
-                if (Math.abs(distributedHours - requiredHours) < 0.01 && requiredHours > 0) {
-                    // ✅ Всё распределено — делаем строку серой
-                    row.style.background = '#f1f5f9';
-                    row.style.opacity = '0.7';
-                    row.classList.add('completed-subject');
-                } else {
-                    // ⏳ Ещё не всё распределено — обычный цвет
-                    row.style.background = '';
-                    row.style.opacity = '1';
-                    row.classList.remove('completed-subject');
-                }
-            }
-        }
-    });
-}
-function updateMedicineHighlight() {
-    document.querySelectorAll('td[data-subject="med"]').forEach(td => {
-        const input = td.querySelector('.hours-input');
-        const currentHours = parseFloat(input.value) || 0;
-        const isReserved = window.topicsState[td.dataset.date] && window.topicsState[td.dataset.date]['med'];
-        td.classList.toggle('has-hours', currentHours > 0 || isReserved);
-    });
-}
-
-// =============================================================================
-// 🔹 МОДАЛЬНОЕ ОКНО: ОТКРЫТИЕ И РЕНДЕР
-// =============================================================================
-
-function openTopicModal(date, subject) {
-    currentModalDate = date;
-    currentModalSubject = subject;
-
-    document.getElementById('modal-date').textContent = date;
-    document.getElementById('topic-modal').style.display = 'flex';
-    document.getElementById('modal-content').innerHTML = '<div style="text-align: center; padding: 40px; color: #64748b;">Загрузка тем...</div>';
-
-    const totalRequired = parseFloat(document.getElementById(`${subject}-total`)?.value) || 0;
-    document.getElementById('modal-total-required').textContent = formatHours(totalRequired);
-    updateModalRemainingTotal(subject);
-
-    // 🔹 Берём program_id из data-атрибута (это ID плана, он же ID программы)
-    const programId = document.getElementById('plan-data-container')?.dataset.programId;
-
-    // Формируем URL с program_id
-    let url = `/reference/api/topics/?subject=${subject}`;
-    if (programId) {
-        url += `&program_id=${programId}`;
-    }
-
-    console.log(`🚀 Запрос API: ${url}`);
-
-    fetch(url)
-        .then(r => r.json())
-        .then(data => {
-            console.log('📦 Ответ API:', data);  // 🔹 Лог для отладки
-            if (data.success && Array.isArray(data.topics)) {
-                renderTopicsList(data.topics, subject, date);
-            } else {
-                document.getElementById('modal-content').innerHTML = `
-                    <div style="text-align: center; padding: 40px; color: #dc2626;">
-                        ❌ ${data.error || 'Нет тем для этого предмета'}
-                    </div>`;
-            }
-        })
-        .catch(error => {
-            console.error('❌ Ошибка:', error);
-            document.getElementById('modal-content').innerHTML = `
-                <div style="text-align: center; padding: 40px; color: #dc2626;">
-                    ❌ Ошибка сети: ${error.message}
-                </div>`;
-        });
-}
-function renderTopicsList(topics, subject, date) {
-    console.log('🎯 renderTopicsList вызвана для:', { subject, date, topicsCount: topics?.length });
-
-    const currentDayTopics = window.topicsState?.[date]?.[subject] || {};
-    let html = '';
-    let visibleTopicsCount = 0;  // 🔹 Счётчик видимых тем
-
-    // Сортируем по id для стабильности
-    const sortedTopics = [...topics].sort((a, b) => {
-        const idA = parseInt(a.id) || 0;
-        const idB = parseInt(b.id) || 0;
-        return idA - idB;
-    });
-
-    sortedTopics.forEach((t, index) => {
-        // 🔹 Явно преобразуем hours к числу
-        const topicHours = parseFloat(t.hours) || 0;
-        const topicId = String(t.id);
-        const savedHours = currentDayTopics[topicId] || 0;
-
-        // Определяем ПЗ по названию темы
-        const isPZ = t.name.toLowerCase().includes('. пз') || t.name.toLowerCase().endsWith(' пз.');
-
-        // Считаем, сколько часов этой темы уже распределено в другие дни
-        let usedOtherDays = 0;
-        for (const d in window.topicsState) {
-            if (d !== date && window.topicsState[d][subject]?.[topicId]) {
-                usedOtherDays += parseFloat(window.topicsState[d][subject][topicId]) || 0;
-            }
-        }
-
-        const maxAvailable = topicHours - usedOtherDays;
-
-        // 🔹 ПРЯЧЕМ ТЕМЫ, ГДЕ ВСЁ УЖЕ РАСПРЕДЕЛЕНО
-        // Показываем только если:
-        // 1. Есть доступные часы (maxAvailable > 0)
-        // 2. ИЛИ тема уже частично заполнена (savedHours > 0)
-        if (maxAvailable <= 0 && savedHours <= 0) {
-            // 🔹 НЕ добавляем в HTML — тема скрыта
-            return;  // Пропускаем эту тему
-        }
-
-        visibleTopicsCount++;  // Считаем видимые темы
-
-        console.log(`Тема #${index}: ID=${topicId}, name="${t.name?.substring(0,30)}...", hours=${topicHours}, usedOtherDays=${usedOtherDays}, maxAvailable=${maxAvailable}`);
-
-        if (maxAvailable <= 0) {
-            // Тема частично заполнена, но больше нельзя добавить
-            html += `
-                <div class="topic-row${isPZ ? ' pz' : ''}" style="opacity: 0.5; background: #f1f5f9;">
-                    <div class="topic-name">${isPZ ? '📝 ПЗ: ' : ''}Тема №${t.number}: ${t.name}</div>
-                    <div class="topic-required">Всего: ${topicHours.toFixed(1)} ч.</div>
-                    <input type="number" step="1" min="0" max="0" value="${savedHours}" disabled>
-                    <div style="font-size:11px;color:#94a3b8;">Заполнено</div>
-                </div>
-            `;
-        } else {
-            const inputValue = savedHours > 0 ? Math.floor(savedHours) : '';
-            html += `
-                <div class="topic-row${isPZ ? ' pz' : ''}" data-topic-id="${topicId}" data-max-available="${maxAvailable.toFixed(1)}">
-                    <div class="topic-name">${isPZ ? ' ПЗ: ' : ''}Тема №${t.number}: ${t.name}</div>
-                    <div class="topic-required">Всего: ${topicHours.toFixed(1)} ч.</div>
-                    <input type="number" step="1" min="0" max="${Math.floor(maxAvailable)}"
-                        class="topic-input" value="${inputValue}" placeholder="—">
-                    <div style="font-size:11px;color:#64748b;">Макс: ${Math.floor(maxAvailable)}</div>
-                </div>
-            `;
-        }
-    });
-
-    //  Если все темы скрыты — показываем сообщение
-    if (visibleTopicsCount === 0) {
-        document.getElementById('modal-content').innerHTML = `
-            <div style="text-align:center;padding:40px;color:#16a34a;">
-                ✅ Все часы по этому предмету уже распределены!
-            </div>`;
-    } else {
-        document.getElementById('modal-content').innerHTML = html;
-    }
-
-    // Навешиваем события на инпуты
-    document.querySelectorAll('#modal-content .topic-input:not([disabled])').forEach(input => {
-        input.addEventListener('input', function() {
-            const val = parseFloat(this.value) || 0;
-            const max = parseFloat(this.closest('.topic-row').dataset.maxAvailable);
-            this.style.borderColor = val > max ? '#ef4444' : '#cbd5e1';
-            updateModalRemainingTotal(subject);
-        });
-        input.addEventListener('change', function() {
-            const val = this.value.trim();
-            this.value = (val === '0.5' || val === '.5') ? '0.5' : Math.round(parseFloat(val) || 0);
-            updateModalRemainingTotal(subject);
-        });
-    });
-
-    console.log(`✅ Модальное окно отрендерено (показано ${visibleTopicsCount} из ${topics.length} тем)`);
-
-        // Навешиваем события на инпуты
-    document.querySelectorAll('#modal-content .topic-input:not([disabled])').forEach(input => {
-        input.addEventListener('input', function() {
-            const val = parseFloat(this.value) || 0;
-            const max = parseFloat(this.closest('.topic-row').dataset.maxAvailable);
-            this.style.borderColor = val > max ? '#ef4444' : '#cbd5e1';
-            updateModalRemainingTotal(subject);
-        });
-
-        input.addEventListener('change', function() {
-            const val = this.value.trim();
-            this.value = (val === '0.5' || val === '.5') ? '0.5' : Math.round(parseFloat(val) || 0);
-            updateModalRemainingTotal(subject);
-        });
-
-        // 🔹 Обработка нажатия Enter
-        input.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                handleSaveAllTopics();
-            }
-        });
-    });
-}
-function updateModalRemainingTotal(subject) {
-    const totalRequired = parseFloat(document.getElementById(`${subject}-total`)?.value) || 0;
-    let distributed = 0;
-
-    document.querySelectorAll('#modal-content .topic-input:not([disabled])').forEach(input => {
-        distributed += parseFloat(input.value) || 0;
-    });
-
-    for (const d in window.topicsState) {
-        if (d === currentModalDate) continue;
-        const subMap = window.topicsState[d]?.[subject];
-        if (subMap) Object.values(subMap).forEach(v => distributed += parseFloat(v) || 0);
-    }
-
-    const remaining = totalRequired - distributed;
-    const el = document.getElementById('modal-remaining-total');
-    if (el) {
-        el.textContent = formatHours(remaining);
-        el.style.color = remaining < 0 ? '#dc2626' : (remaining === 0 ? '#16a34a' : '#0369a1');
-    }
-}
-
-// =============================================================================
-// 🔹 МОДАЛЬНОЕ ОКНО: СОХРАНЕНИЕ И ЗАКРЫТИЕ
-// =============================================================================
-
-function closeTopicModal() {
-    document.getElementById('topic-modal').style.display = 'none';
-    currentModalDate = null;
-    currentModalSubject = null;
-}
-
-function handleSaveAllTopics() {
-    if (!currentModalDate || !currentModalSubject) return;
-
-    const newDayTopics = {};
-    let newDaySum = 0;
-
-    document.querySelectorAll('#modal-content .topic-row').forEach(row => {
-        const input = row.querySelector('.topic-input');
-        if (!input || input.disabled) return;
-
-        let val = parseFloat(input.value) || 0;
-        if (val > 0) {
-            newDayTopics[row.dataset.topicId] = val;
-            newDaySum += val;
-        }
-    });
-
-    if (newDaySum > MAX_HOURS_PER_DAY) {
-        alert(`⚠️ Нельзя распределить больше ${MAX_HOURS_PER_DAY} часов в один день!`);
-        return;
-    }
-
-    // Проверка лимита предмета
-    let subjectUsedOutSideDay = 0;
-    for (const d in window.topicsState) {
-        if (d === currentModalDate) continue;
-        const subMap = window.topicsState[d]?.[currentModalSubject];
-        if (subMap) Object.values(subMap).forEach(v => subjectUsedOutSideDay += parseFloat(v) || 0);
-    }
-
-    const limit = parseFloat(document.getElementById(`${currentModalSubject}-total`)?.value) || 0;
-    if ((newDaySum + subjectUsedOutSideDay) > limit) {
-        alert(`⚠️ Превышение лимита для предмета ${currentModalSubject.toUpperCase()}.`);
-        return;
-    }
-
-    // Сохранение в topicsState
-    if (!window.topicsState[currentModalDate]) window.topicsState[currentModalDate] = {};
-    if (Object.keys(newDayTopics).length > 0) {
-        window.topicsState[currentModalDate][currentModalSubject] = newDayTopics;
-    } else {
-        delete window.topicsState[currentModalDate][currentModalSubject];
-        if (Object.keys(window.topicsState[currentModalDate]).length === 0) {
-            delete window.topicsState[currentModalDate];
-        }
-    }
-
-    saveStateToStorage();
-    syncDOMFromState();
-    closeTopicModal();
-}
-
-// =============================================================================
-// 🔹 СЛУШАТЕЛИ СОБЫТИЙ
-// =============================================================================
-
-function setupListeners() {
-    const tableBody = document.querySelector('.distribution-table tbody');
-    if (!tableBody) return;
-
-    tableBody.addEventListener('click', function(e) {
-        const td = e.target.closest('td[data-date][data-subject]');
-        if (td && td.dataset.date && td.dataset.subject && td.dataset.subject !== 'total') {
-            openTopicModal(td.dataset.date, td.dataset.subject);
-        }
-    });
-
-    document.querySelectorAll('.subject-hours').forEach(input => {
-        input.addEventListener('input', function() {
-            if (this.dataset.subject === 'med') updateMedicineHighlight();
-            recalculateTotals();
-        });
-        input.addEventListener('change', function() {
-            if (this.dataset.subject === 'med') updateMedicineHighlight();
-            recalculateTotals();
-        });
-    });
-
-    // Кнопки модального окна
-    document.getElementById('modal-close-btn')?.addEventListener('click', closeTopicModal);
-    document.getElementById('modal-cancel-btn')?.addEventListener('click', closeTopicModal);
-    document.getElementById('modal-save-btn')?.addEventListener('click', handleSaveAllTopics);
-
-    // Закрытие по клику вне окна
-    document.addEventListener('click', function(event) {
-        const modal = document.getElementById('topic-modal');
-        if (event.target === modal) closeTopicModal();
-    });
-
-    // Отправка формы
-    form?.addEventListener('submit', handleSubmitForm);
-}
-
-function handleSubmitForm(e) {
-    e.preventDefault();
-
-    const data = {
-        plan_id: PLAN_ID,
-        topics: window.topicsState,
-        hours: {},
-        category: document.querySelector('[name="category"]')?.value || '',
-        time_start: document.getElementById('time-start')?.value,
-        time_end: document.getElementById('time-end')?.value,
-        med_teacher: document.querySelector('select[name="med_teacher"]')?.value,
-        // 🔹 Добавить выбранную программу
-        training_program: document.getElementById('training-program-select')?.value
-    };
-
-    fetch(window.location.href, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value
-        },
-        body: JSON.stringify(data)
-    })
-    .then(r => r.json())
-    .then(res => {
-        if (res.success) {
-            alert('✅ Сохранено!');
-            window.location.href = "{% url 'groups:schedule_plans_list' %}";
-        } else {
-            alert('❌ ' + (res.error || 'Ошибка сохранения'));
-        }
-    })
-    .catch(err => {
-        console.error('❌ Ошибка сети:', err);
-        alert('❌ Ошибка сети');
-    });
-}
-
-// =============================================================================
-// 🔹 ФУНКЦИИ УДАЛЕНИЯ ПЛАН-ГРАФИКА
-// =============================================================================
-
-function confirmDeleteSchedule() {
-    document.getElementById('deleteModal').style.display = 'flex';
-}
-
-function closeDeleteModal() {
-    document.getElementById('deleteModal').style.display = 'none';
-}
-
-function deleteSchedule() {
-    if (PLAN_ID === 0) {
-        alert('❌ Ошибка: не найден ID план-графика');
-        closeDeleteModal();
-        return;
-    }
-
-    fetch(`/groups/schedules/${PLAN_ID}/delete-plan/`, {
-        method: 'DELETE',
-        headers: {
-            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
-            'Content-Type': 'application/json'
-        }
-    })
-    .then(async response => {
-        if (!response.ok) {
-            if (response.status === 404) {
-                throw new Error('План-график не найден (ID=' + PLAN_ID + ')');
-            }
-            const text = await response.text();
-            throw new Error(`HTTP ${response.status}: ${text.slice(0, 200)}`);
-        }
-        return response.json();
-    })
-    .then(result => {
-        if (result.success) {
-            //  Очищаем кэш браузера
-            localStorage.removeItem(`topicsState_${PLAN_ID}`);
-
-            alert('✅ Таблица распределения часов очищена!');
-            closeDeleteModal();
-
-            // 🔹 Принудительная перезагрузка с очисткой кэша
-            const url = new URL(window.location.href);
-            url.searchParams.set('_clear_cache', Date.now().toString());
-            window.location.href = url.toString();
-        } else {
-            alert('❌ Ошибка: ' + (result.error || 'Неизвестная ошибка'));
-            closeDeleteModal();
-        }
-    })
-    .catch(err => {
-        console.error('Ошибка:', err);
-        alert('❌ Ошибка при удалении: ' + err.message);
-        closeDeleteModal();
-    });
-}
-
-// Закрытие модального окна по клику вне его
-document.getElementById('deleteModal')?.addEventListener('click', function(e) {
-    if (e.target === this) {
-        closeDeleteModal();
-    }
-});
-
-// Закрытие по ESC
-document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') {
-        closeDeleteModal();
-    }
-});
-
-// =============================================================================
-// 🔹 ЗАПУСК ПРИ ЗАГРУЗКЕ СТРАНИЦЫ
-// =============================================================================
-
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('✅ Страница загружена, инициализация...');
-    loadStateFromStorage();
-    buildCellsMap();
-    syncDOMFromState();
-    setupListeners();
-
-    // 🔹 Автоперезагрузка при смене программы
-    document.getElementById('training-program-select')?.addEventListener('change', function() {
-        const programId = this.value;
-        if (programId) {
-            const url = new URL(window.location.href);
-            url.searchParams.set('program_id', programId);
-            window.location.href = url.toString();
-        }
-    });
-});
-</script>
+<!-- 🔹 Подключение JavaScript -->
+<script src="{% static 'js/groups/schedule_plan_step2.js' %}"></script>
 {% endblock %}

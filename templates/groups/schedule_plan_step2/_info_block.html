@@ -1,0 +1,71 @@
+<div class="info-block" style="background: white; border-radius: 16px; padding: 32px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); margin-bottom: 32px;">
+    <h2 class="info-title" style="margin: 0 0 32px 0; color: #1e293b; font-size: 20px; font-weight: 700; text-align: center;">
+        План-график выполнения единой программы подготовки водителей МТС категории "{{ plan.group.category.code|default:'B' }}"
+    </h2>
+
+    <div class="info-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 32px;">
+        <!-- Колонка 1 -->
+        <div class="info-column" style="display: flex; flex-direction: column; gap: 16px;">
+            <div class="info-field" style="display: flex; flex-direction: column; gap: 4px;">
+                <span class="info-label" style="font-size: 11px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Учебная группа</span>
+                <span class="info-value" style="font-size: 15px; color: #1e293b; font-weight: 700;">{{ plan.group }}</span>
+            </div>
+            <div class="info-field" style="display: flex; flex-direction: column; gap: 4px;">
+                <span class="info-label" style="font-size: 11px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Аудитория</span>
+                <span class="info-value" style="font-size: 15px; color: #1e293b; font-weight: 700;">{{ location|default:"—" }}</span>
+            </div>
+        </div>
+
+        <!-- Колонка 2 -->
+        <div class="info-column" style="display: flex; flex-direction: column; gap: 16px;">
+            <div class="info-field" style="display: flex; flex-direction: column; gap: 4px;">
+                <span class="info-label" style="font-size: 11px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Преподаватель</span>
+                <span class="info-value" style="font-size: 15px; color: #1e293b; font-weight: 700;">{{ plan.teacher }}</span>
+            </div>
+            <div class="info-field" style="display: flex; flex-direction: column; gap: 4px;">
+                <span class="info-label" style="font-size: 11px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Преподаватель медицины</span>
+                <span class="info-value" style="font-size: 15px; color: #1e293b; font-weight: 700;">{{ plan.med_teacher|default:"—" }}</span>
+            </div>
+        </div>
+
+        <!-- Колонка 3 -->
+        <div class="info-column" style="display: flex; flex-direction: column; gap: 16px;">
+            <div class="info-field" style="display: flex; flex-direction: column; gap: 4px;">
+                <span class="info-label" style="font-size: 11px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Период обучения</span>
+                <span class="info-value" style="font-size: 15px; color: #1e293b; font-weight: 700;">{{ plan.date_start|date:"d.m.Y" }} — {{ plan.date_end|date:"d.m.Y" }}</span>
+            </div>
+            <div class="info-field" style="display: flex; flex-direction: column; gap: 4px;">
+                <span class="info-label" style="font-size: 11px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Расписание занятий</span>
+                <div style="display: flex; gap: 12px; align-items: center;">
+                    <input type="time" id="time-start" value="{{ time_start }}"
+                           style="padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; width: 50px; background: white;">
+                    <span style="color: #64748b; font-weight: 600;">—</span>
+                    <input type="time" id="time-end" value="{{ time_end }}"
+                           style="padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; width: 50px; background: white;">
+                </div>
+            </div>
+        </div>
+
+        <!-- Колонка 4 -->
+        <div class="info-column" style="display: flex; flex-direction: column; gap: 16px;"><div class="info-field" style="display: flex; flex-direction: column; gap: 4px;">
+    <span class="info-label" style="font-size: 11px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Часов обучения</span>
+    <span class="info-value" style="font-size: 15px; color: #1e293b; font-weight: 700;">{{ training_program.total_hours|default:required_hours|default:0 }}</span>
+</div>
+             <div class="info-field" style="display: flex; flex-direction: column; gap: 4px;">
+                 <span class="info-label" style="font-size: 11px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Учебный план</span>
+                 <select id="training-program-select" name="training_program"
+                         style="width: 100%; height: 36px; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; background: white; font-weight: 600; color: #1e40af; cursor: pointer;">
+                     <option value="">— Выберите программу —</option>
+                     {% for program in available_programs %}
+                     <option value="{{ program.id }}" data-hours="{{ program.total_hours }}"
+                             {% if training_program and training_program.id == program.id %}selected{% endif %}>
+                         {{ program.name }} ({{ program.total_hours }} ч.)
+                     </option>
+                     {% empty %}
+                     <option value="" disabled>Нет доступных программ</option>
+                     {% endfor %}
+                 </select>
+             </div>
+        </div>
+    </div>
+</div>

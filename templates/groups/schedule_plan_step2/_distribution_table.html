@@ -1,0 +1,71 @@
+{% load schedule_filters %}
+
+<table class="distribution-table" style="table-layout: fixed; border-collapse: collapse; width: 100%;">
+<thead>
+    <tr>
+        <th rowspan="2" style="width: 180px; min-width: 180px; background: #f8fafc; border: 1px solid #cbd5e1; text-align: left; padding-left: 12px;">Занятия</th>
+        {% for month, days in days_by_month.items %}
+        <th colspan="{{ days|length }}" class="month-header" style="border: 1px solid #cbd5e1; text-align: center; padding: 8px 0;">{{ month }}</th>
+        {% endfor %}
+        <th rowspan="2" style="width: 100px; min-width: 100px; background:#fef3c7; border: 1px solid #cbd5e1; font-weight: 700;">ИТОГО</th>
+    </tr>
+    <tr>
+        {% for month, days in days_by_month.items %}
+            {% for day in days %}
+            <th class="date-header" style="width: 28px; min-width: 28px; border: 1px solid #cbd5e1; padding: 4px 0; font-size: 10px; color: #64748b;">{{ day.day_num }}</th>
+            {% endfor %}
+        {% endfor %}
+    </tr>
+</thead>
+<tbody>
+    <!-- Строка "Всего часов" -->
+    <tr style="background:#f0f9ff; font-weight:700;">
+        <td class="subject-cell" style="border: 1px solid #cbd5e1; font-weight: 700;">Всего часов</td>
+        {% for month, days in days_by_month.items %}
+            {% for day in days %}
+            <td data-date="{{ day.raw_date }}" data-subject="total" style="border: 1px solid #cbd5e1; padding: 0;">
+                <input type="number" step="1" class="hours-input total day-total"
+                       data-date="{{ day.raw_date }}" value="0" readonly
+                       style="width: 100%; height: 28px; background:#fef3c7; font-weight:700; border: none; text-align: center;">
+            </td>
+            {% endfor %}
+        {% endfor %}
+        <td style="border: 1px solid #cbd5e1; padding: 0;">
+            <input type="text" class="hours-input total grand-total" id="grand-total"
+                   value="0 / {{ training_program.total_hours|default:required_hours|default:0 }}" readonly
+                   style="width: 100%; height: 28px; background:#fef3c7; font-weight:700; border: none; text-align: center;">
+        </td>
+    </tr>
+
+    <!-- Строки предметов -->
+    {% for subject_item in program_subjects %}
+    <tr{% if subject_item.code == 'med' %} class="row-medicine"{% endif %}>
+        <td class="subject-cell" style="border: 1px solid #cbd5e1;">
+            <div class="cell-text">{{ subject_item.short_display }}</div>
+            <div class="tooltip-box">{{ subject_item.full_name }}</div>
+        </td>
+        {% for month, days in days_by_month.items %}
+            {% for day in days %}
+            <!--  КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: Проверка med_days для подсветки -->
+            <td data-subject="{{ subject_item.code }}" data-date="{{ day.raw_date }}"
+                class="{% if subject_item.code == 'med' and day.raw_date in med_days %}med-day-highlight{% endif %}"
+                style="border: 1px solid #cbd5e1; padding: 0;">
+
+                <input type="number" step="1" class="hours-input subject-hours{% if subject_item.code == 'med' %} med-input{% endif %}"
+                    data-subject="{{ subject_item.code }}" data-date="{{ day.raw_date }}"
+                    value="{{ day|get_item:subject_item.code|default:0 }}" min="0" readonly
+                    style="width: 100%; height: 28px; border: 1px solid #cbd5e1; text-align: center; background: transparent;">
+            </td>
+            {% endfor %}
+        {% endfor %}
+        <td style="border: 1px solid #cbd5e1; padding: 0;">
+            <div class="hours-input total subject-total-display" id="{{ subject_item.code }}-total-display"
+                style="width: 100%; height: 28px; background: #fef2f2; border: 1px solid #fca5a5; text-align: center; font-weight: 600; line-height: 28px;">
+                {{ subject_item.hours|default:0 }} / 0
+            </div>
+            <input type="hidden" class="subject-total" id="{{ subject_item.code }}-total" value="{{ subject_item.hours|default:0 }}">
+        </td>
+    </tr>
+    {% endfor %}
+</tbody>
+</table>
