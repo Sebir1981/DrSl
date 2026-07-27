@@ -6,6 +6,15 @@ const PLAN_ID = parseInt(document.getElementById('plan-data-container')?.dataset
 let REQUIRED_HOURS = parseFloat(document.getElementById('plan-data-container')?.dataset.requiredHours || '0') || 0;
 const MAX_HOURS_PER_DAY = 12;
 
+// 🔹 Загружаем список исключённых дат
+let excludedDates = [];
+try {
+    const rawExcluded = document.getElementById('plan-data-container')?.dataset.excludedDates || '[]';
+    excludedDates = JSON.parse(rawExcluded);
+} catch (e) {
+    console.warn('⚠️ Ошибка парсинга excludedDates:', e);
+}
+
 window.topicsState = {};
 try {
     const rawInput = document.getElementById('plan-data-container')?.dataset.topicsState || '{}';
@@ -53,8 +62,37 @@ function buildCellsMap() {
     });
 }
 
+// 🔹 🔥 🔥 НОВАЯ ФУНКЦИЯ: Полное удаление строк исключённых дней из таблицы 🔥 🔥 🔥
+function removeExcludedDateRows() {
+    console.log('🗑️ Удаление исключённых дней из таблицы:', excludedDates);
+
+    excludedDates.forEach(dateStr => {
+        // Находим все ячейки этой даты и поднимаемся до строки <tr>
+        const cells = document.querySelectorAll(`.subject-hours[data-date="${dateStr}"]`);
+        if (cells.length > 0) {
+            const row = cells[0].closest('tr');
+            if (row) {
+                row.remove();  // 🔥 Полностью удаляем строку из DOM
+                console.log(`✅ Удалена строка дня: ${dateStr}`);
+            }
+        }
+
+        // Также удаляем "Всего за день", если есть
+        const dayTotal = document.querySelector(`.day-total[data-date="${dateStr}"]`);
+        if (dayTotal?.closest('tr')) {
+            dayTotal.closest('tr').remove();
+        }
+    });
+
+    // Перестраиваем cellsMap после удаления строк
+    buildCellsMap();
+}
+
 function syncDOMFromState() {
     for (const date in window.topicsState) {
+        // 🔹 Пропускаем исключённые даты
+        if (excludedDates.includes(date)) continue;
+
         const dayTopics = window.topicsState[date];
         for (const subject in dayTopics) {
             let daySum = 0;
@@ -65,7 +103,6 @@ function syncDOMFromState() {
             const key = `${date}_${subject}`;
             const cell = cellsMap[key];
             if (cell) {
-                // 🔹 Всегда устанавливаем значение, включая "0"
                 cell.value = formatHours(daySum);
             }
         }
@@ -75,91 +112,118 @@ function syncDOMFromState() {
 }
 
 function recalculateTotals() {
-    const dates = new Set(Object.keys(cellsMap).map(k => k.split('_')[0]));
     let grandTotal = 0;
 
-    dates.forEach(date => {
-        let daySum = 0;
+    // 🔹 Подсчёт и подсветка по предметам
+    document.querySelectorAll('.subject-total-display').forEach(displayEl => {
+        const subjectCode = displayEl.id.replace('-total-display', '');
+        const hiddenInput = document.getElementById(`${subjectCode}-total`);
+        if (!hiddenInput) return;
 
-        // 🔹 Читаем суммы НАПРЯМУЮ из topicsState (источник истины)
-        for (const subject in window.topicsState[date] || {}) {
-            const topicMap = window.topicsState[date][subject];
-            let subjectSum = 0;
-            for (const tid in topicMap) {
-                subjectSum += parseFloat(topicMap[tid]) || 0;
-            }
-            daySum += subjectSum;
+        const requiredHours = parseFloat(hiddenInput.value) || 0;
+        let distributedHours = 0;
 
-            // Обновляем ячейку в таблице
-            const key = `${date}_${subject}`;
-            const cell = cellsMap[key];
-            if (cell) {
-                cell.value = formatHours(subjectSum); // 🔹 Всегда устанавливаем значение, включая "0"
+        // Считаем из ячеек таблицы (игнорируем excluded_dates)
+        document.querySelectorAll(`.subject-hours[data-subject="${subjectCode}"]`).forEach(cell => {
+            if (excludedDates.includes(cell.dataset.date)) return;
+            const val = parseFloat(cell.value);
+            if (!isNaN(val)) distributedHours += val;
+        });
+
+        // Округляем для отображения
+        const distributedRounded = Math.round(distributedHours);
+        displayEl.textContent = `${distributedRounded} / ${Math.round(requiredHours)}`;
+
+        // 🔹 ПОДСВЕТКА СТРОКИ
+        const row = displayEl.closest('tr');
+        if (row) {
+            if (requiredHours > 0) {
+                if (Math.abs(distributedHours - requiredHours) < 0.01) {
+                    // 🟢 Точно в цель: зелёный
+                    row.style.background = '#f0fdf4';
+                    row.style.borderLeft = '4px solid #22c55e';
+                    displayEl.style.color = '#166534';
+                    displayEl.style.fontWeight = '700';
+                    row.classList.add('completed-subject');
+                } else if (distributedHours > requiredHours) {
+                    // 🔴 Перерасход: красный
+                    row.style.background = '#fef2f2';
+                    row.style.borderLeft = '4px solid #ef4444';
+                    displayEl.style.color = '#991b1b';
+                    displayEl.style.fontWeight = '700';
+                    row.classList.remove('completed-subject');
+                } else {
+                    // 🟡 Недорасход: жёлтый
+                    row.style.background = '#fefce8';
+                    row.style.borderLeft = '4px solid #eab308';
+                    displayEl.style.color = '#854d0e';
+                    displayEl.style.fontWeight = '600';
+                    row.classList.remove('completed-subject');
+                }
+            } else {
+                // Нет требований: нейтральный
+                row.style.background = '';
+                row.style.borderLeft = '';
+                displayEl.style.color = '';
+                displayEl.style.fontWeight = '';
+                row.classList.remove('completed-subject');
             }
         }
 
-        // Обновляем "Всего за день"
-        const dayTotalCell = document.querySelector(`.day-total[data-date="${date}"]`);
-        if (dayTotalCell) {
-            dayTotalCell.value = formatHours(daySum);
-            dayTotalCell.style.background = daySum > 0 ? '#bbf7d0' : '#fef3c7';
-        }
-        grandTotal += daySum;
+        grandTotal += distributedHours;
     });
 
-    // Обновляем общий итог
+    // 🔹 Подсветка общего итога
     if (grandTotalInput) {
         const distributed = Math.round(grandTotal);
         const required = Math.round(REQUIRED_HOURS);
         grandTotalInput.value = `${distributed} / ${required}`;
-        const diff = grandTotal - REQUIRED_HOURS;
-        if (Math.abs(diff) < 0.01 && REQUIRED_HOURS > 0) {
-            grandTotalInput.style.background = '#86efac';
-        } else if (diff > 0) {
-            grandTotalInput.style.background = '#fecaca';
-        } else {
-            grandTotalInput.style.background = '#fef3c7';
+
+        if (REQUIRED_HOURS > 0) {
+            if (Math.abs(grandTotal - REQUIRED_HOURS) < 0.01) {
+                grandTotalInput.style.background = '#86efac';
+                grandTotalInput.style.color = '#065f46';
+                grandTotalInput.style.fontWeight = '700';
+            } else if (grandTotal > REQUIRED_HOURS) {
+                grandTotalInput.style.background = '#fecaca';
+                grandTotalInput.style.color = '#991b1b';
+                grandTotalInput.style.fontWeight = '700';
+            } else {
+                grandTotalInput.style.background = '#fef3c7';
+                grandTotalInput.style.color = '#92400e';
+                grandTotalInput.style.fontWeight = '600';
+            }
         }
     }
 
-    // Обновляем итоги по предметам
-    document.querySelectorAll('.subject-total-display').forEach(displayEl => {
-        const subjectCode = displayEl.id.replace('-total-display', '');
-        const hiddenInput = document.getElementById(`${subjectCode}-total`);
-        if (hiddenInput) {
-            const requiredHours = parseFloat(hiddenInput.value) || 0;
+    // 🔹 Подсветка "Всего за день"
+    const dates = new Set(Object.keys(cellsMap).map(k => k.split('_')[0]));
+    dates.forEach(date => {
+        if (excludedDates.includes(date)) return;
 
-            // 🔹 Считаем распределённые часы из topicsState, а не из DOM
-            let distributedHours = 0;
-            for (const date in window.topicsState) {
-                const subjectData = window.topicsState[date][subjectCode];
-                if (subjectData) {
-                    for (const tid in subjectData) {
-                        distributedHours += parseFloat(subjectData[tid]) || 0;
-                    }
-                }
-            }
+        let daySum = 0;
+        document.querySelectorAll(`.subject-hours[data-date="${date}"]`).forEach(cell => {
+            const val = parseFloat(cell.value);
+            if (!isNaN(val)) daySum += val;
+        });
 
-            displayEl.textContent = `${formatHours(distributedHours)} / ${formatHours(requiredHours)}`;
-
-            const row = displayEl.closest('tr');
-            if (row) {
-                if (Math.abs(distributedHours - requiredHours) < 0.01 && requiredHours > 0) {
-                    row.style.background = '#f1f5f9';
-                    row.style.opacity = '0.7';
-                    row.classList.add('completed-subject');
-                } else {
-                    row.style.background = '';
-                    row.style.opacity = '1';
-                    row.classList.remove('completed-subject');
-                }
-            }
+        const dayTotalCell = document.querySelector(`.day-total[data-date="${date}"]`);
+        if (dayTotalCell) {
+            dayTotalCell.value = formatHours(daySum);
+            // Подсветка дня: зелёный если > 0, иначе нейтральный
+            dayTotalCell.style.background = daySum > 0 ? '#bbf7d0' : '#f1f5f9';
+            dayTotalCell.style.fontWeight = daySum > 0 ? '700' : '400';
         }
     });
 }
 
 function updateMedicineHighlight() {
     document.querySelectorAll('td[data-subject="med"]').forEach(td => {
+        // 🔹 Пропускаем исключённые даты
+        if (excludedDates.includes(td.dataset.date)) {
+            td.classList.remove('has-hours');
+            return;
+        }
         const input = td.querySelector('.hours-input');
         const currentHours = parseFloat(input.value) || 0;
         const isReserved = window.topicsState[td.dataset.date] && window.topicsState[td.dataset.date]['med'];
@@ -172,6 +236,12 @@ function updateMedicineHighlight() {
 // =============================================================================
 
 function openTopicModal(date, subject) {
+    // 🔹 Не открываем модальное окно для исключённых дат
+    if (excludedDates.includes(date)) {
+        alert('⚠️ Этот день исключён из расписания и не может быть редактирован.');
+        return;
+    }
+
     currentModalDate = date;
     currentModalSubject = subject;
     document.getElementById('modal-date').textContent = date;
@@ -269,7 +339,6 @@ function renderTopicsList(topics, subject, date) {
         document.getElementById('modal-content').innerHTML = html;
     }
 
-    // 🔹 Навешиваем обработчики на inputs
     document.querySelectorAll('#modal-content .topic-input:not([disabled])').forEach(input => {
         input.addEventListener('input', function() {
             const val = parseFloat(this.value) || 0;
@@ -284,11 +353,10 @@ function renderTopicsList(topics, subject, date) {
             updateModalRemainingTotal(subject);
         });
 
-        // 🔹 Обработка Enter: сохранить и отправить форму (БЕЗ alert)
         input.addEventListener('keydown', function(e) {
             if (e.key === 'Enter') {
                 e.preventDefault();
-                window._savingViaEnter = true; // 🔹 Флаг: не показывать alert
+                window._savingViaEnter = true;
                 handleSaveAllTopics();
                 const form = document.getElementById('hours-form');
                 if (form) form.requestSubmit();
@@ -333,7 +401,6 @@ function handleSaveAllTopics() {
         if (!input || input.disabled) return;
 
         let val = parseFloat(input.value) || 0;
-        // 🔹 Сохраняем ВСЕ значения (включая 0)
         newDayTopics[row.dataset.topicId] = val;
         if (val > 0) {
             newDaySum += val;
@@ -360,7 +427,6 @@ function handleSaveAllTopics() {
 
     if (!window.topicsState[currentModalDate]) window.topicsState[currentModalDate] = {};
 
-    // 🔹 Если есть ненулевые темы — сохраняем, иначе удаляем предмет за этот день
     const nonZeroTopics = {};
     for (const tid in newDayTopics) {
         if (newDayTopics[tid] > 0) {
@@ -392,6 +458,11 @@ function setupListeners() {
     tableBody.addEventListener('click', function(e) {
         const td = e.target.closest('td[data-date][data-subject]');
         if (td && td.dataset.date && td.dataset.subject && td.dataset.subject !== 'total') {
+            // 🔹 Не открываем модальное окно для исключённых дат
+            if (excludedDates.includes(td.dataset.date)) {
+                alert('⚠️ Этот день исключён из расписания.');
+                return;
+            }
             openTopicModal(td.dataset.date, td.dataset.subject);
         }
     });
@@ -438,11 +509,10 @@ function handleSubmitForm(e) {
     .then(r => r.json())
     .then(res => {
         if (res.success) {
-            // 🔹 Показываем alert только если это НЕ нажатие Enter
             if (!window._savingViaEnter) {
                 alert('✅ Распределение сохранено!');
             }
-            window._savingViaEnter = false; // 🔹 Сбрасываем флаг
+            window._savingViaEnter = false;
         } else {
             alert('❌ ' + (res.error || 'Ошибка сохранения'));
         }
@@ -517,9 +587,15 @@ document.addEventListener('keydown', function(e) {
 // =============================================================================
 document.addEventListener('DOMContentLoaded', function() {
     console.log('✅ Страница загружена, инициализация...');
+    console.log('🔹 Исключённые даты:', excludedDates);
+
     loadStateFromStorage();
     buildCellsMap();
     syncDOMFromState();
+
+    // 🔹 🔥 🔥 УДАЛЯЕМ строки исключённых дней из таблицы 🔥 🔥 🔥
+    removeExcludedDateRows();
+
     setupListeners();
     setTimeout(() => {
         recalculateTotals();

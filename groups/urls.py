@@ -1,7 +1,6 @@
-# groups/urls.py
 from django.urls import path
 from . import views
-from groups.views.export import export_schedule_to_excel
+from groups.views.exports import export_schedule_to_excel, export_plan_graphic_to_excel
 
 app_name = 'groups'
 
@@ -15,7 +14,7 @@ urlpatterns = [
     path('credits-exams/', views.credits_exams_dashboard, name='credits_exams'),
     path('credits-exams/add/', views.credits_exams_add, name='credits_exams_add'),
 
-    # 🔹 План-графики
+    #  План-графики
     path('schedules/', views.schedule_plans_list, name='schedule_plans_list'),
     path('schedules/create/', views.schedule_plan_create, name='schedule_plan_create'),
     path('schedules/<int:plan_id>/edit/', views.schedule_plan_create, name='schedule_plan_edit'),
@@ -31,5 +30,9 @@ urlpatterns = [
     path('api/instructor/availability/', views.check_instructor_availability, name='check_instructor_availability'),
     path('api/groups/<int:group_id>/data/', views.group_api_data, name='group_api_data'),
     path('api/teacher-schedule/', views.get_teacher_schedules, name='get_teacher_schedules'),
+
+    # 🔹 ЭКСПОРТ В EXCEL (два типа)
     path('schedules/<int:plan_id>/export/', export_schedule_to_excel, name='schedule_export'),
+    path('schedules/<int:plan_id>/export-plan-graphic/', export_plan_graphic_to_excel,
+         name='schedule_export_plan_graphic'),
 ]

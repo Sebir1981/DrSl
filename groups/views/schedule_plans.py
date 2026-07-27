@@ -16,7 +16,7 @@ from classrooms.models import Classroom
 
 
 # =============================================================================
-#  Вспомогательная функция: проверка на дубликаты
+# 🔹 Вспомогательные функции
 # =============================================================================
 def _check_schedule_duplicates(group, date_start, date_end, exclude_plan_id=None):
     """Проверяет наличие пересекающихся план-графиков для той же группы."""
@@ -28,6 +28,32 @@ def _check_schedule_duplicates(group, date_start, date_end, exclude_plan_id=None
     if exclude_plan_id:
         duplicates = duplicates.exclude(pk=exclude_plan_id)
     return list(duplicates)
+
+
+def _is_standard_schedule_day(date_str, schedule_type):
+    """
+    Проверяет, должен ли день быть в плане по стандартному алгоритму.
+    Для 'even' и 'odd' учитываем, что выходные (сб-вс) автоматически исключаются.
+    """
+    try:
+        d = datetime.strptime(date_str, '%Y-%m-%d').date()
+        weekday = d.weekday()  # 0=Пн, 1=Вт, ..., 5=Сб, 6=Вс
+
+        if schedule_type == 'even':
+            # Чётные дни, но ТОЛЬКО будние (пн-пт)
+            return (d.day % 2 == 0) and (weekday < 5)
+
+        if schedule_type == 'odd':
+            # Нечётные дни, но ТОЛЬКО будние (пн-пт)
+            return (d.day % 2 == 1) and (weekday < 5)
+
+        if schedule_type == 'weekend':
+            # Только выходные (сб=5, вс=6)
+            return weekday >= 5
+
+        return False  # custom/directed по умолчанию ничего не генерируют
+    except Exception:
+        return False
 
 
 # =============================================================================
@@ -43,7 +69,7 @@ def schedule_plans_list(request):
 
 
 # =============================================================================
-#  Создание/редактирование план-графика (Шаг 1)
+# 🔹 Создание/редактирование план-графика (Шаг 1)
 # =============================================================================
 @login_required
 def schedule_plan_create(request, plan_id=None):
@@ -72,7 +98,7 @@ def schedule_plan_create(request, plan_id=None):
                     f"{d.group.group_number} ({d.date_start.strftime('%d.%m.%Y')} — {d.date_end.strftime('%d.%m.%Y')})"
                     for d in duplicates]
                 messages.error(request,
-                               f'️ План-график уже существует!\nДля группы {group.group_number} на период {date_start.strftime("%d.%m.%Y")} — {date_end.strftime("%d.%m.%Y")} уже есть план-график:\n{"; ".join(dup_info)}')
+                               f'❌ План-график уже существует!\nДля группы {group.group_number} на период {date_start.strftime("%d.%m.%Y")} — {date_end.strftime("%d.%m.%Y")} уже есть план-график:\n{"; ".join(dup_info)}')
             else:
                 schedule_plan = form.save(commit=False)
                 if not plan:
@@ -81,27 +107,26 @@ def schedule_plan_create(request, plan_id=None):
                 # 🔥 СОХРАНЕНИЕ CLASS_DAYS + ДНЕЙ МЕДИЦИНЫ
                 class_days_raw = request.POST.get('class_days', '{}')
                 med_days = []
+                final_class_days = {}
+
                 if class_days_raw and class_days_raw != '{}':
                     try:
                         parsed_days = json.loads(class_days_raw)
-                        schedule_plan.class_days = {}
                         for date_str, day_data in parsed_days.items():
                             try:
                                 d_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
                                 if date_start <= d_obj <= date_end:
-                                    schedule_plan.class_days[date_str] = day_data
-                                    # Собираем дни, отмеченные под медицину
+                                    final_class_days[date_str] = day_data
                                     if day_data.get('is_med') or day_data.get('med') or day_data.get('med_hours',
                                                                                                      0) > 0:
                                         med_days.append(date_str)
                             except (ValueError, TypeError):
                                 continue
                     except json.JSONDecodeError:
-                        schedule_plan.class_days = {}
-                else:
-                    schedule_plan.class_days = {}
+                        final_class_days = {}
 
-                #  Сохраняем метаданные медицины
+                schedule_plan.class_days = final_class_days
+
                 if isinstance(schedule_plan.class_days, dict):
                     schedule_plan.class_days['_med_days'] = med_days
 
@@ -117,26 +142,54 @@ def schedule_plan_create(request, plan_id=None):
                 if form.cleaned_data.get('time_evening'): time_slots.append('evening')
                 schedule_plan.class_days['_time_slots'] = time_slots
 
-                # 📅 Исключенные / Дополнительные даты
-                try:
-                    schedule_plan.excluded_dates = json.loads(request.POST.get('excluded_dates', '[]')) or []
-                except json.JSONDecodeError:
-                    schedule_plan.excluded_dates = []
+                # 📅 УМНЫЙ РАСЧЁТ ИСКЛЮЧЁННЫХ/ДОПОЛНИТЕЛЬНЫХ ДНЕЙ
+                # Мы игнорируем то, что прислал JS, и считаем сами на основе итогового календаря.
 
-                try:
-                    schedule_plan.additional_dates = json.loads(request.POST.get('additional_dates', '[]')) or []
-                except json.JSONDecodeError:
-                    schedule_plan.additional_dates = []
+                # 📅 УМНЫЙ РАСЧЁТ ИСКЛЮЧЁННЫХ/ДОПОЛНИТЕЛЬНЫХ ДНЕЙ
+                # Мы игнорируем то, что прислал JS, и считаем сами на основе итогового календаря.
 
-                # 🔹 🔥 🔥 ВАЖНО: Сохраняем списки дат в class_days, чтобы они не потерялись на Шаге 2
-                if isinstance(schedule_plan.class_days, dict):
-                    schedule_plan.class_days['_additional_dates'] = schedule_plan.additional_dates
-                    schedule_plan.class_days['_excluded_dates'] = schedule_plan.excluded_dates
-                else:
-                    schedule_plan.class_days = {
-                        '_additional_dates': schedule_plan.additional_dates,
-                        '_excluded_dates': schedule_plan.excluded_dates
-                    }
+                real_excluded = []
+                real_additional = []
+
+                # 🔹 Очищаем class_days от исключённых дней
+                cleaned_class_days = {}
+                for date_str, day_data in final_class_days.items():
+                    if date_str.startswith('_'):
+                        # Сохраняем служебные ключи
+                        cleaned_class_days[date_str] = day_data
+                        continue
+
+                    # Проверяем, должен ли день быть по алгоритму
+                    is_scheduled_by_algo = _is_standard_schedule_day(date_str, schedule_plan.schedule_type)
+
+                    # 🔹 Если день есть в плане, но НЕ должен быть по алгоритму → это дополнение
+                    if not is_scheduled_by_algo:
+                        real_additional.append(date_str)
+                        cleaned_class_days[date_str] = day_data
+                    # 🔹 Если день должен быть по алгоритму → оставляем как есть
+                    else:
+                        cleaned_class_days[date_str] = day_data
+
+                # 🔹 Теперь проверяем, какие дни ИЗ АЛГОРИТМА были удалены
+                curr = date_start
+                while curr <= date_end:
+                    d_str = curr.strftime('%Y-%m-%d')
+                    is_scheduled_by_algo = _is_standard_schedule_day(d_str, schedule_plan.schedule_type)
+                    is_in_cleaned_plan = (d_str in cleaned_class_days)
+
+                    # Если алгоритм сказал "ДА", а в плане "НЕТ" → Это исключение
+                    if is_scheduled_by_algo and not is_in_cleaned_plan:
+                        real_excluded.append(d_str)
+
+                    curr += timedelta(days=1)
+
+                schedule_plan.excluded_dates = real_excluded
+                schedule_plan.additional_dates = real_additional
+                schedule_plan.class_days = cleaned_class_days
+
+                # 🔹 Сохраняем вычисленные списки в class_days для Шага 2
+                schedule_plan.class_days['_additional_dates'] = schedule_plan.additional_dates
+                schedule_plan.class_days['_excluded_dates'] = schedule_plan.excluded_dates
 
                 schedule_plan.save()
                 messages.success(request, '✅ План-график сохранён!')
@@ -182,6 +235,11 @@ def schedule_plan_create(request, plan_id=None):
         cal_schedule_type = plan.schedule_type if plan else (form.initial.get('schedule_type') if form else 'custom')
 
     cal_class_days = plan.class_days if plan else {}
+
+    # 🔹 Загружаем сохранённые списки исключений/дополнений
+    excluded_dates_set = set(plan.excluded_dates or [])
+    additional_dates_set = set(plan.additional_dates or [])
+
     if cal_start and cal_end:
         if isinstance(cal_start, str): cal_start = datetime.strptime(cal_start, '%Y-%m-%d').date()
         if isinstance(cal_end, str): cal_end = datetime.strptime(cal_end, '%Y-%m-%d').date()
@@ -191,14 +249,29 @@ def schedule_plan_create(request, plan_id=None):
         while current <= cal_end:
             date_str = current.strftime('%Y-%m-%d')
             is_scheduled = False
-            if cal_schedule_type == 'even' and current.day % 2 == 0:
+
+            # 🔹 ШАГ 1: Проверяем базовый алгоритм
+            if cal_schedule_type == 'even' and current.day % 2 == 0 and current.weekday() < 5:
                 is_scheduled = True
-            elif cal_schedule_type == 'odd' and current.day % 2 == 1:
+            elif cal_schedule_type == 'odd' and current.day % 2 == 1 and current.weekday() < 5:
                 is_scheduled = True
             elif cal_schedule_type == 'weekend' and current.weekday() >= 5:
                 is_scheduled = True
-            elif cal_schedule_type == 'custom' and date_str in cal_class_days:
+
+            # 🔹 ШАГ 2: Применяем ручные дополнения (приоритет над алгоритмом)
+            if date_str in additional_dates_set:
                 is_scheduled = True
+
+            # 🔹 ШАГ 3: Применяем ручные исключения (ВЫСШИЙ ПРИОРИТЕТ!)
+            if date_str in excluded_dates_set:
+                is_scheduled = False
+
+            # 🔹 ШАГ 4: Проверяем class_days (НО ТОЛЬКО если не в исключениях!)
+            if date_str in cal_class_days and not date_str.startswith('_'):
+                if date_str not in excluded_dates_set:
+                    is_scheduled = True
+                else:
+                    is_scheduled = False  # 🔥 Принудительно отключаем исключённые дни
 
             calendar_data.append({
                 'date': date_str, 'day_name': current.strftime('%a'), 'day_num': current.day,
@@ -270,7 +343,7 @@ def schedule_plan_ajax_update_day(request, plan_id):
 
 
 # =============================================================================
-#  Шаг 2: Распределение часов
+# 🔹 Шаг 2: Распределение часов
 # =============================================================================
 @login_required
 def schedule_plan_step2(request, plan_id):
@@ -280,9 +353,6 @@ def schedule_plan_step2(request, plan_id):
         try:
             data = json.loads(request.body)
             topics_data = data.get('topics', {})
-
-            # 🔹 ИСПРАВЛЕНИЕ: Безопасное получение значения
-            # Используем .get(), чтобы получить None, если ключа нет
             med_teacher_val = data.get('med_teacher')
 
             class_days = plan.class_days or {}
@@ -292,7 +362,7 @@ def schedule_plan_step2(request, plan_id):
                 except json.JSONDecodeError:
                     class_days = {}
 
-            # Сохраняем существующие метаданные (чтобы не потерять при обновлении)
+            # Сохраняем существующие метаданные
             med_days = class_days.get('_med_days', [])
             additional_dates = class_days.get('_additional_dates', [])
             excluded_dates = class_days.get('_excluded_dates', [])
@@ -319,20 +389,15 @@ def schedule_plan_step2(request, plan_id):
             class_days['_category'] = data.get('category') or class_days.get('_category', '')
             class_days['_time_start'] = data.get('time_start') or class_days.get('_time_start', '09:00')
             class_days['_time_end'] = data.get('time_end') or class_days.get('_time_end', '17:00')
-
-            # Восстанавливаем метаданные
             class_days['_med_days'] = med_days
             class_days['_additional_dates'] = additional_dates
             class_days['_excluded_dates'] = excluded_dates
 
-            # 🔹 🔥  ИСПРАВЛЕНИЕ ЛОГИКИ ПРЕПОДАВАТЕЛЯ 🔥 🔥 🔥
-            # Мы обновляем преподавателя ТОЛЬКО если значение было явно передано (не None).
-            # Если JS не нашел селектор и не передал ключ, мы НЕ трогаем текущего преподавателя.
+            # 🔹 Обновляем преподавателя ТОЛЬКО если значение явно передано
             if med_teacher_val is not None:
                 if str(med_teacher_val).isdigit():
                     plan.med_teacher_id = int(med_teacher_val)
                 else:
-                    # Если передана пустая строка или неверный формат — очищаем
                     plan.med_teacher = None
 
             plan.class_days = class_days
@@ -377,7 +442,7 @@ def schedule_plan_step2(request, plan_id):
         training_program = TrainingProgram.objects.filter(categories__code=saved_category).prefetch_related(
             'subjects__subject').first()
 
-    # 🔹 ИСПРАВЛЕННЫЙ БЛОК ФОРМИРОВАНИЯ СПИСКА ПРЕДМЕТОВ
+    # 🔹 Формирование списка предметов
     program_subjects = []
     if training_program:
         exam_item = None
@@ -394,22 +459,15 @@ def schedule_plan_step2(request, plan_id):
             else:
                 other_subjects.append(item)
         program_subjects = other_subjects + ([exam_item] if exam_item else [])
-    # =======================================================================
 
-    #  🔥 🔥 ВАЖНО: Сбор всех дат для отображения (часы + additional - excluded)
+    # 🔹 Сбор всех дат для отображения
     all_dates = set()
-
-    # 1. Дни, где есть часы
     for d in class_days.keys():
         if isinstance(d, str) and not d.startswith('_'):
             all_dates.add(d)
-
-    # 2. Дополнительные дни (даже если часов 0)
     additional_dates = class_days.get('_additional_dates', [])
     if isinstance(additional_dates, list):
         all_dates.update(additional_dates)
-
-    # 3. Исключаем удаленные дни
     excluded_dates = class_days.get('_excluded_dates', [])
     if isinstance(excluded_dates, list):
         for d in excluded_dates:
@@ -420,7 +478,6 @@ def schedule_plan_step2(request, plan_id):
                  'June': 'Июнь', 'July': 'Июль', 'August': 'Август', 'September': 'Сентябрь', 'October': 'Октябрь',
                  'November': 'Ноябрь', 'December': 'Декабрь'}
 
-    # Проходим по объединенному списку дат
     for date_str in sorted(list(all_dates)):
         try:
             date_obj = datetime.strptime(date_str, '%Y-%m-%d')
@@ -467,7 +524,7 @@ def schedule_plan_step2(request, plan_id):
 def schedule_plan_delete(request, plan_id):
     plan = get_object_or_404(SchedulePlan, pk=plan_id)
     if plan.created_by != request.user and not request.user.is_superuser:
-        messages.error(request, '⛔ У вас нет прав для удаления этого план-графика.')
+        messages.error(request, ' У вас нет прав для удаления этого план-графика.')
         return redirect('groups:schedule_plans_list')
     group_number = plan.group.group_number
     plan.delete()

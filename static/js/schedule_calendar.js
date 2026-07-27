@@ -5,9 +5,10 @@ if (window.scheduleCalendarInstance) {
     class ScheduleCalendar {
         constructor() {
             this.currentDayEl = null;
-            this.teacherScheduleData = {}; // Здесь храним ДАННЫЕ ДЛЯ КАЛЕНДАРЯ (все вместе)
-            this.mainTeacherData = {};     // Отдельно для основного
+            this.teacherScheduleData = {}; // Объединённые данные для отображения
+            this.mainTeacherData = {};     // Отдельно для основного преподавателя
             this.medTeacherData = {};      // Отдельно для медика
+            this._calendarGenerated = false; // 🔹 Флаг: сгенерирован ли календарь
             this.init();
         }
 
@@ -29,10 +30,17 @@ if (window.scheduleCalendarInstance) {
             this.bindEvents();
             this.checkAutoFill();
             this.bindModalEnter();
-            this.loadAndGenerate();
+            // 🔹 ОТКЛЮЧЕНО: this.loadAndGenerate();
+            // Генерация теперь вызывается только из шаблона (initCalendar)
         }
 
         loadAndGenerate() {
+            // 🔹 Проверка: не генерировать дважды
+            if (this._calendarGenerated) {
+                console.log('⏭️ Календарь уже сгенерирован, пропускаем автозапуск');
+                return;
+            }
+
             const dateStartEl = document.getElementById('id_date_start');
             const dateEndEl = document.getElementById('id_date_end');
             const scheduleTypeEl = document.getElementById('id_schedule_type');
@@ -111,13 +119,9 @@ if (window.scheduleCalendarInstance) {
             document.getElementById('m-date').value = date;
             document.getElementById('m-del').style.display = isScheduled ? 'inline-block' : 'none';
 
-            // 🔹 Получаем слоты: либо из дня, либо пустой массив
             let selectedSlots = dayData.slots || [];
-
-            //  Определяем, используется ли дефолтное значение
             const useDefault = selectedSlots.length === 0 || dayData._useDefault === true;
 
-            // Если используется дефолт — берём актуальные значения из шапки
             if (useDefault) {
                 selectedSlots = [];
                 if (document.getElementById('id_time_morning')?.checked) selectedSlots.push('У');
@@ -125,16 +129,14 @@ if (window.scheduleCalendarInstance) {
                 if (document.getElementById('id_time_evening')?.checked) selectedSlots.push('В');
             }
 
-            // Устанавливаем чекбоксы в модальном окне
             document.getElementById('m-slot-u').checked = selectedSlots.includes('У');
             document.getElementById('m-slot-d').checked = selectedSlots.includes('Д');
             document.getElementById('m-slot-v').checked = selectedSlots.includes('В');
             document.getElementById('m-med-toggle').checked = dayData.med || false;
 
-            // Проверка конфликтов (безопасная) - ИСПРАВЛЕНО: выбираем правильный массив данных
+            // Проверка конфликтов
             const teacherSlots = dayData.med ? this.medTeacherData : this.mainTeacherData;
             const relevantData = (teacherSlots[date] || []).map(item => typeof item === 'object' ? item.ind : item);
-
             const hasConflict = selectedSlots.some(s => relevantData.includes(s));
             document.getElementById('m-conflict-warn').style.display = hasConflict ? 'block' : 'none';
 
@@ -156,7 +158,6 @@ if (window.scheduleCalendarInstance) {
 
             const isMed = document.getElementById('m-med-toggle').checked;
 
-            // 🔹 При ручном сохранении сбрасываем флаг _useDefault
             const dayData = {
                 slots: [...slots],
                 med: isMed,
@@ -174,26 +175,72 @@ if (window.scheduleCalendarInstance) {
             this.closeModal();
         }
 
+        // 🔹 🔥 🔥 ИСПРАВЛЕННАЯ ФУНКЦИЯ: добавляет удалённый день в excluded_dates 🔥 🔥 🔥
         deleteDay() {
             if (!this.currentDayEl) return;
-            this.currentDayEl.classList.remove('is-scheduled');
+
+            const dateStr = this.currentDayEl.dataset.date;
+            console.log('🗑️ Удаление дня:', dateStr);
+
+            const excludedInput = document.getElementById('id_excluded_dates');
+            if (excludedInput) {
+                let excluded = [];
+                try {
+                    // 🔹 Исправляем одинарные кавычки на двойные для валидного JSON
+                    let rawValue = excludedInput.value.replace(/'/g, '"');
+                    excluded = JSON.parse(rawValue) || [];
+                } catch(e) {
+                    console.warn('⚠️ Ошибка парсинга excluded_dates:', e);
+                    excluded = [];
+                }
+
+                if (!excluded.includes(dateStr)) {
+                    excluded.push(dateStr);
+                    excluded.sort();
+                    // 🔹 Сохраняем с двойными кавычками для валидного JSON
+                    excludedInput.value = JSON.stringify(excluded);
+                    console.log('✅ Обновлено excluded_dates:', excluded);
+                    console.log('📝 Текущее значение input:', excludedInput.value);
+                }
+            }
+
+            // 🔹 Также удаляем из additional_dates, если там был
+            const additionalInput = document.getElementById('id_additional_dates');
+            if (additionalInput) {
+                let additional = [];
+                try {
+                    let rawValue = additionalInput.value.replace(/'/g, '"');
+                    additional = JSON.parse(rawValue) || [];
+                } catch(e) {}
+                // Удаляем дату из additional, если она там есть
+                const idx = additional.indexOf(dateStr);
+                if (idx > -1) {
+                    additional.splice(idx, 1);
+                    additionalInput.value = JSON.stringify(additional);
+                }
+            }
+
+            // Обновляем визуальное состояние ячейки
+            this.currentDayEl.classList.remove('is-scheduled', 'is-med', 'is-conflict');
             this.currentDayEl.dataset.scheduled = 'false';
-            this.currentDayEl.dataset.daydata = JSON.stringify({slots:[], med:false, scheduled:false, _useDefault: true});
-            this.updateCellVisuals(this.currentDayEl, {slots:[], med:false});
+
+            // 🔹 Важно: _useDefault: false, чтобы день не восстанавливался по алгоритму
+            this.currentDayEl.dataset.daydata = JSON.stringify({
+                slots: [],
+                med: false,
+                scheduled: false,
+                _useDefault: false
+            });
+
+            this.updateCellVisuals(this.currentDayEl, {slots: [], med: false});
             this.updateJSON();
             this.closeModal();
         }
 
         updateCellVisuals(el, dayData) {
-            console.log(`🎨 updateCellVisuals: ${el.dataset.date}`, {
-                slots: dayData.slots,
-                med: dayData.med
-            });
-
             const slots = dayData.slots || [];
             const dateStr = el.dataset.date;
 
-            // Левая часть: Слоты У/Д/В (выбранные пользователем)
             let slotsHtml = '';
             if (slots.length > 0) {
                 slotsHtml = `<div style="display:flex;gap:2px;margin-top:2px;justify-content:flex-start;flex-wrap:wrap;">
@@ -205,8 +252,6 @@ if (window.scheduleCalendarInstance) {
                 </div>`;
             }
 
-            // Правая часть: Индикаторы преподавателей (что показывает календарь)
-            // Используем объединенные данные, чтобы видеть всё
             let teacherIndicatorsHtml = '';
             if (this.teacherScheduleData[dateStr]) {
                  teacherIndicatorsHtml = `<div style="display:flex;gap:2px;margin-top:2px;justify-content:flex-end;flex-wrap:wrap;">
@@ -221,7 +266,6 @@ if (window.scheduleCalendarInstance) {
                 </div>`;
             }
 
-            // Медицина
             let medHtml = '';
             if (dayData.med) {
                 el.classList.add('is-med');
@@ -232,15 +276,12 @@ if (window.scheduleCalendarInstance) {
                 if (existingMed) existingMed.remove();
             }
 
-            // 🔹 ПРОВЕРКА КОНФЛИКТОВ: ИСПРАВЛЕННАЯ ЛОГИКА
+            // Проверка конфликтов
             let hasConflict = false;
-
             if (dayData.med) {
-                // Если это день медицины, сравниваем только с массивом медика
                 const medSlots = (this.medTeacherData[dateStr] || []).map(item => typeof item === 'object' ? item.ind : item);
                 hasConflict = slots.some(s => medSlots.includes(s));
             } else {
-                // Если обычный день, сравниваем только с массивом основного
                 const mainSlots = (this.mainTeacherData[dateStr] || []).map(item => typeof item === 'object' ? item.ind : item);
                 hasConflict = slots.some(s => mainSlots.includes(s));
             }
@@ -248,7 +289,6 @@ if (window.scheduleCalendarInstance) {
             if (hasConflict) el.classList.add('is-conflict');
             else el.classList.remove('is-conflict');
 
-            // Обновляем HTML
             el.innerHTML = `
                 <span class="cal-num">${el.dataset.date.split('-')[2]}</span>
                 ${medHtml}
@@ -266,14 +306,10 @@ if (window.scheduleCalendarInstance) {
                 data.scheduled = true;
                 days[el.dataset.date] = data;
             });
-
             const hiddenInput = document.getElementById('id_class_days');
-            if (hiddenInput) {
-                hiddenInput.value = JSON.stringify(days);
-            }
+            if (hiddenInput) hiddenInput.value = JSON.stringify(days);
         }
 
-                // 🔹 МЕТОД: Вычисление исключенных и дополнительных дней
         calculateDateLogs() {
             const startDate = document.getElementById('id_date_start')?.value;
             const endDate = document.getElementById('id_date_end')?.value;
@@ -284,65 +320,46 @@ if (window.scheduleCalendarInstance) {
             const startObj = this.parseDate(startDate);
             const endObj = this.parseDate(endDate);
 
-            // 1. Генерируем "ИДЕАЛЬНЫЙ" список (как должно быть по чет/нечет)
             const idealDates = new Set();
             let current = new Date(startObj);
 
             while (current <= endObj) {
                 const dateStr = current.toISOString().split('T')[0];
                 const day = current.getDate();
-                const dayOfWeek = current.getDay(); // 0 - Вс, 6 - Сб
+                const dayOfWeek = current.getDay();
                 const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
 
                 let shouldBeScheduled = false;
-
                 if (scheduleType === 'odd') {
                     if (day % 2 === 1 && !isWeekend) shouldBeScheduled = true;
                 } else if (scheduleType === 'even') {
                     if (day % 2 === 0 && !isWeekend) shouldBeScheduled = true;
                 } else if (scheduleType === 'weekend') {
                     if (isWeekend) shouldBeScheduled = true;
-                } else if (scheduleType === 'custom') {
-                    // Для custom идеального списка нет, считаем что все дни возможны
                 }
 
-                if (shouldBeScheduled) {
-                    idealDates.add(dateStr);
-                }
-
+                if (shouldBeScheduled) idealDates.add(dateStr);
                 current.setDate(current.getDate() + 1);
             }
 
-            // 2. Получаем "ФАКТИЧЕСКИЙ" список (что выбрано в календаре)
             const actualDates = new Set();
             document.querySelectorAll('.cal-day.is-scheduled').forEach(el => {
                 actualDates.add(el.dataset.date);
             });
 
-            // 3. Вычисляем разницу
-            const excluded = []; // Было в ideal, но нет в actual
-            const additional = []; // Нет в ideal, но есть в actual
+            const excluded = [];
+            const additional = [];
 
-            // Ищем исключенные (Ideal - Actual)
-            idealDates.forEach(date => {
-                if (!actualDates.has(date)) {
-                    excluded.push(date);
-                }
-            });
+            idealDates.forEach(date => { if (!actualDates.has(date)) excluded.push(date); });
+            actualDates.forEach(date => { if (!idealDates.has(date)) additional.push(date); });
 
-            // Ищем дополнительные (Actual - Ideal)
-            actualDates.forEach(date => {
-                if (!idealDates.has(date)) {
-                    additional.push(date);
-                }
-            });
-
-            // 4. Сортируем и записываем в скрытые поля
             excluded.sort();
             additional.sort();
 
-            document.getElementById('id_excluded_dates').value = JSON.stringify(excluded);
-            document.getElementById('id_additional_dates').value = JSON.stringify(additional);
+            const exclInput = document.getElementById('id_excluded_dates');
+            const addInput = document.getElementById('id_additional_dates');
+            if (exclInput) exclInput.value = JSON.stringify(excluded);
+            if (addInput) addInput.value = JSON.stringify(additional);
 
             console.log('📝 Лог дат обновлен:', { excluded, additional });
         }
@@ -368,11 +385,7 @@ if (window.scheduleCalendarInstance) {
                     if (locationHidden) locationHidden.value = data.location;
                 }
 
-                if (data.contract_start && data.contract_end) {
-                    setTimeout(() => {
-                        this.generateCalendar(data.contract_start, data.contract_end, data.schedule_type || 'custom', null);
-                    }, 200);
-                }
+                // 🔹 Не вызываем generateCalendar здесь — это сделает шаблон
             } catch (error) {
                 console.error('❌ Ошибка загрузки данных группы:', error);
             }
@@ -384,6 +397,21 @@ if (window.scheduleCalendarInstance) {
         }
 
         generateCalendar(dateStart, dateEnd, scheduleType, savedDays = null) {
+            // 🔹 ОТЛАДКА: Проверяем excluded_dates
+            const excludedInput = document.getElementById('id_excluded_dates');
+            console.log('🔍 ОТЛАДКА excluded_dates:', {
+                'element': excludedInput,
+                'value': excludedInput ? excludedInput.value : 'NOT FOUND',
+                'type': typeof excludedInput?.value
+            });
+
+            // 🔹 Защита от повторной генерации
+            if (this._calendarGenerated) {
+                console.log('⏭️ Календарь уже сгенерирован, пропускаем');
+                return false;
+            }
+            this._calendarGenerated = true;
+
             console.log('🔹 Генерация календаря:', dateStart, dateEnd, scheduleType);
             const startObj = this.parseDate(dateStart);
             const endObj = this.parseDate(dateEnd);
@@ -466,10 +494,27 @@ if (window.scheduleCalendarInstance) {
                         else if (scheduleType === 'weekend') { if (isWeekend) isScheduled = true; }
                     }
 
-                    // Получаем данные
-                    const allSlots = this.teacherScheduleData[dateStr] || [];
+                    // 🔹 🔥 🔥 ПРОВЕРКА ИСКЛЮЧЁННЫХ ДНЕЙ (с исправлением кавычек) 🔥 🔥 🔥
+                    const exclInput = document.getElementById('id_excluded_dates');
+                    let excludedDates = [];
+                    if (exclInput && exclInput.value && exclInput.value !== '[]') {
+                        try {
+                            // 🔹 Исправляем одинарные кавычки на двойные для валидного JSON
+                            let rawValue = exclInput.value.replace(/'/g, '"');
+                            excludedDates = JSON.parse(rawValue) || [];
+                        } catch(e) {
+                            console.warn('⚠️ Ошибка парсинга excluded_dates:', e);
+                            excludedDates = [];
+                        }
+                    }
+                    // Если день в списке исключений — принудительно отключаем, даже если он чётный
+                    if (excludedDates.includes(dateStr)) {
+                        isScheduled = false;
+                        console.log('⏭️ Исключённый день пропущен:', dateStr);
+                    }
+                    // 🔹 🔥 🔥 КОНЕЦ ПРОВЕРКИ 🔥 🔥 🔥
 
-                    // 🔹 РАЗДЕЛЯЕМ ДАННЫЕ ДЛЯ ПРОВЕРКИ
+                    const allSlots = this.teacherScheduleData[dateStr] || [];
                     const mainSlots = allSlots.filter(slot => {
                         const isMed = typeof slot === 'object' ? (slot.is_med || false) : false;
                         return !isMed;
@@ -480,21 +525,12 @@ if (window.scheduleCalendarInstance) {
                         return isMed;
                     }).map(item => typeof item === 'object' ? item.ind : item);
 
-                    //  ОПРЕДЕЛЯЕМ КОНФЛИКТ
                     let hasConflict = false;
-                    // Если день уже помечен как мед (или в нём есть мед. слоты), проверяем мед. массив
                     const isMedDay = dayData.med || false;
-
                     if (isMedDay) {
                          hasConflict = slots.some(s => medSlots.includes(s));
                     } else {
                          hasConflict = slots.some(s => mainSlots.includes(s));
-                    }
-
-                    if (hasConflict && isMedDay) {
-                        console.log(`⚠️ Конфликт МЕД: ${dateStr}`, slots, medSlots);
-                    } else if (hasConflict && !isMedDay) {
-                         console.log(`⚠️ Конфликт ОСН: ${dateStr}`, slots, mainSlots);
                     }
 
                     const dayEl = document.createElement('div');
@@ -514,7 +550,6 @@ if (window.scheduleCalendarInstance) {
                         dayEl.onclick = () => window.scheduleCalendarInstance.openDayModal(dayEl);
                     }
 
-                    // 🔹 Формируем HTML
                     let slotsHtml = '';
                     if (slots.length > 0) {
                         slotsHtml = `<div style="display:flex;gap:2px;margin-top:2px;justify-content:flex-start;flex-wrap:wrap;">

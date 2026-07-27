@@ -63,7 +63,7 @@ input[type="number"] { -moz-appearance: textfield; }
 <div class="page-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 16px;">
     <h1 style="margin: 0; font-size: 24px; color: #1e293b;">{{ title }}</h1>
     <div style="display: flex; gap: 12px;">
-        <a href="{% url 'reference:category_subjects_list' %}?plan_id={{ plan.pk }}" class="btn" style="background: #3b82f6; color: white; text-decoration: none; padding: 10px 20px; border-radius: 8px; font-weight: 600;"> Настройка учебного плана</a>
+        <a href="{% url 'reference:category_subjects_list' %}?plan_id={{ plan.pk }}" class="btn" style="background: #3b82f6; color: white; text-decoration: none; padding: 10px 20px; border-radius: 8px; font-weight: 600;">📋 Настройка учебного плана</a>
         <a href="{% url 'groups:schedule_plans_list' %}" class="btn" style="background: #e2e8f0; color: #334155; text-decoration: none; padding: 10px 20px; border-radius: 8px; font-weight: 600;">← Назад к списку</a>
     </div>
 </div>
@@ -79,13 +79,34 @@ input[type="number"] { -moz-appearance: textfield; }
     {% csrf_token %}
     {% include "groups/schedule_plan_step2/_distribution_table.html" %}
 
-    <!-- 🔹 Кнопки управления -->
-    <div class="action-buttons">
-        <a href="{% url 'groups:schedule_export' plan.pk %}" class="print-btn" style="background: #22c55e;">📊 Excel</a>
-        <a href="{% url 'groups:schedule_plan_edit' plan.pk %}" class="btn-back">← Назад</a>
-        <button type="button" onclick="confirmDeleteSchedule()" class="btn-delete">️ Очистить план-график</button>
-        <button type="submit" id="btn-save" class="btn-confirm">✅ Сохранить распределение</button>
+   <!-- 🔹 Кнопки управления -->
+<div class="action-buttons">
+    <!-- 🔹 Выбор типа экспорта -->
+    <div style="display: flex; gap: 10px; align-items: center; margin-right: auto;">
+        <select id="export-type-select" style="padding: 10px 14px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 14px; background: white; cursor: pointer;">
+            <option value="schedule">📅 Расписание занятий</option>
+            <option value="plan_graphic">📊 План-график</option>
+        </select>
+        <button type="button" onclick="triggerExport()" class="print-btn" style="background: #22c55e; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;">
+            📥 Скачать Excel
+        </button>
     </div>
+
+    <a href="{% url 'groups:schedule_plan_edit' plan.pk %}" class="btn-back">← Назад</a>
+    <button type="button" onclick="confirmDeleteSchedule()" class="btn-delete">🗑️ Очистить план-график</button>
+    <button type="submit" id="btn-save" class="btn-confirm">✅ Сохранить распределение</button>
+</div>
+
+<script>
+function triggerExport() {
+    const type = document.getElementById('export-type-select').value;
+    const planId = '{{ plan.pk }}';
+    const url = type === 'schedule'
+        ? "{% url 'groups:schedule_export' 0 %}".replace('0', planId)
+        : "{% url 'groups:schedule_export_plan_graphic' 0 %}".replace('0', planId);
+    window.location.href = url;
+}
+</script>
 </form>
 
 <!-- 🔹 Модальные окна -->
@@ -98,6 +119,7 @@ input[type="number"] { -moz-appearance: textfield; }
      data-required-hours="{{ training_program.total_hours|default:required_hours|default:0 }}"
      data-defaults='{{ defaults|escapejs|default:"{}" }}'
      data-topics-state='{{ topics_state_json|escapejs|default:"{}" }}'
+     data-excluded-dates='{{ plan.excluded_dates|default:"[]"|escapejs }}'
      data-list-url="{% url 'groups:schedule_plans_list' %}">
 </div>
 

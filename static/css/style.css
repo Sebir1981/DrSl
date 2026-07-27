@@ -1,0 +1,7 @@
+/* 🔹 Плавный переход для подсветки строк */
+.distribution-table tbody tr {
+    transition: background 0.2s ease, border-left 0.2s ease;
+}
+.distribution-table tbody tr.completed-subject {
+    opacity: 0.95;
+}
