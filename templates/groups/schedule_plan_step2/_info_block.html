@@ -1,6 +1,7 @@
 <div class="info-block" style="background: white; border-radius: 16px; padding: 32px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); margin-bottom: 32px;">
-    <h2 class="info-title" style="margin: 0 0 32px 0; color: #1e293b; font-size: 20px; font-weight: 700; text-align: center;">
-        План-график выполнения единой программы подготовки водителей МТС категории "{{ plan.group.category.code|default:'B' }}"
+    <!-- 🔹 Динамический заголовок (берётся ТОЛЬКО из поля plan_graphic_title) -->
+    <h2 id="program-title-header" style="text-align: center; margin-bottom: 20px; color: #1e293b; font-size: 20px; font-weight: 700;">
+        {{ training_program.plan_graphic_title|default:"План-график" }}
     </h2>
 
     <div class="info-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 32px;">
@@ -47,25 +48,64 @@
         </div>
 
         <!-- Колонка 4 -->
-        <div class="info-column" style="display: flex; flex-direction: column; gap: 16px;"><div class="info-field" style="display: flex; flex-direction: column; gap: 4px;">
-    <span class="info-label" style="font-size: 11px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Часов обучения</span>
-    <span class="info-value" style="font-size: 15px; color: #1e293b; font-weight: 700;">{{ training_program.total_hours|default:required_hours|default:0 }}</span>
-</div>
-             <div class="info-field" style="display: flex; flex-direction: column; gap: 4px;">
-                 <span class="info-label" style="font-size: 11px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Учебный план</span>
-                 <select id="training-program-select" name="training_program"
-                         style="width: 100%; height: 36px; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; background: white; font-weight: 600; color: #1e40af; cursor: pointer;">
-                     <option value="">— Выберите программу —</option>
-                     {% for program in available_programs %}
-                     <option value="{{ program.id }}" data-hours="{{ program.total_hours }}"
-                             {% if training_program and training_program.id == program.id %}selected{% endif %}>
-                         {{ program.name }} ({{ program.total_hours }} ч.)
-                     </option>
-                     {% empty %}
-                     <option value="" disabled>Нет доступных программ</option>
-                     {% endfor %}
-                 </select>
-             </div>
+        <div class="info-column" style="display: flex; flex-direction: column; gap: 16px;">
+            <div class="info-field" style="display: flex; flex-direction: column; gap: 4px;">
+                <span class="info-label" style="font-size: 11px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Часов обучения</span>
+                <span class="info-value" style="font-size: 15px; color: #1e293b; font-weight: 700;" id="total-hours-display">
+                    {{ training_program.total_hours|default:required_hours|default:0 }}
+                </span>
+            </div>
+            <div class="info-field" style="display: flex; flex-direction: column; gap: 4px;">
+                <span class="info-label" style="font-size: 11px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Учебный план</span>
+                <select id="training-program-select" name="training_program"
+                        style="width: 100%; height: 36px; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; background: white; font-weight: 600; color: #1e40af; cursor: pointer;">
+                    <option value="">— Выберите программу —</option>
+                    {% for program in available_programs %}
+                    <option value="{{ program.id }}"
+                            data-hours="{{ program.total_hours }}"
+                            data-graphic-title="{{ program.plan_graphic_title }}"
+                            {% if training_program and training_program.id == program.id %}selected{% endif %}>
+                        {{ program.name }} ({{ program.total_hours }} ч.)
+                    </option>
+                    {% empty %}
+                    <option value="" disabled>Нет доступных программ</option>
+                    {% endfor %}
+                </select>
+            </div>
         </div>
     </div>
 </div>
+
+<!-- 🔹 Скрипт для мгновенной смены заголовка и часов при выборе программы -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const selectEl = document.getElementById('training-program-select');
+    const headerEl = document.getElementById('program-title-header');
+    const hoursEl = document.getElementById('total-hours-display');
+
+    if (!selectEl || !headerEl || !hoursEl) return;
+
+    function updateInfo() {
+        const option = selectEl.options[selectEl.selectedIndex];
+
+        if (!option.value) {
+            headerEl.textContent = 'План-график';
+            hoursEl.textContent = '0';
+            return;
+        }
+
+        // 🔹 Берём заголовок ТОЛЬКО из data-graphic-title (без категории, без дефолтов)
+        const graphicTitle = option.getAttribute('data-graphic-title') || 'План-график';
+        const hours = option.getAttribute('data-hours') || '0';
+
+        headerEl.textContent = graphicTitle;
+        hoursEl.textContent = hours;
+    }
+
+    // Применяем при загрузке страницы
+    updateInfo();
+
+    // Обновляем при изменении выбора в выпадающем списке
+    selectEl.addEventListener('change', updateInfo);
+});
+</script>

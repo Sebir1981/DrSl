@@ -534,12 +534,16 @@ document.addEventListener('DOMContentLoaded', function() {
             if (window.scheduleCalendarInstance) {
                 window.scheduleCalendarInstance.calculateDateLogs();
             }
+            if (typeof window.cleanExcludedDaysFromClassDays === 'function') {
+                    window.cleanExcludedDaysFromClassDays();
+                }
             const scheduledDays = document.querySelectorAll('.cal-day.is-scheduled'); const conflicts = [];
             scheduledDays.forEach(el => { const dayData = JSON.parse(el.dataset.daydata || '{}'); const dateStr = el.dataset.date; const slots = dayData.slots || []; const isMedDay = dayData.med || false; const teacherSlots = isMedDay ? (window.medTeacherScheduleData[dateStr] || []) : (window.teacherScheduleData[dateStr] || []); const dayConflicts = slots.filter(s => teacherSlots.some(slot => { const slotInd = typeof slot === 'object' ? slot.ind : slot; return s === slotInd; })); if (dayConflicts.length > 0) { conflicts.push({ date: dateStr, slots: dayConflicts, group: teacherSlots.find(slot => typeof slot === 'object')?.group || 'Неизвестная группа', location: teacherSlots.find(slot => typeof slot === 'object')?.location || 'Неизвестный адрес' }); } });
             if (conflicts.length > 0) { const listEl = document.getElementById('conflict-dates-list'); listEl.innerHTML = conflicts.map(c => `<div style="margin-bottom:8px; padding:8px; background:white; border-radius:4px; border-left:3px solid #ef4444;"><strong>📅 ${c.date}</strong><br><span style="color:#dc2626;">(${c.slots.join(', ')})</span><br><small> ${c.group}<br>📍 ${c.location}</small></div>`).join(''); document.getElementById('conflict-warning-modal').style.display = 'flex'; } else { form.submit(); }
         });
         document.getElementById('btn-cancel-submit')?.addEventListener('click', function() { document.getElementById('conflict-warning-modal').style.display = 'none'; });
         document.getElementById('btn-force-submit')?.addEventListener('click', function() { document.getElementById('conflict-warning-modal').style.display = 'none'; form.submit(); });
+
     }
 
     function initCalendar() {

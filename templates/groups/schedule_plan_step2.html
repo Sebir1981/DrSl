@@ -81,16 +81,19 @@ input[type="number"] { -moz-appearance: textfield; }
 
    <!-- 🔹 Кнопки управления -->
 <div class="action-buttons">
-    <!-- 🔹 Выбор типа экспорта -->
-    <div style="display: flex; gap: 10px; align-items: center; margin-right: auto;">
-        <select id="export-type-select" style="padding: 10px 14px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 14px; background: white; cursor: pointer;">
-            <option value="schedule">📅 Расписание занятий</option>
-            <option value="plan_graphic">📊 План-график</option>
-        </select>
-        <button type="button" onclick="triggerExport()" class="print-btn" style="background: #22c55e; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;">
-            📥 Скачать Excel
-        </button>
-    </div>
+   <!--  Выбор типа экспорта -->
+<div style="display: flex; gap: 10px; align-items: center; margin-right: auto;">
+    <select id="export-type-select" style="padding: 10px 14px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 14px; background: white; cursor: pointer;">
+        <option value="schedule">📅 Расписание занятий</option>
+        <option value="plan_graphic">📊 План-график</option>
+    </select>
+    <button type="button" id="export-btn" onclick="triggerExport()"
+            data-schedule-url="{% url 'groups:schedule_export' plan.id %}"
+            data-plan-url="{% url 'groups:schedule_export_plan_graphic' plan.id %}"
+            style="background: #22c55e; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;">
+         Скачать Excel
+    </button>
+</div>
 
     <a href="{% url 'groups:schedule_plan_edit' plan.pk %}" class="btn-back">← Назад</a>
     <button type="button" onclick="confirmDeleteSchedule()" class="btn-delete">🗑️ Очистить план-график</button>
@@ -118,8 +121,8 @@ function triggerExport() {
      data-program-id="{{ training_program_id|default:'' }}"
      data-required-hours="{{ training_program.total_hours|default:required_hours|default:0 }}"
      data-defaults='{{ defaults|escapejs|default:"{}" }}'
-     data-topics-state='{{ topics_state_json|escapejs|default:"{}" }}'
-     data-excluded-dates='{{ plan.excluded_dates|default:"[]"|escapejs }}'
+     data-topics-state='{{ topics_state_json|safe }}'
+     data-excluded-dates='{{ excluded_dates_json|safe }}'
      data-list-url="{% url 'groups:schedule_plans_list' %}">
 </div>
 

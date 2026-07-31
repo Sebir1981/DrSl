@@ -1,3 +1,5 @@
+# groups/views/schedule_plans.py
+
 import json
 from collections import defaultdict
 from datetime import datetime, timedelta
@@ -6,6 +8,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse
+from django.conf import settings  # ✅ Добавлен импорт settings
 
 # ✅ ИМПОРТЫ МОДЕЛЕЙ
 from groups.models import Group, SchedulePlan
@@ -13,6 +16,8 @@ from reference.models import GroupCategory, TrainingProgram
 from groups.forms import SchedulePlanForm
 from teachers.models import Teacher
 from classrooms.models import Classroom
+import logging
+logger = logging.getLogger(__name__)
 
 
 # =============================================================================
@@ -117,8 +122,7 @@ def schedule_plan_create(request, plan_id=None):
                                 d_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
                                 if date_start <= d_obj <= date_end:
                                     final_class_days[date_str] = day_data
-                                    if day_data.get('is_med') or day_data.get('med') or day_data.get('med_hours',
-                                                                                                     0) > 0:
+                                    if day_data.get('is_med') or day_data.get('med') or day_data.get('med_hours', 0) > 0:
                                         med_days.append(date_str)
                             except (ValueError, TypeError):
                                 continue
@@ -130,7 +134,7 @@ def schedule_plan_create(request, plan_id=None):
                 if isinstance(schedule_plan.class_days, dict):
                     schedule_plan.class_days['_med_days'] = med_days
 
-                # 👩‍⚕️ Преподаватель медицины
+                # 👩‍️ Преподаватель медицины
                 med_teacher_id = request.POST.get('med_teacher')
                 schedule_plan.med_teacher_id = int(
                     med_teacher_id) if med_teacher_id and med_teacher_id.isdigit() else None
@@ -142,12 +146,7 @@ def schedule_plan_create(request, plan_id=None):
                 if form.cleaned_data.get('time_evening'): time_slots.append('evening')
                 schedule_plan.class_days['_time_slots'] = time_slots
 
-                # 📅 УМНЫЙ РАСЧЁТ ИСКЛЮЧЁННЫХ/ДОПОЛНИТЕЛЬНЫХ ДНЕЙ
-                # Мы игнорируем то, что прислал JS, и считаем сами на основе итогового календаря.
-
-                # 📅 УМНЫЙ РАСЧЁТ ИСКЛЮЧЁННЫХ/ДОПОЛНИТЕЛЬНЫХ ДНЕЙ
-                # Мы игнорируем то, что прислал JS, и считаем сами на основе итогового календаря.
-
+                #  УМНЫЙ РАСЧЁТ ИСКЛЮЧЁННЫХ/ДОПОЛНИТЕЛЬНЫХ ДНЕЙ
                 real_excluded = []
                 real_additional = []
 
@@ -190,6 +189,19 @@ def schedule_plan_create(request, plan_id=None):
                 # 🔹 Сохраняем вычисленные списки в class_days для Шага 2
                 schedule_plan.class_days['_additional_dates'] = schedule_plan.additional_dates
                 schedule_plan.class_days['_excluded_dates'] = schedule_plan.excluded_dates
+
+                # 🔹 Удаляем распределённые часы для исключённых дней
+                for date_str in schedule_plan.excluded_dates:
+                    if date_str in schedule_plan.class_days:
+                        day = schedule_plan.class_days[date_str]
+
+                        if isinstance(day, dict):
+                            # Оставляем только служебную информацию дня
+                            schedule_plan.class_days[date_str] = {
+                                k: v
+                                for k, v in day.items()
+                                if k in ("scheduled", "is_med", "med", "med_hours")
+                            }
 
                 schedule_plan.save()
                 messages.success(request, '✅ План-график сохранён!')
@@ -347,6 +359,16 @@ def schedule_plan_ajax_update_day(request, plan_id):
 # =============================================================================
 @login_required
 def schedule_plan_step2(request, plan_id):
+    # 🔹 Внутренняя функция логирования (определена ДО использования)
+    def debug_log(message):
+        """Логирование для отладки"""
+        try:
+            if settings.DEBUG:
+                logger.info(f"[SchedulePlan Debug] {message}")
+                print(f"[DEBUG] {message}")  # Для console output при разработке
+        except:
+            pass  # Игнорируем ошибки логирования в продакшне
+
     plan = get_object_or_404(SchedulePlan, pk=plan_id)
 
     if request.method == 'POST':
@@ -494,13 +516,35 @@ def schedule_plan_step2(request, plan_id):
     defaults = {item['code']: item['hours'] for item in program_subjects}
     subjects_list = [(item['code'], item['short_display']) for item in program_subjects]
 
+    # 🔹 Сбор состояний тем для JS (С ФИЛЬТРАЦИЕЙ ПО ПРОГРАММЕ)
     topics_state = {}
+
+    # Получаем коды предметов, которые есть в текущей программе
+    valid_subject_codes = set()
+    if training_program:
+        valid_subject_codes = {
+            ps.subject.short_name
+            for ps in training_program.subjects.select_related('subject').all()
+        }
+        debug_log(f"✅ Valid subjects for program {training_program.id}: {valid_subject_codes}")
+
     for date_str, day_data in class_days.items():
-        if not isinstance(date_str, str) or date_str.startswith('_'): continue
+        if not isinstance(date_str, str) or date_str.startswith('_'):
+            continue
         for key, value in day_data.items():
             if key.endswith('_topics') and isinstance(value, dict):
-                topics_state.setdefault(date_str, {})[key.replace('_topics', '')] = {str(k): float(v) for k, v in
-                                                                                     value.items()}
+                subject_code = key.replace('_topics', '')
+                # 🔹 Фильтруем: добавляем только предметы текущей программы
+                if subject_code in valid_subject_codes or not valid_subject_codes:
+                    topics_state.setdefault(date_str, {})[subject_code] = {
+                        str(k): float(v) for k, v in value.items()
+                    }
+                else:
+                    debug_log(f"⚠️ Skipping subject {subject_code} — not in program {training_program.id}")
+
+    # 🔹 Формируем JSON
+    excluded_dates_json = json.dumps(excluded_dates if isinstance(excluded_dates, list) else [])
+    topics_state_json_str = json.dumps(topics_state, default=str)
 
     return render(request, 'groups/schedule_plan_step2.html', {
         'plan': plan, 'days_by_month': dict(days_by_month), 'plan_year': plan.date_start.year,
@@ -509,11 +553,13 @@ def schedule_plan_step2(request, plan_id):
         'time_start': time_start, 'time_end': time_end,
         'categories': list(GroupCategory.objects.values_list('code', 'description')),
         'current_category': saved_category, 'subjects': subjects_list, 'defaults': defaults,
-        'topics_state_json': json.dumps(topics_state, default=str),
+        'topics_state_json': topics_state_json_str,
+        'excluded_dates_json': excluded_dates_json,
         'training_program': training_program, 'program_subjects': program_subjects,
         'available_programs': TrainingProgram.objects.all().order_by('name'),
         'training_program_id': training_program.id if training_program else None,
         'med_days': med_days,
+        'excluded_dates': excluded_dates,
     })
 
 

@@ -3,6 +3,7 @@ from openpyxl.styles import Font, Alignment, Border, Side
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from groups.models import SchedulePlan
+from pathlib import Path
 from reference.models import (
     SubjectDictionary,
     LessonTopic,
@@ -145,14 +146,18 @@ def export_schedule_to_excel(request, plan_id):
                 display_name = subjects_map.get(subject_code.lower(), subject_code.upper())
 
                 c1 = ws.cell(row=row, column=1, value=current_date.strftime('%d.%m.%Y'))
-                c1.border = thin_border;
+                c1.border = thin_border
                 c1.alignment = center_align
+
                 c2 = ws.cell(row=row, column=2, value=display_name)
-                c2.border = thin_border;
+                c2.border = thin_border
                 c2.alignment = center_align
-                c3 = ws.cell(row=row, column=3, value=int(hours))
-                c3.border = thin_border;
+
+                # 🔹 ИСПРАВЛЕНИЕ: не используем int(), оставляем дробную часть
+                c3 = ws.cell(row=row, column=3, value=float(hours))
+                c3.border = thin_border
                 c3.alignment = center_align
+                # c3.number_format = '0.#'
 
                 topics_text = ""
                 if date_str in topics_data and subject_code in topics_data[date_str]:
@@ -224,5 +229,23 @@ def export_schedule_to_excel(request, plan_id):
     ascii_filename = filename.encode('ascii', 'ignore').decode('ascii')
     response['Content-Disposition'] = f'attachment; filename*=UTF-8\'\'{encoded_filename}; filename="{ascii_filename}"'
 
-    wb.save(response)
+    # =============================================================================
+    # Сохранение копии на диске
+    # =============================================================================
+
+    group_folder = Path(r"C:\django\DrSl\Saves") / str(group_num)
+
+    # Создать папку, если её нет
+    group_folder.mkdir(parents=True, exist_ok=True)
+
+    # Полный путь к файлу
+    file_path = group_folder / filename
+
+    # Сохранить копию
+    wb.save(file_path)
+
+    # Отправляем сохранённый файл пользователю
+    with open(file_path, "rb") as f:
+        response.write(f.read())
+
     return response

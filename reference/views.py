@@ -483,18 +483,21 @@ def training_program_save(request):
         data = json.loads(request.body)
         program_id = data.get('program_id')
         name = data.get('name')
+        plan_graphic_title = data.get('plan_graphic_title', '')
         total_hours = float(data.get('total_hours', 0))
         category_codes = data.get('categories', [])
         subjects_data = data.get('subjects', [])
 
+
         if program_id:
             program = TrainingProgram.objects.get(pk=program_id)
             program.name = name
+            program.plan_graphic_title = plan_graphic_title
             program.total_hours = total_hours
             program.save()
             program.categories.set(GroupCategory.objects.filter(code__in=category_codes))
         else:
-            program = TrainingProgram.objects.create(name=name, total_hours=total_hours)
+            program = TrainingProgram.objects.create(name=name, total_hours=total_hours, plan_graphic_title=plan_graphic_title)
             program.categories.set(GroupCategory.objects.filter(code__in=category_codes))
 
         # Очищаем старые связи

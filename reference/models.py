@@ -158,6 +158,15 @@ class TrainingProgram(models.Model):
         decimal_places=1,
         help_text="Например: 170 для категории B"
     )
+
+    plan_graphic_title = models.CharField(
+        "План-график выполнения единой программы",
+        max_length=300,
+        default="План-график выполнения единой программы",
+        blank=True,
+        help_text="Текст заголовка, который будет подставлен в Excel-файл план-графика"
+    )
+
     categories = models.ManyToManyField(
         GroupCategory,
         verbose_name="Категории",

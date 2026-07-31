@@ -33,6 +33,5 @@ urlpatterns = [
 
     # 🔹 ЭКСПОРТ В EXCEL (два типа)
     path('schedules/<int:plan_id>/export/', export_schedule_to_excel, name='schedule_export'),
-    path('schedules/<int:plan_id>/export-plan-graphic/', export_plan_graphic_to_excel,
-         name='schedule_export_plan_graphic'),
+    path('schedules/<int:plan_id>/export-plan-graphic/', export_plan_graphic_to_excel, name='schedule_export_plan_graphic'),
 ]

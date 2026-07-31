@@ -6,6 +6,7 @@ from django.shortcuts import get_object_or_404
 from groups.models import SchedulePlan
 from reference.models import TrainingProgram, ProgramSubject
 from datetime import datetime, timedelta
+from pathlib import Path
 from collections import defaultdict
 import json
 import re
@@ -35,16 +36,31 @@ def export_plan_graphic_to_excel(request, plan_id):
     if isinstance(class_days, str):
         try:
             class_days = json.loads(class_days)
-        except:
+        except Exception:
             class_days = {}
 
-    # ✅ Берем из полей модели (ручные изменения через модальное окно)
     excluded_dates = plan.excluded_dates or []
     additional_dates = plan.additional_dates or []
 
+    # 🔹 🔥 ИСПРАВЛЕНИЕ: Берём программу ИЗ URL (?program_id=7), а не первую попавшуюся
+    selected_program_id = request.GET.get('program_id')
+    program = None
+
+    if selected_program_id:
+        try:
+            program = TrainingProgram.objects.get(pk=selected_program_id)
+        except TrainingProgram.DoesNotExist:
+            pass
+
+    # Fallback: если ID не передан или не найден, берём привязанную к плану или первую по категории
+    if not program:
+        if hasattr(plan, 'training_program') and plan.training_program:
+            program = plan.training_program
+        elif group_category:
+            program = TrainingProgram.objects.filter(categories=group_category).first()
+
     # Загрузка предметов (порядок: обычные по алфавиту + экзамен в конце)
     program_subjects = []
-    program = TrainingProgram.objects.filter(categories=group_category).first() if group_category else None
     if program:
         exam_item = None
         other_subjects = []
@@ -97,19 +113,25 @@ def export_plan_graphic_to_excel(request, plan_id):
 
     ru_months_text = {1: 'января', 2: 'февраля', 3: 'марта', 4: 'апреля', 5: 'мая', 6: 'июня',
                       7: 'июля', 8: 'августа', 9: 'сентября', 10: 'октября', 11: 'ноября', 12: 'декабря'}
-    date_str = f'"{plan.date_start.day:02d}" {ru_months_text[plan.date_start.month]} {plan.date_start.year} года'
-    ws.cell(row=row, column=28, value=date_str).font = font_bold
+    ws[f'A{row}'] = f'"{plan.date_start.day:02d}" {ru_months_text[plan.date_start.month]} {plan.date_start.year} года'
+    ws[f'A{row}'].font = font_bold
+    ws.row_dimensions[row].height = 20
     row += 2
 
+    # 🔹 ДИНАМИЧЕСКИЙ ЗАГОЛОВОК
+    base_title = "План-график"
+    if program and program.plan_graphic_title:
+        base_title = program.plan_graphic_title
+
     ws.merge_cells(f'A{row}:AM{row}')
-    title_cell = ws.cell(row=row, column=1,
-                         value='План - график выполнения единой программы подготовки водителей МТС категории "B"')
+    title_cell = ws.cell(row=row, column=1, value=base_title)
     title_cell.font = font_title
     title_cell.alignment = align_center
     row += 2
 
-    ws.merge_cells(f'A{row}:AM{row}')
+    # 🔹 ИСПРАВЛЕНО: убрано дублирование строк с group_num и merge_cells
     group_num = getattr(plan.group, 'group_number', plan.group.id)
+    ws.merge_cells(f'A{row}:AM{row}')
     ws.cell(row=row, column=1, value=f'учебная группа № {group_num}').font = font_bold
     ws.cell(row=row, column=1).alignment = align_center
     row += 2
@@ -123,7 +145,7 @@ def export_plan_graphic_to_excel(request, plan_id):
                 val = datetime.strptime(d, '%Y-%m-%d').strftime('%d.%m.%Y') if isinstance(d, str) else d.strftime(
                     '%d.%m.%Y')
                 formatted.append(val)
-            except:
+            except Exception:
                 pass
         return ', '.join(formatted) if formatted else "—"
 
@@ -155,7 +177,6 @@ def export_plan_graphic_to_excel(request, plan_id):
         if date_key not in class_days: continue
 
         day_data = class_days[date_key]
-        # Сумма часов (исключая служебные поля и 'scheduled')
         day_sum = sum(v for k, v in day_data.items()
                       if not k.startswith('_') and not k.endswith('_topics') and k != 'scheduled'
                       and isinstance(v, (int, float)) and v > 0)
@@ -221,7 +242,7 @@ def export_plan_graphic_to_excel(request, plan_id):
     ws.cell(row=row, column=total_col_idx, value='').border = thin_border
     row += 1
 
-    # Предметы
+    # Предметы (строго из выбранной программы)
     for item in program_subjects:
         code, display_name = item['code'], item['display']
         ws.cell(row=row, column=start_col, value=display_name).font = font_small
@@ -273,5 +294,17 @@ def export_plan_graphic_to_excel(request, plan_id):
 
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     response['Content-Disposition'] = f'attachment; filename*=UTF-8\'\'{quote(filename)}'
-    wb.save(response)
+
+    # =============================================================================
+    # Сохранение копии на диске и отправка
+    # =============================================================================
+    group_folder = Path(r"C:\django\DrSl\Saves") / str(group_num)
+    group_folder.mkdir(parents=True, exist_ok=True)
+    file_path = group_folder / filename
+
+    wb.save(file_path)
+
+    with open(file_path, "rb") as f:
+        response.write(f.read())
+
     return response

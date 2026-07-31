@@ -420,6 +420,13 @@
                    style="width: 100%; padding: 10px; border: 2px solid #e2e8f0; border-radius: 6px;">
         </div>
 
+        <div class="form-group" style="margin-bottom: 24px;">
+    <label style="display: block; font-weight: 600; margin-bottom: 8px;">Заголовок</label>
+    <input type="text" id="planGraphicTitle" class="form-control"
+           value="{{ program.plan_graphic_title|default:'' }}"
+           placeholder="Например: подготовки водителей МТС категории "
+           style="width: 100%; padding: 10px; border: 2px solid #e2e8f0; border-radius: 6px;">
+    </div>
         <!-- Выбор категорий -->
         <div class="categories-section">
             <div class="section-title">🚗 Категории транспортных средств</div>
@@ -761,6 +768,7 @@ function saveProgram() {
     const data = {
         program_id: programId ? parseInt(programId) : null,
         name: name,
+        plan_graphic_title: document.getElementById('planGraphicTitle').value,
         total_hours: totalHours,
         categories: categories,
         subjects: subjects
