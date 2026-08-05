@@ -249,8 +249,13 @@ def schedule_plan_create(request, plan_id=None):
     cal_class_days = plan.class_days if plan else {}
 
     # 🔹 Загружаем сохранённые списки исключений/дополнений
-    excluded_dates_set = set(plan.excluded_dates or [])
-    additional_dates_set = set(plan.additional_dates or [])
+    # 🔹 Безопасная инициализация множеств
+    if plan:
+        excluded_dates_set = set(plan.excluded_dates or [])
+        additional_dates_set = set(plan.additional_dates or [])
+    else:
+        excluded_dates_set = set()
+        additional_dates_set = set()
 
     if cal_start and cal_end:
         if isinstance(cal_start, str): cal_start = datetime.strptime(cal_start, '%Y-%m-%d').date()

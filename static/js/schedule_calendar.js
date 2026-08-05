@@ -1,663 +1,686 @@
-// static/js/schedule_calendar.js
-if (window.scheduleCalendarInstance) {
-    console.log('ℹ️ ScheduleCalendar уже инициализирован');
-} else {
-    class ScheduleCalendar {
-        constructor() {
-            this.currentDayEl = null;
-            this.teacherScheduleData = {};
-            this.mainTeacherData = {};
-            this.medTeacherData = {};
-            this._calendarGenerated = false;
-            this.init();
+/**
+ * schedule_calendar.js — Stable Base v1.6
+ * ✅ Global tooltip with smart positioning
+ * ✅ Tooltip never goes outside viewport
+ * ✅ Better readability
+ */
+
+const CFG = {
+    SLOTS: { MORNING: 'У', DAY: 'Д', EVENING: 'В' },
+    CLS: {
+        DAY: 'cal-day', EMPTY: 'cal-empty', SCHEDULED: 'is-scheduled', WEEKEND: 'is-weekend',
+        MED: 'is-med', CONFLICT: 'is-conflict', INACTIVE: 'is-inactive', NUM: 'cal-num',
+        TEACHER_SLOTS_ROW: 'teacher-slots', CURRENT_SLOTS_ROW: 'current-slots',
+        MED_BADGE: 'med-badge',
+        TOOLTIP: 'cal-tooltip', BOTTOM_ROW: 'bottom-row', MONTH: 'calendar-month',
+        MONTH_TITLE: 'cal-month-title', GRID: 'calendar-grid', HEAD: 'cal-head',
+        SLOT_BADGE: 'slot-badge', SLOT_U: 'slot-u', SLOT_D: 'slot-d', SLOT_V: 'slot-v',
+        SLOT_CONFLICT: 'slot-conflict',
+        TEACHER_INDICATOR: 'teacher-indicator'
+    }
+};
+
+const Utils = {
+    parseDate(str) {
+        if (!str || typeof str !== 'string') return null;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+            const [y, m, d] = str.split('-').map(Number);
+            return new Date(y, m - 1, d);
         }
+        return null;
+    },
+    formatDate(d) {
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    },
+    isScheduledDate(date, type) {
+        const day = date.getDate(), isWk = date.getDay() === 0 || date.getDay() === 6;
+        if (type === 'odd') return day % 2 === 1 && !isWk;
+        if (type === 'even') return day % 2 === 0 && !isWk;
+        if (type === 'weekend') return isWk;
+        return true;
+    },
+    arraysEqual(a, b) {
+        if (!a && !b) return true;
+        if (!a || !b || a.length !== b.length) return false;
+        const sa = [...a].sort(), sb = [...b].sort();
+        for (let i = 0; i < sa.length; i++) if (sa[i] !== sb[i]) return false;
+        return true;
+    },
+    createSlotBadge(slotType) {
+        const span = document.createElement('span');
+        span.className = `${CFG.CLS.SLOT_BADGE} ${slotType === CFG.SLOTS.MORNING ? CFG.CLS.SLOT_U : slotType === CFG.SLOTS.DAY ? CFG.CLS.SLOT_D : CFG.CLS.SLOT_V}`;
+        span.textContent = slotType;
+        span.style.cssText = 'font-size:8px!important;padding:1px 3px!important;border-radius:2px!important;font-weight:600!important;background:#e2e8f0!important;color:#334155!important;white-space:nowrap!important;line-height:1.2!important;margin:0!important;';
+        return span;
+    }
+};
 
-        parseDate(dateStr) {
-            if (!dateStr) return null;
-            if (dateStr.includes('-')) {
-                const [y, m, d] = dateStr.split('-');
-                return new Date(y, m - 1, d);
-            }
-            if (dateStr.includes('.')) {
-                const [d, m, y] = dateStr.split('.');
-                return new Date(y, m - 1, d);
-            }
-            return new Date(dateStr);
-        }
+class ScheduleCalendar {
+    constructor() {
+        this.teacherScheduleData = {};
+        this.mainTeacherData = {};
+        this.medTeacherData = {};
+        this._state = {
+            excludedDates: [],
+            additionalDates: [],
+            currentScheduleType: 'custom',
+            dateStart: null,
+            dateEnd: null,
+            defaultSlotsSnapshot: []
+        };
+        this._elements = {};
+        this._listeners = [];
+        this._debounceTimer = null;
+        this.currentDate = null;
+        this._tooltipEl = null;
+    }
 
-        init() {
-            console.log('🔹 ScheduleCalendar инициализирован');
-            this.bindEvents();
-            this.checkAutoFill();
-            this.bindModalEnter();
-        }
+    init() {
+        this._cacheElements();
+        this._createGlobalTooltip();
+        this._bindEvents();
+    }
 
-        loadAndGenerate() {
-            if (this._calendarGenerated) {
-                console.log('⏭️ Календарь уже сгенерирован, пропускаем автозапуск');
-                return;
-            }
+    _cacheElements() {
+        this._elements = {
+            classDays: document.getElementById('id_class_days'),
+            excluded: document.getElementById('id_excluded_dates'),
+            additional: document.getElementById('id_additional_dates'),
+            dateStart: document.getElementById('id_date_start'),
+            dateEnd: document.getElementById('id_date_end'),
+            scheduleType: document.getElementById('id_schedule_type'),
+            timeMorning: document.getElementById('id_time_morning'),
+            timeDay: document.getElementById('id_time_day'),
+            timeEvening: document.getElementById('id_time_evening'),
+            monthsContainer: document.getElementById('months-container'),
+            modal: document.getElementById('day-modal'),
+            del: document.getElementById('m-del'),
+            mTitle: document.getElementById('m-title'),
+            mDate: document.getElementById('m-date'),
+            mSlotU: document.getElementById('m-slot-u'),
+            mSlotD: document.getElementById('m-slot-d'),
+            mSlotV: document.getElementById('m-slot-v'),
+            mMed: document.getElementById('m-med-toggle'),
+            mWarn: document.getElementById('m-conflict-warn')
+        };
+    }
 
-            const dateStartEl = document.getElementById('id_date_start');
-            const dateEndEl = document.getElementById('id_date_end');
-            const scheduleTypeEl = document.getElementById('id_schedule_type');
-            const hiddenInput = document.getElementById('id_class_days');
+    _createGlobalTooltip() {
+        if (this._tooltipEl) return;
+        this._tooltipEl = document.createElement('div');
+        this._tooltipEl.id = 'global-cal-tooltip';
+        this._tooltipEl.className = CFG.CLS.TOOLTIP;
+        this._tooltipEl.style.cssText = [
+            'position:fixed',
+            'z-index:99999',
+            'min-width:240px',
+            'max-width:320px',
+            'padding:12px 14px',
+            'background:#ffffff',
+            'border:2px solid #334155',
+            'border-radius:8px',
+            'box-shadow:0 8px 24px rgba(0,0,0,0.35)',
+            'font-size:12px',
+            'line-height:1.6',
+            'color:#0f172a',
+            'display:none',
+            'pointer-events:none',
+            'opacity:0',
+            'white-space:normal',
+            'text-align:left',
+            'box-sizing:border-box',
+            'transition:opacity 0.15s ease'
+        ].join(';');
+        document.body.appendChild(this._tooltipEl);
+    }
 
-            const dateStart = dateStartEl?.value;
-            const dateEnd = dateEndEl?.value;
-            const scheduleType = scheduleTypeEl?.value || 'custom';
+    updateTeachers(rawData) {
+        if (!rawData || typeof rawData !== 'object') return;
+        this.teacherScheduleData = {};
+        this.mainTeacherData = {};
+        this.medTeacherData = {};
 
-            if (dateStart && dateEnd) {
-                console.log('📅 Автозапуск генерации:', dateStart, dateEnd, scheduleType);
-                let savedDays = {};
-                if (hiddenInput?.value && hiddenInput.value !== '{}') {
-                    try { savedDays = JSON.parse(hiddenInput.value); } catch(e) {}
+        for (const [date, slots] of Object.entries(rawData)) {
+            if (!Array.isArray(slots)) continue;
+            const main = [], med = [];
+            slots.forEach(item => {
+                const ind = typeof item === 'string' ? item : (item.ind || item.slot);
+                const isMed = typeof item === 'object' && (item.is_med || item.isMed);
+                if (!ind) return;
+                const obj = { ind, isMed, group: typeof item === 'object' ? (item.group || '') : '', location: typeof item === 'object' ? (item.location || '') : '' };
+                if (isMed) {
+                    med.push(obj);
+                    this.medTeacherData[date] = this.medTeacherData[date] || [];
+                    this.medTeacherData[date].push(obj);
+                } else {
+                    main.push(obj);
+                    this.mainTeacherData[date] = this.mainTeacherData[date] || [];
+                    this.mainTeacherData[date].push(obj);
                 }
-                this.generateCalendar(dateStart, dateEnd, scheduleType, savedDays);
-            }
-        }
-
-        bindModalEnter() {
-            const handleEnter = (e, isEndField = false) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    if (isEndField) this.saveModal();
-                }
-            };
-            document.getElementById('m-slot-v')?.addEventListener('keydown', (e) => handleEnter(e, true));
-        }
-
-        bindEvents() {
-            const modal = document.getElementById('day-modal');
-            const delBtn = document.getElementById('m-del');
-            if (delBtn) delBtn.addEventListener('click', () => this.deleteDay());
-            if (modal) modal.addEventListener('click', (e) => { if (e.target === modal) this.closeModal(); });
-
-            const groupSelect = document.getElementById('id_group');
-            if (groupSelect) {
-                groupSelect.addEventListener('change', (e) => {
-                    const groupId = e.target.value;
-                    if (groupId) this.fillFormFromGroup(groupId);
-                });
-            }
-            this.bindPeriodChange();
-        }
-
-        bindPeriodChange() {
-            const dateStart = document.getElementById('id_date_start');
-            const dateEnd = document.getElementById('id_date_end');
-            const scheduleType = document.getElementById('id_schedule_type');
-
-            const updateCalendar = () => {
-                const start = dateStart?.value;
-                const end = dateEnd?.value;
-                const type = scheduleType?.value;
-                if (start && end) {
-                    console.log(' Пересоздание календаря:', start, end, type);
-                    const classDaysInput = document.getElementById('id_class_days');
-                    if (classDaysInput && type && type !== 'custom') {
-                        classDaysInput.value = '{}';
-                    }
-                    this.generateCalendar(start, end, type || 'custom', {});
-                }
-            };
-            if (dateStart) dateStart.addEventListener('change', updateCalendar);
-            if (dateEnd) dateEnd.addEventListener('change', updateCalendar);
-            if (scheduleType) scheduleType.addEventListener('change', updateCalendar);
-        }
-
-        openDayModal(el) {
-            this.currentDayEl = el;
-            const date = el.dataset.date;
-            const isScheduled = el.dataset.scheduled === 'true';
-            const dayData = el.dataset.daydata ? JSON.parse(el.dataset.daydata) : {};
-
-            document.getElementById('m-title').textContent = ` ${date}`;
-            document.getElementById('m-date').value = date;
-            document.getElementById('m-del').style.display = isScheduled ? 'inline-block' : 'none';
-
-            let selectedSlots = dayData.slots || [];
-            const useDefault = selectedSlots.length === 0 || dayData._useDefault === true;
-
-            if (useDefault) {
-                selectedSlots = [];
-                if (document.getElementById('id_time_morning')?.checked) selectedSlots.push('У');
-                if (document.getElementById('id_time_day')?.checked) selectedSlots.push('Д');
-                if (document.getElementById('id_time_evening')?.checked) selectedSlots.push('В');
-            }
-
-            document.getElementById('m-slot-u').checked = selectedSlots.includes('У');
-            document.getElementById('m-slot-d').checked = selectedSlots.includes('Д');
-            document.getElementById('m-slot-v').checked = selectedSlots.includes('В');
-            document.getElementById('m-med-toggle').checked = dayData.med || false;
-
-            const teacherSlots = dayData.med ? this.medTeacherData : this.mainTeacherData;
-            const relevantData = (teacherSlots[date] || []).map(item => typeof item === 'object' ? item.ind : item);
-            const hasConflict = selectedSlots.some(s => relevantData.includes(s));
-            document.getElementById('m-conflict-warn').style.display = hasConflict ? 'block' : 'none';
-
-            document.getElementById('day-modal').style.display = 'flex';
-        }
-
-        closeModal() {
-            document.getElementById('day-modal').style.display = 'none';
-            this.currentDayEl = null;
-        }
-
-        saveModal() {
-            if (!this.currentDayEl) return;
-
-            const slots = [];
-            if (document.getElementById('m-slot-u').checked) slots.push('У');
-            if (document.getElementById('m-slot-d').checked) slots.push('Д');
-            if (document.getElementById('m-slot-v').checked) slots.push('В');
-
-            const isMed = document.getElementById('m-med-toggle').checked;
-
-            const dayData = {
-                slots: [...slots],
-                med: isMed,
-                scheduled: slots.length > 0,
-                _useDefault: false
-            };
-
-            this.currentDayEl.dataset.scheduled = slots.length > 0 ? 'true' : 'false';
-            if (slots.length > 0) this.currentDayEl.classList.add('is-scheduled');
-            else this.currentDayEl.classList.remove('is-scheduled');
-
-            this.currentDayEl.dataset.daydata = JSON.stringify(dayData);
-            this.updateCellVisuals(this.currentDayEl, dayData);
-            this.updateJSON();
-            this.closeModal();
-        }
-
-        deleteDay() {
-            if (!this.currentDayEl) return;
-
-            const dateStr = this.currentDayEl.dataset.date;
-            console.log('🗑️ Удаление дня:', dateStr);
-
-            const excludedInput = document.getElementById('id_excluded_dates');
-            if (excludedInput) {
-                let excluded = [];
-                try {
-                    let rawValue = excludedInput.value.replace(/'/g, '"');
-                    excluded = JSON.parse(rawValue) || [];
-                } catch(e) {
-                    console.warn('⚠️ Ошибка парсинга excluded_dates:', e);
-                    excluded = [];
-                }
-
-                if (!excluded.includes(dateStr)) {
-                    excluded.push(dateStr);
-                    excluded.sort();
-                    excludedInput.value = JSON.stringify(excluded);
-                    console.log('✅ Обновлено excluded_dates:', excluded);
-                }
-            }
-
-            const additionalInput = document.getElementById('id_additional_dates');
-            if (additionalInput) {
-                let additional = [];
-                try {
-                    let rawValue = additionalInput.value.replace(/'/g, '"');
-                    additional = JSON.parse(rawValue) || [];
-                } catch(e) {}
-                const idx = additional.indexOf(dateStr);
-                if (idx > -1) {
-                    additional.splice(idx, 1);
-                    additionalInput.value = JSON.stringify(additional);
-                }
-            }
-
-            // 🔹 Очищаем часы из class_days для этого дня
-            const classDaysInput = document.getElementById('id_class_days');
-            if (classDaysInput) {
-                try {
-                    let classDays = JSON.parse(classDaysInput.value) || {};
-                    if (classDays[dateStr]) {
-                        delete classDays[dateStr];
-                        classDaysInput.value = JSON.stringify(classDays);
-                        console.log('🗑️ Часы дня удалены из class_days:', dateStr);
-                    }
-                } catch(e) {
-                    console.warn('⚠️ Ошибка очистки class_days:', e);
-                }
-            }
-
-            this.currentDayEl.classList.remove('is-scheduled', 'is-med', 'is-conflict');
-            this.currentDayEl.dataset.scheduled = 'false';
-            this.currentDayEl.dataset.daydata = JSON.stringify({
-                slots: [],
-                med: false,
-                scheduled: false,
-                _useDefault: false
+                this.teacherScheduleData[date] = this.teacherScheduleData[date] || [];
+                this.teacherScheduleData[date].push(obj);
             });
-
-            this.updateCellVisuals(this.currentDayEl, {slots: [], med: false});
-            this.updateJSON();
-            this.closeModal();
         }
+        this._refreshVisibleDays();
+        this._enforceLayoutAll();
+    }
 
-        updateCellVisuals(el, dayData) {
-            const slots = dayData.slots || [];
-            const dateStr = el.dataset.date;
+    _refreshVisibleDays() {
+        if (!this._elements.monthsContainer) return;
+        this._elements.monthsContainer.querySelectorAll('.cal-day:not(.cal-empty)').forEach(el => this._updateDayVisuals(el));
+    }
 
-            let slotsHtml = '';
-            if (slots.length > 0) {
-                slotsHtml = `<div style="display:flex;gap:2px;margin-top:2px;justify-content:flex-start;flex-wrap:wrap;">
-                    ${slots.map(ind => {
-                        const styles = { 'У': { bg: '#fef3c7', cl: '#b45309' }, 'Д': { bg: '#dbeafe', cl: '#1d4ed8' }, 'В': { bg: '#ede9fe', cl: '#7c3aed' } };
-                        const s = styles[ind] || styles['Д'];
-                        return `<span style="font-size:10px;font-weight:700;color:${s.cl};background:${s.bg};padding:2px 6px;border-radius:4px;line-height:1.2;">${ind}</span>`;
-                    }).join('')}
-                </div>`;
-            }
+    _enforceLayoutAll() {
+        if (!this._elements.monthsContainer) return;
+        this._elements.monthsContainer.querySelectorAll('.cal-day:not(.cal-empty)').forEach(el => this._enforceLayout(el));
+    }
 
-            let teacherIndicatorsHtml = '';
-            if (this.teacherScheduleData[dateStr]) {
-                 teacherIndicatorsHtml = `<div style="display:flex;gap:2px;margin-top:2px;justify-content:flex-end;flex-wrap:wrap;">
-                    ${this.teacherScheduleData[dateStr].map(item => {
-                        const ind = typeof item === 'object' ? item.ind : item;
-                        const isMed = typeof item === 'object' ? (item.is_med || false) : false;
-                        const styles = { 'У': { bg: '#fef3c7', cl: '#b45309' }, 'Д': { bg: '#dbeafe', cl: '#1d4ed8' }, 'В': { bg: '#ede9fe', cl: '#7c3aed' } };
-                        const s = styles[ind] || styles['Д'];
-                        const medBadge = isMed ? ' <span style="color:#22c55e;font-weight:800;"></span>' : '';
-                        return `<span style="font-size:9px;font-weight:600;color:${s.cl};background:${s.bg};padding:1px 4px;border-radius:4px;line-height:1.2;opacity:0.8;">${ind}${medBadge}</span>`;
-                    }).join('')}
-                </div>`;
-            }
-
-            let medHtml = '';
-            if (dayData.med) {
-                el.classList.add('is-med');
-                medHtml = `<div class="med-indicator">✚</div>`;
-            } else {
-                el.classList.remove('is-med');
-                const existingMed = el.querySelector('.med-indicator');
-                if (existingMed) existingMed.remove();
-            }
-
-            let hasConflict = false;
-            if (dayData.med) {
-                const medSlots = (this.medTeacherData[dateStr] || []).map(item => typeof item === 'object' ? item.ind : item);
-                hasConflict = slots.some(s => medSlots.includes(s));
-            } else {
-                const mainSlots = (this.mainTeacherData[dateStr] || []).map(item => typeof item === 'object' ? item.ind : item);
-                hasConflict = slots.some(s => mainSlots.includes(s));
-            }
-
-            if (hasConflict) el.classList.add('is-conflict');
-            else el.classList.remove('is-conflict');
-
-            el.innerHTML = `
-                <span class="cal-num">${el.dataset.date.split('-')[2]}</span>
-                ${medHtml}
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-top:2px;">
-                    ${slotsHtml}
-                    ${teacherIndicatorsHtml}
-                </div>
-            `;
+    _enforceLayout(el) {
+        const bottomRow = el.querySelector('.bottom-row');
+        if (bottomRow) {
+            bottomRow.style.cssText = 'display:flex!important;flex-direction:row!important;justify-content:space-between!important;align-items:flex-start!important;gap:2px!important;margin-top:2px!important;width:100%!important;';
         }
-
-        updateJSON() {
-            const days = {};
-            document.querySelectorAll('.cal-day.is-scheduled').forEach(el => {
-                const data = JSON.parse(el.dataset.daydata || '{}');
-                data.scheduled = true;
-                days[el.dataset.date] = data;
-            });
-            const hiddenInput = document.getElementById('id_class_days');
-            if (hiddenInput) hiddenInput.value = JSON.stringify(days);
+        const teacherSlots = el.querySelector('.teacher-slots');
+        if (teacherSlots) {
+            teacherSlots.style.cssText = 'display:flex!important;flex-direction:column!important;gap:1px!important;align-items:flex-start!important;margin:0!important;flex:0 0 auto!important;';
         }
-
-        calculateDateLogs() {
-            const startDate = document.getElementById('id_date_start')?.value;
-            const endDate = document.getElementById('id_date_end')?.value;
-            const scheduleType = document.getElementById('id_schedule_type')?.value || 'custom';
-
-            if (!startDate || !endDate) return;
-
-            const startObj = this.parseDate(startDate);
-            const endObj = this.parseDate(endDate);
-
-            const idealDates = new Set();
-            let current = new Date(startObj);
-
-            while (current <= endObj) {
-                const dateStr = current.toISOString().split('T')[0];
-                const day = current.getDate();
-                const dayOfWeek = current.getDay();
-                const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
-
-                let shouldBeScheduled = false;
-                if (scheduleType === 'odd') {
-                    if (day % 2 === 1 && !isWeekend) shouldBeScheduled = true;
-                } else if (scheduleType === 'even') {
-                    if (day % 2 === 0 && !isWeekend) shouldBeScheduled = true;
-                } else if (scheduleType === 'weekend') {
-                    if (isWeekend) shouldBeScheduled = true;
-                }
-
-                if (shouldBeScheduled) idealDates.add(dateStr);
-                current.setDate(current.getDate() + 1);
-            }
-
-            const actualDates = new Set();
-            document.querySelectorAll('.cal-day.is-scheduled').forEach(el => {
-                actualDates.add(el.dataset.date);
-            });
-
-            const excluded = [];
-            const additional = [];
-
-            idealDates.forEach(date => { if (!actualDates.has(date)) excluded.push(date); });
-            actualDates.forEach(date => { if (!idealDates.has(date)) additional.push(date); });
-
-            excluded.sort();
-            additional.sort();
-
-            const exclInput = document.getElementById('id_excluded_dates');
-            const addInput = document.getElementById('id_additional_dates');
-            if (exclInput) exclInput.value = JSON.stringify(excluded);
-            if (addInput) addInput.value = JSON.stringify(additional);
-
-            console.log('📝 Лог дат обновлен:', { excluded, additional });
-        }
-
-        async fillFormFromGroup(groupId) {
-            console.log('🔄 Загрузка данных для группы:', groupId);
-            try {
-                const response = await fetch(`/groups/api/groups/${groupId}/data/`, { headers: { 'X-Requested-With': 'XMLHttpRequest' }});
-                if (!response.ok) throw new Error('Network response was not ok');
-                const data = await response.json();
-
-                this.setField('id_teacher', data.teacher_id);
-                this.setField('id_date_start', data.contract_start);
-                this.setField('id_date_end', data.contract_end);
-                this.setField('id_schedule_type', data.schedule_type);
-                this.setField('id_duration_display', data.duration);
-                this.setField('id_category_display', data.category);
-
-                if (data.location) {
-                    const classroomSelect = document.getElementById('id_classroom');
-                    const locationHidden = document.getElementById('id_location');
-                    if (classroomSelect) classroomSelect.value = data.location;
-                    if (locationHidden) locationHidden.value = data.location;
-                }
-            } catch (error) {
-                console.error('❌ Ошибка загрузки данных группы:', error);
-            }
-        }
-
-        setField(fieldId, value) {
-            const field = document.getElementById(fieldId);
-            if (field && value !== undefined && value !== null) { field.value = value; }
-        }
-
-        generateCalendar(dateStart, dateEnd, scheduleType, savedDays = null) {
-            const excludedInput = document.getElementById('id_excluded_dates');
-            console.log('🔍 ОТЛАДКА excluded_dates:', {
-                'element': excludedInput,
-                'value': excludedInput ? excludedInput.value : 'NOT FOUND',
-                'type': typeof excludedInput?.value
-            });
-
-            if (this._calendarGenerated) {
-                console.log('⏭️ Календарь уже сгенерирован, пропускаем');
-                return false;
-            }
-            this._calendarGenerated = true;
-
-            console.log('🔹 Генерация календаря:', dateStart, dateEnd, scheduleType);
-            const startObj = this.parseDate(dateStart);
-            const endObj = this.parseDate(dateEnd);
-
-            if (!startObj || !endObj || isNaN(startObj.getTime()) || isNaN(endObj.getTime())) {
-                console.error('❌ Некорректные даты:', dateStart, dateEnd);
-                return false;
-            }
-
-            const container = document.getElementById('months-container');
-            if (!container) return false;
-            container.innerHTML = '';
-
-            const monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
-            const dayNames = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
-
-            if (!savedDays) {
-                const hiddenInput = document.getElementById('id_class_days');
-                if (hiddenInput?.value) { try { savedDays = JSON.parse(hiddenInput.value); } catch(e) { savedDays = {}; } }
-            }
-            if (!savedDays) savedDays = {};
-
-            const startStr = dateStart.includes('-') ? dateStart : dateStart.split('.').reverse().join('-');
-            const endStr = dateEnd.includes('-') ? dateEnd : dateEnd.split('.').reverse().join('-');
-
-            let currentMonth = new Date(startObj.getFullYear(), startObj.getMonth(), 1);
-            const endMonth = new Date(endObj.getFullYear(), endObj.getMonth(), 1);
-
-            while (currentMonth <= endMonth) {
-                const year = currentMonth.getFullYear();
-                const month = currentMonth.getMonth();
-
-                const monthDiv = document.createElement('div');
-                monthDiv.className = 'calendar-month';
-                const titleDiv = document.createElement('div');
-                titleDiv.className = 'cal-month-title';
-                titleDiv.textContent = `${monthNames[month]} ${year}`;
-                monthDiv.appendChild(titleDiv);
-
-                const gridDiv = document.createElement('div');
-                gridDiv.className = 'calendar-grid';
-                dayNames.forEach(name => {
-                    const header = document.createElement('div');
-                    header.className = 'cal-head';
-                    header.textContent = name;
-                    gridDiv.appendChild(header);
-                });
-
-                const firstDayDate = new Date(year, month, 1);
-                let startDayOfWeek = firstDayDate.getDay() || 7;
-                for (let i = 1; i < startDayOfWeek; i++) {
-                    const emptyEl = document.createElement('div');
-                    emptyEl.className = 'cal-day cal-empty';
-                    gridDiv.appendChild(emptyEl);
-                }
-
-                const daysInMonth = new Date(year, month + 1, 0).getDate();
-                for (let day = 1; day <= daysInMonth; day++) {
-                    const thisDate = new Date(year, month, day);
-                    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-
-                    const dayOfWeek = thisDate.getDay();
-                    const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
-                    const isInPeriod = dateStr >= startStr && dateStr <= endStr;
-
-                    const isSaved = savedDays[dateStr];
-                    const dayData = isSaved ? {...isSaved} : {};
-
-                    if (!dayData.slots || dayData.slots.length === 0) {
-                        dayData._useDefault = true;
-                    }
-
-                    let isScheduled = false;
-                    const slots = dayData.slots || [];
-                    if (slots.length > 0) {
-                        isScheduled = true;
-                    } else if (isInPeriod) {
-                        if (scheduleType === 'odd') { if (day % 2 === 1 && !isWeekend) isScheduled = true; }
-                        else if (scheduleType === 'even') { if (day % 2 === 0 && !isWeekend) isScheduled = true; }
-                        else if (scheduleType === 'weekend') { if (isWeekend) isScheduled = true; }
-                    }
-
-                    const exclInput = document.getElementById('id_excluded_dates');
-                    let excludedDates = [];
-                    if (exclInput && exclInput.value && exclInput.value !== '[]') {
-                        try {
-                            let rawValue = exclInput.value.replace(/'/g, '"');
-                            excludedDates = JSON.parse(rawValue) || [];
-                        } catch(e) {
-                            console.warn('️ Ошибка парсинга excluded_dates:', e);
-                            excludedDates = [];
-                        }
-                    }
-                    if (excludedDates.includes(dateStr)) {
-                        isScheduled = false;
-                        console.log('⏭️ Исключённый день пропущен:', dateStr);
-                    }
-
-                    const allSlots = this.teacherScheduleData[dateStr] || [];
-                    const mainSlots = allSlots.filter(slot => {
-                        const isMed = typeof slot === 'object' ? (slot.is_med || false) : false;
-                        return !isMed;
-                    }).map(item => typeof item === 'object' ? item.ind : item);
-
-                    const medSlots = allSlots.filter(slot => {
-                        const isMed = typeof slot === 'object' ? (slot.is_med || false) : false;
-                        return isMed;
-                    }).map(item => typeof item === 'object' ? item.ind : item);
-
-                    let hasConflict = false;
-                    const isMedDay = dayData.med || false;
-                    if (isMedDay) {
-                         hasConflict = slots.some(s => medSlots.includes(s));
-                    } else {
-                         hasConflict = slots.some(s => mainSlots.includes(s));
-                    }
-
-                    const dayEl = document.createElement('div');
-                    let classes = 'cal-day';
-                    if (!isInPeriod) classes += ' is-inactive';
-                    else if (isScheduled) classes += ' is-scheduled';
-                    else if (isWeekend) classes += ' is-weekend';
-                    if (dayData.med) classes += ' is-med';
-                    if (hasConflict) classes += ' is-conflict';
-
-                    dayEl.className = classes;
-                    dayEl.dataset.date = dateStr;
-                    dayEl.dataset.scheduled = (isScheduled && isInPeriod) ? 'true' : 'false';
-                    dayEl.dataset.daydata = JSON.stringify(dayData);
-
-                    if (isInPeriod) {
-                        dayEl.onclick = () => window.scheduleCalendarInstance.openDayModal(dayEl);
-                    }
-
-                    let slotsHtml = '';
-                    if (slots.length > 0) {
-                        slotsHtml = `<div style="display:flex;gap:2px;margin-top:2px;justify-content:flex-start;flex-wrap:wrap;">
-                            ${slots.map(ind => {
-                                const styles = { 'У': { bg: '#fef3c7', cl: '#b45309' }, 'Д': { bg: '#dbeafe', cl: '#1d4ed8' }, 'В': { bg: '#ede9fe', cl: '#7c3aed' } };
-                                const s = styles[ind] || styles['Д'];
-                                return `<span style="font-size:10px;font-weight:700;color:${s.cl};background:${s.bg};padding:2px 6px;border-radius:4px;line-height:1.2;">${ind}</span>`;
-                            }).join('')}
-                        </div>`;
-                    }
-
-                    let teacherIndicatorsHtml = '';
-                    if (allSlots.length > 0) {
-                        teacherIndicatorsHtml = `<div style="display:flex;gap:2px;margin-top:2px;justify-content:flex-end;flex-wrap:wrap;">
-                            ${allSlots.map(item => {
-                                const ind = typeof item === 'object' ? item.ind : item;
-                                const isMed = typeof item === 'object' ? (item.is_med || false) : false;
-                                const styles = { 'У': { bg: '#fef3c7', cl: '#b45309' }, 'Д': { bg: '#dbeafe', cl: '#1d4ed8' }, 'В': { bg: '#ede9fe', cl: '#7c3aed' } };
-                                const s = styles[ind] || styles['Д'];
-                                const medBadge = isMed ? ' <span style="color:#22c55e;font-weight:800;">✚</span>' : '';
-                                return `<span style="font-size:9px;font-weight:600;color:${s.cl};background:${s.bg};padding:1px 4px;border-radius:4px;line-height:1.2;opacity:0.8;">${ind}${medBadge}</span>`;
-                            }).join('')}
-                        </div>`;
-                    }
-
-                    let tooltipContent = '';
-                    if (allSlots.length > 0) {
-                        tooltipContent = allSlots.map(item => {
-                            const ind = typeof item === 'object' ? item.ind : item;
-                            const group = typeof item === 'object' ? item.group : 'Не указано';
-                            const location = typeof item === 'object' ? item.location : 'Не указано';
-                            const isMed = typeof item === 'object' ? (item.is_med || false) : false;
-                            const medBadge = isMed ? ' <span style="color:#22c55e;font-weight:800;">✚</span>' : '';
-                            return `<div style="margin-bottom:4px; border-bottom:1px solid #eee; padding-bottom:4px;">
-                                <strong>⏰ ${ind}${medBadge}</strong><br>
-                                 ${group}<br>
-                                📍 ${location}
-                            </div>`;
-                        }).join('');
-                    }
-
-                    let tooltipHtml = '';
-                    if (tooltipContent) {
-                        tooltipHtml = `<div class="cal-day-tooltip" style="display:none; position:absolute; bottom:100%; left:50%; transform:translateX(-50%); background:white; border:1px solid #cbd5e1; border-radius:8px; padding:8px; box-shadow:0 4px 12px rgba(0,0,0,0.15); z-index:100; width:200px; font-size:12px; text-align:left; pointer-events:none; margin-bottom:5px;">
-                            ${tooltipContent}
-                        </div>`;
-                    }
-
-                    let medHtml = dayData.med ? `<div class="med-indicator">✚</div>` : '';
-
-                    dayEl.innerHTML = `
-                        ${tooltipHtml}
-                        <span class="cal-num">${day}</span>
-                        ${medHtml}
-                        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:2px;">
-                            ${slotsHtml}
-                            ${teacherIndicatorsHtml}
-                        </div>
-                    `;
-
-                    if (tooltipContent) {
-                        dayEl.addEventListener('mouseenter', function() {
-                            const tip = this.querySelector('.cal-day-tooltip');
-                            if (tip) tip.style.display = 'block';
-                        });
-                        dayEl.addEventListener('mouseleave', function() {
-                            const tip = this.querySelector('.cal-day-tooltip');
-                            if (tip) tip.style.display = 'none';
-                        });
-                    }
-
-                    gridDiv.appendChild(dayEl);
-                }
-
-                monthDiv.appendChild(gridDiv);
-                container.appendChild(monthDiv);
-                currentMonth = new Date(year, month + 1, 1);
-            }
-
-            const warningEl = document.querySelector('.calendar-warning');
-            if (warningEl) warningEl.style.display = 'none';
-
-            this.updateJSON();
-            this.showSuccessMessage();
-            console.log('✅ Календарь сгенерирован');
-            return true;
-        }
-
-        showSuccessMessage() {
-            const successDiv = document.createElement('div');
-            successDiv.className = 'auto-fill-message';
-            successDiv.style.cssText = 'background:#dcfce7; border:1px solid #16a34a; border-radius:8px; padding:12px; margin:15px 0; color:#166534; text-align:center;';
-            successDiv.innerHTML = '✅ Календарь сгенерирован!';
-            const oldSuccess = document.querySelector('.auto-fill-message');
-            if (oldSuccess) oldSuccess.remove();
-            const warningEl = document.querySelector('.calendar-warning');
-            const calendarSection = document.querySelector('.calendar-section');
-            if (warningEl && warningEl.parentNode) warningEl.parentNode.insertBefore(successDiv, warningEl);
-            else if (calendarSection) calendarSection.insertBefore(successDiv, calendarSection.firstChild);
-        }
-
-        checkAutoFill() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const groupId = urlParams.get('group');
-            if (groupId) {
-                setTimeout(() => {
-                    const groupSelect = document.getElementById('id_group');
-                    if (groupSelect) { groupSelect.value = groupId; this.fillFormFromGroup(groupId); }
-                }, 300);
-            }
+        const currentSlots = el.querySelector('.current-slots');
+        if (currentSlots) {
+            currentSlots.style.cssText = 'display:flex!important;flex-direction:column!important;gap:1px!important;align-items:flex-end!important;margin:0!important;flex:0 0 auto!important;margin-left:auto!important;';
         }
     }
 
-    document.addEventListener('DOMContentLoaded', () => { window.scheduleCalendarInstance = new ScheduleCalendar(); });
-    window.openDayModal = (el) => { if (window.scheduleCalendarInstance) window.scheduleCalendarInstance.openDayModal(el); };
-    window.closeModal = () => { if (window.scheduleCalendarInstance) window.scheduleCalendarInstance.closeModal(); };
-    window.saveModal = () => { if (window.scheduleCalendarInstance) window.scheduleCalendarInstance.saveModal(); };
+    _checkConflict(dateStr, slots, isMed) {
+        const result = { hasConflict: false, conflictSlots: new Set() };
+        if (!slots?.length) return result;
+        const mainData = this.mainTeacherData[dateStr] || [];
+        const medData = this.medTeacherData[dateStr] || [];
+        const allTeacherData = [...mainData, ...medData];
+        for (const slot of slots) {
+            for (const item of allTeacherData) {
+                if (slot === item.ind) {
+                    result.hasConflict = true;
+                    result.conflictSlots.add(slot);
+                    break;
+                }
+            }
+        }
+        return result;
+    }
+
+    generateCalendar(dateStart, dateEnd, scheduleType, savedDays) {
+        const s = Utils.parseDate(dateStart), e = Utils.parseDate(dateEnd);
+        if (!s || !e) return false;
+        this._state.currentScheduleType = scheduleType || 'custom';
+        this._state.dateStart = dateStart;
+        this._state.dateEnd = dateEnd;
+        this._state.defaultSlotsSnapshot = [];
+        if (this._elements.timeMorning?.checked) this._state.defaultSlotsSnapshot.push(CFG.SLOTS.MORNING);
+        if (this._elements.timeDay?.checked) this._state.defaultSlotsSnapshot.push(CFG.SLOTS.DAY);
+        if (this._elements.timeEvening?.checked) this._state.defaultSlotsSnapshot.push(CFG.SLOTS.EVENING);
+        try { this._state.excludedDates = JSON.parse(this._elements.excluded?.value || '[]'); } catch { this._state.excludedDates = []; }
+
+        const frag = document.createDocumentFragment();
+        let cur = new Date(s.getFullYear(), s.getMonth(), 1);
+        const endM = new Date(e.getFullYear(), e.getMonth(), 1);
+        const mNames = ['Янв','Фев','Мар','Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек'];
+
+        while (cur <= endM) {
+            frag.appendChild(this._renderMonth(cur, mNames, savedDays));
+            cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1);
+        }
+        if (this._elements.monthsContainer) this._elements.monthsContainer.replaceChildren(frag);
+        this._enforceLayoutAll();
+        this.calculateDateLogs();
+        this.updateJSON();
+        return true;
+    }
+
+    _renderMonth(date, mNames, savedDays) {
+        const y = date.getFullYear(), m = date.getMonth();
+        const div = document.createElement('div');
+        div.className = CFG.CLS.MONTH;
+        div.innerHTML = `<div class="${CFG.CLS.MONTH_TITLE}">${mNames[m]} ${y}</div>`;
+        const grid = document.createElement('div');
+        grid.className = CFG.CLS.GRID;
+        ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'].forEach(n => {
+            const h = document.createElement('div'); h.className = CFG.CLS.HEAD; h.textContent = n; grid.appendChild(h);
+        });
+        const fd = new Date(y, m, 1).getDay() || 7;
+        for (let i = 1; i < fd; i++) { const el = document.createElement('div'); el.className = `${CFG.CLS.DAY} ${CFG.CLS.EMPTY}`; grid.appendChild(el); }
+        const dim = new Date(y, m + 1, 0).getDate();
+        for (let d = 1; d <= dim; d++) grid.appendChild(this._createDayElement(y, m, d, savedDays));
+        div.appendChild(grid);
+        return div;
+    }
+
+    _createDayElement(y, m, d, savedDays) {
+        const dt = new Date(y, m, d);
+        const dateStr = Utils.formatDate(dt);
+        const isWk = dt.getDay() === 0 || dt.getDay() === 6;
+        const shouldSchedule = Utils.isScheduledDate(dt, this._state.currentScheduleType);
+
+        let dayData = { slots: [], med: false, _useDefault: true, scheduled: false, manuallyRemoved: false };
+        if (savedDays && savedDays[dateStr]) dayData = { ...savedDays[dateStr] };
+        else if (shouldSchedule && !this._state.excludedDates.includes(dateStr)) {
+            dayData.slots = [...this._state.defaultSlotsSnapshot];
+            dayData.scheduled = dayData.slots.length > 0;
+        }
+
+        const el = document.createElement('div');
+        el.className = this._buildClassList(dayData, isWk, shouldSchedule, dateStr);
+        el.dataset.date = dateStr;
+        el.dataset.scheduled = dayData.scheduled ? 'true' : 'false';
+        el.dataset.daydata = JSON.stringify(dayData);
+        el.style.cursor = 'pointer';
+
+        const teacherSlotsRow = document.createElement('div');
+        teacherSlotsRow.className = CFG.CLS.TEACHER_SLOTS_ROW;
+        teacherSlotsRow.style.cssText = 'display:flex!important;flex-direction:column!important;gap:1px!important;align-items:flex-start!important;margin:0!important;flex:0 0 auto!important;';
+        this._renderTeacherSlots(teacherSlotsRow, dateStr, dayData);
+
+        const currentSlotsRow = document.createElement('div');
+        currentSlotsRow.className = CFG.CLS.CURRENT_SLOTS_ROW;
+        currentSlotsRow.style.cssText = 'display:flex!important;flex-direction:column!important;gap:1px!important;align-items:flex-end!important;margin:0!important;flex:0 0 auto!important;margin-left:auto!important;';
+        this._renderCurrentSlots(currentSlotsRow, dateStr, dayData);
+
+        const bottomRow = document.createElement('div');
+        bottomRow.className = CFG.CLS.BOTTOM_ROW;
+        bottomRow.style.cssText = 'display:flex!important;flex-direction:row!important;justify-content:space-between!important;align-items:flex-start!important;gap:2px!important;margin-top:2px!important;width:100%!important;';
+        bottomRow.appendChild(teacherSlotsRow);
+        bottomRow.appendChild(currentSlotsRow);
+
+        const numSpan = document.createElement('span'); numSpan.className = CFG.CLS.NUM; numSpan.textContent = d; el.appendChild(numSpan);
+        if (dayData.med) { const badge = document.createElement('div'); badge.className = CFG.CLS.MED_BADGE; badge.textContent = ''; badge.style.cssText = 'color:#22c55e;font-weight:800;font-size:11px;'; el.appendChild(badge); }
+        el.appendChild(bottomRow);
+        return el;
+    }
+
+    _renderTeacherSlots(container, dateStr, dayData) {
+        container.replaceChildren();
+        const tData = this.teacherScheduleData[dateStr] || [];
+        if (!tData.length) return;
+
+        const conflictInfo = this._checkConflict(dateStr, dayData.slots || [], dayData.med);
+        const conflictInds = new Set();
+        tData.forEach(item => {
+            if (conflictInfo.conflictSlots.has(item.ind)) conflictInds.add(item.ind);
+        });
+
+        tData.forEach(item => {
+            if (!item.ind) return;
+            const span = document.createElement('span');
+            span.className = `${CFG.CLS.SLOT_BADGE} ${item.ind === CFG.SLOTS.MORNING ? CFG.CLS.SLOT_U : item.ind === CFG.SLOTS.DAY ? CFG.CLS.SLOT_D : CFG.CLS.SLOT_V}`;
+            span.textContent = item.ind;
+            const isConflicted = conflictInds.has(item.ind);
+            span.style.cssText = isConflicted
+                ? 'font-size:8px!important;padding:1px 3px!important;border-radius:2px!important;font-weight:700!important;background:#fecaca!important;color:#991b1b!important;white-space:nowrap!important;line-height:1.2!important;margin:0!important;border:1px solid #ef4444!important;box-shadow:0 0 0 1px #ef4444!important;'
+                : 'font-size:8px!important;padding:1px 3px!important;border-radius:2px!important;font-weight:600!important;background:#e2e8f0!important;color:#334155!important;white-space:nowrap!important;line-height:1.2!important;margin:0!important;';
+            if (isConflicted) span.title = '️ Конфликт с расписанием';
+            container.appendChild(span);
+        });
+    }
+
+    _renderCurrentSlots(container, dateStr, dayData) {
+        container.replaceChildren();
+        if (dayData.manuallyRemoved) return;
+
+        const conflictInfo = this._checkConflict(dateStr, dayData.slots || [], dayData.med);
+
+        (dayData.slots || []).forEach(s => {
+            const span = document.createElement('span');
+            span.className = `${CFG.CLS.SLOT_BADGE} ${s === CFG.SLOTS.MORNING ? CFG.CLS.SLOT_U : s === CFG.SLOTS.DAY ? CFG.CLS.SLOT_D : CFG.CLS.SLOT_V}`;
+            span.textContent = s;
+            const isConflicted = conflictInfo.conflictSlots.has(s);
+            span.style.cssText = isConflicted
+                ? 'font-size:8px!important;padding:1px 3px!important;border-radius:2px!important;font-weight:700!important;background:#fecaca!important;color:#991b1b!important;white-space:nowrap!important;line-height:1.2!important;margin:0!important;border:1px solid #ef4444!important;box-shadow:0 0 0 1px #ef4444!important;'
+                : 'font-size:8px!important;padding:1px 3px!important;border-radius:2px!important;font-weight:600!important;background:#dbeafe!important;color:#1e40af!important;white-space:nowrap!important;line-height:1.2!important;margin:0!important;';
+            if (isConflicted) span.title = `⚠️ Конфликт: ${dayData.med ? 'мед.' : 'осн.'} преподаватель занят в это время`;
+            container.appendChild(span);
+        });
+    }
+
+    _buildClassList(dayData, isWk, shouldSchedule, dateStr) {
+        const classes = [CFG.CLS.DAY];
+        const isManuallyRemoved = dayData.manuallyRemoved;
+        if (isManuallyRemoved) {
+            classes.push(CFG.CLS.INACTIVE);
+        } else if (dayData.scheduled) {
+            classes.push(CFG.CLS.SCHEDULED);
+        } else if (!shouldSchedule) {
+            classes.push(CFG.CLS.INACTIVE);
+        }
+        if (isWk) classes.push(CFG.CLS.WEEKEND);
+        if (dayData.med) classes.push(CFG.CLS.MED);
+        if (this._hasConflict(dateStr, dayData.slots, dayData.med)) classes.push(CFG.CLS.CONFLICT);
+        return classes.filter(Boolean).join(' ');
+    }
+
+    _hasConflict(dateStr, slots, isMed) {
+        return this._checkConflict(dateStr, slots, isMed).hasConflict;
+    }
+
+    _showTooltip(targetEl, dateStr) {
+        if (!this._tooltipEl) this._createGlobalTooltip();
+        const tData = this.teacherScheduleData[dateStr];
+        if (!tData?.length) {
+            this._hideTooltip();
+            return;
+        }
+
+        const listHtml = tData.map((item) => {
+            if (!item.ind) return '';
+            const timeClass = item.ind === 'У' ? 'morning' : item.ind === 'Д' ? 'day' : 'evening';
+            const loc = item.location || '— адрес не указан —';
+            return `<div class="tooltip-item">
+                <span class="time-badge ${timeClass}">${item.ind}</span>
+                <span class="tooltip-location">${loc}</span>
+                ${item.isMed ? '<span class="med-icon" title="Медицина">✚</span>' : ''}
+            </div>`;
+        }).join('');
+
+        const groups = [...new Set(tData.map(i => i.group).filter(Boolean))];
+        const groupHtml = groups.length > 0
+            ? `<div class="tooltip-group">${groups.length === 1 ? 'Группа: ' + groups[0] : 'Группы: ' + groups.join(', ')}</div>`
+            : '';
+
+        this._tooltipEl.innerHTML = `
+            <div class="tooltip-header">📅 Занятое расписание</div>
+            <div>${listHtml}</div>
+            ${groupHtml}
+        `;
+
+        // ✅ Показываем тултип СНАЧАЛА (чтобы получить размеры)
+        this._tooltipEl.classList.add('show');
+        this._tooltipEl.style.display = 'block';
+        this._tooltipEl.style.opacity = '1';
+
+        // Получаем размеры
+        const tipRect = this._tooltipEl.getBoundingClientRect();
+        const targetRect = targetEl.getBoundingClientRect();
+        const margin = 10;
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+
+        // ✅ Умное позиционирование: пробуем сверху, если не влезает — снизу
+        let top = targetRect.top - tipRect.height - margin;
+        let left = targetRect.left + targetRect.width / 2 - tipRect.width / 2;
+
+        // Проверяем, влезает ли сверху
+        const fitsTop = top >= margin;
+        const fitsBottom = (targetRect.bottom + tipRect.height + margin) <= (vh - margin);
+
+        if (!fitsTop && fitsBottom) {
+            // Показываем снизу
+            top = targetRect.bottom + margin;
+        }
+
+        // ✅ Clamp по горизонтали
+        if (left < margin) {
+            left = margin;
+        } else if (left + tipRect.width > vw - margin) {
+            left = vw - tipRect.width - margin;
+        }
+
+        // ✅ Clamp по вертикали
+        if (top < margin) top = margin;
+        if (top + tipRect.height > vh - margin) {
+            top = vh - tipRect.height - margin;
+        }
+
+        // Применяем позицию
+        this._tooltipEl.style.left = `${Math.round(left)}px`;
+        this._tooltipEl.style.top = `${Math.round(top)}px`;
+    }
+
+    _hideTooltip() {
+        if (this._tooltipEl) {
+            this._tooltipEl.classList.remove('show');
+            this._tooltipEl.style.opacity = '0';
+            setTimeout(() => {
+                if (this._tooltipEl && !this._tooltipEl.classList.contains('show')) {
+                    this._tooltipEl.style.display = 'none';
+                    this._tooltipEl.innerHTML = '';
+                }
+            }, 150);
+        }
+    }
+
+    _updateDayVisuals(el) {
+        const date = el.dataset.date; if (!date) return;
+        let dayData = {}; try { dayData = JSON.parse(el.dataset.daydata || '{}'); } catch (e) {}
+        const dt = Utils.parseDate(date); if (!dt) return;
+        const isWk = dt.getDay() === 0 || dt.getDay() === 6;
+        const shouldSchedule = Utils.isScheduledDate(dt, this._state.currentScheduleType);
+
+        el.className = this._buildClassList(dayData, isWk, shouldSchedule, date);
+        el.dataset.scheduled = (dayData.scheduled && !dayData.manuallyRemoved) ? 'true' : 'false';
+
+        const teacherSlotsRow = el.querySelector('.teacher-slots');
+        if (teacherSlotsRow) this._renderTeacherSlots(teacherSlotsRow, date, dayData);
+
+        const currentSlotsRow = el.querySelector('.current-slots');
+        if (currentSlotsRow) this._renderCurrentSlots(currentSlotsRow, date, dayData);
+
+        let mi = el.querySelector('.med-badge');
+        if (dayData.med && !mi) {
+            const badge = document.createElement('div');
+            badge.className = CFG.CLS.MED_BADGE;
+            badge.textContent = '';
+            badge.style.cssText = 'color:#22c55e;font-weight:800;font-size:11px;';
+            const br = el.querySelector('.bottom-row');
+            if (br) el.insertBefore(badge, br);
+        } else if (!dayData.med && mi) {
+            mi.remove();
+        }
+
+        this._enforceLayout(el);
+    }
+
+    openDayModal(el) {
+        if (!el?.dataset?.date) return;
+        this.currentDate = el.dataset.date;
+        if (this._elements.mTitle) this._elements.mTitle.textContent = this.currentDate;
+        if (this._elements.mDate) this._elements.mDate.value = this.currentDate;
+        let dayData = {}; try { dayData = JSON.parse(el.dataset.daydata || '{}'); } catch (e) {}
+        if (this._elements.del) this._elements.del.style.display = (dayData.scheduled || dayData.manuallyRemoved) ? 'inline-block' : 'none';
+        const slots = dayData.slots || [];
+        if (this._elements.mSlotU) this._elements.mSlotU.checked = slots.includes('У');
+        if (this._elements.mSlotD) this._elements.mSlotD.checked = slots.includes('Д');
+        if (this._elements.mSlotV) this._elements.mSlotV.checked = slots.includes('В');
+        if (this._elements.mMed) this._elements.mMed.checked = dayData.med || false;
+        if (this._elements.modal) this._elements.modal.style.display = 'flex';
+    }
+
+    saveModal() {
+        if (!this.currentDate) return;
+        const el = this._elements.monthsContainer?.querySelector(`.cal-day[data-date="${this.currentDate}"]`); if (!el) return;
+        const slots = [];
+        if (this._elements.mSlotU?.checked) slots.push('У');
+        if (this._elements.mSlotD?.checked) slots.push('Д');
+        if (this._elements.mSlotV?.checked) slots.push('В');
+        let dayData = {}; try { dayData = JSON.parse(el.dataset.daydata || '{}'); } catch (e) {}
+        dayData._useDefault = false;
+        dayData.manuallyRemoved = false;
+        dayData.slots = slots;
+        dayData.med = this._elements.mMed?.checked || false;
+        dayData.scheduled = slots.length > 0;
+        if (slots.length > 0) {
+            const idx = this._state.excludedDates.indexOf(this.currentDate);
+            if (idx > -1) {
+                this._state.excludedDates.splice(idx, 1);
+                if (this._elements.excluded) this._elements.excluded.value = JSON.stringify(this._state.excludedDates);
+            }
+        }
+        el.dataset.daydata = JSON.stringify(dayData);
+        this._updateDayVisuals(el);
+        this.closeModal();
+        this.updateJSON();
+    }
+
+    deleteDay() {
+        if (!this.currentDate) return;
+        const el = this._elements.monthsContainer?.querySelector(`.cal-day[data-date="${this.currentDate}"]`); if (!el) return;
+        let dayData = {}; try { dayData = JSON.parse(el.dataset.daydata || '{}'); } catch (e) {}
+        dayData.scheduled = false;
+        dayData.manuallyRemoved = true;
+        dayData.slots = [];
+        dayData.med = false;
+        dayData._useDefault = false;
+        el.dataset.daydata = JSON.stringify(dayData);
+        if (!this._state.excludedDates.includes(this.currentDate)) {
+            this._state.excludedDates.push(this.currentDate);
+            this._state.excludedDates.sort();
+            if (this._elements.excluded) {
+                this._elements.excluded.value = JSON.stringify(this._state.excludedDates);
+            }
+        }
+        this._updateDayVisuals(el);
+        this.closeModal();
+        this.updateJSON();
+    }
+
+    closeModal() {
+        if (this._elements.modal) this._elements.modal.style.display = 'none';
+        this.currentDate = null;
+    }
+
+    updateJSON() {
+        const days = {};
+        this._elements.monthsContainer?.querySelectorAll('.cal-day').forEach(el => {
+            try {
+                const dayData = JSON.parse(el.dataset.daydata || '{}');
+                if ((dayData.scheduled && !dayData.manuallyRemoved) || dayData.manuallyRemoved) {
+                    days[el.dataset.date] = dayData;
+                }
+            } catch (e) {}
+        });
+        if (this._elements.classDays) this._elements.classDays.value = JSON.stringify(days);
+    }
+
+    calculateDateLogs() {
+        const s = Utils.parseDate(this._state.dateStart), e = Utils.parseDate(this._state.dateEnd);
+        if (!s || !e) return;
+        const ideal = new Set(), actual = new Set();
+        let cur = new Date(s);
+        while (cur <= e) {
+            const dStr = Utils.formatDate(cur);
+            if (Utils.isScheduledDate(cur, this._state.currentScheduleType)) ideal.add(dStr);
+            const el = this._elements.monthsContainer?.querySelector(`.cal-day[data-date="${dStr}"]`);
+            if (el) {
+                let dayData = {}; try { dayData = JSON.parse(el.dataset.daydata || '{}'); } catch (e) {}
+                if (dayData.scheduled && !dayData.manuallyRemoved) actual.add(dStr);
+            }
+            cur.setDate(cur.getDate() + 1);
+        }
+        const newExcl = [], newAdd = [];
+        ideal.forEach(d => { if (!actual.has(d)) newExcl.push(d); });
+        actual.forEach(d => { if (!ideal.has(d)) newAdd.push(d); });
+        if (!Utils.arraysEqual(newExcl, this._state.excludedDates)) {
+            this._state.excludedDates = newExcl.sort();
+            if (this._elements.excluded) this._elements.excluded.value = JSON.stringify(this._state.excludedDates);
+        }
+        if (!Utils.arraysEqual(newAdd, this._state.additionalDates)) {
+            this._state.additionalDates = newAdd.sort();
+            if (this._elements.additional) this._elements.additional.value = JSON.stringify(this._state.additionalDates);
+        }
+    }
+
+    _bindEvents() {
+        const c = this._elements.monthsContainer;
+        if (!c) return;
+
+        const clickHandler = (e) => {
+            const el = e.target.closest('.cal-day[data-date]');
+            if (el) { e.preventDefault(); this._hideTooltip(); this.openDayModal(el); }
+        };
+        c.addEventListener('click', clickHandler);
+        this._listeners.push({ el: c, evt: 'click', fn: clickHandler });
+
+        const onMouseOver = (e) => {
+            const el = e.target.closest('.cal-day:not(.cal-empty)');
+            if (!el) return;
+            const date = el.dataset.date;
+            if (!date) return;
+            this._showTooltip(el, date);
+        };
+
+        const onMouseOut = (e) => {
+            const el = e.target.closest('.cal-day');
+            if (!el) return;
+            const to = e.relatedTarget;
+            if (to && el.contains(to)) return;
+            this._hideTooltip();
+        };
+
+        c.addEventListener('mouseover', onMouseOver);
+        c.addEventListener('mouseout', onMouseOut);
+        this._listeners.push({ el: c, evt: 'mouseover', fn: onMouseOver });
+        this._listeners.push({ el: c, evt: 'mouseout', fn: onMouseOut });
+
+        const onScroll = () => this._hideTooltip();
+        window.addEventListener('scroll', onScroll, true);
+        window.addEventListener('resize', onScroll);
+        this._listeners.push({ el: window, evt: 'scroll', fn: onScroll, cap: true });
+        this._listeners.push({ el: window, evt: 'resize', fn: onScroll });
+
+        if (this._elements.modal) this._elements.modal.addEventListener('click', (e) => { if (e.target === this._elements.modal) this.closeModal(); });
+        if (this._elements.del) this._elements.del.addEventListener('click', () => this.deleteDay());
+
+        const updateTimeSlots = () => {
+            if (!this._elements.monthsContainer) return;
+            const newSlots = [];
+            if (this._elements.timeMorning?.checked) newSlots.push('У');
+            if (this._elements.timeDay?.checked) newSlots.push('Д');
+            if (this._elements.timeEvening?.checked) newSlots.push('В');
+
+            this._elements.monthsContainer.querySelectorAll('.cal-day[data-date]').forEach(el => {
+                let dayData = {}; try { dayData = JSON.parse(el.dataset.daydata || '{}'); } catch (e) {}
+                if (dayData._useDefault === true && !dayData.manuallyRemoved) {
+                    dayData.slots = [...newSlots];
+                    dayData.scheduled = newSlots.length > 0;
+                    el.dataset.daydata = JSON.stringify(dayData);
+                    this._updateDayVisuals(el);
+                }
+            });
+            this.updateJSON();
+        };
+
+        [this._elements.timeMorning, this._elements.timeDay, this._elements.timeEvening].forEach(el => {
+            if (el) el.addEventListener('change', updateTimeSlots);
+        });
+
+        const { dateStart, dateEnd, scheduleType } = this._elements;
+        const update = () => {
+            clearTimeout(this._debounceTimer);
+            this._debounceTimer = setTimeout(() => {
+                if (dateStart.value && dateEnd.value && this.generateCalendar)
+                    this.generateCalendar(dateStart.value, dateEnd.value, scheduleType.value);
+            }, 150);
+        };
+        [dateStart, dateEnd, scheduleType].forEach(el => {
+            if (el) el.addEventListener('change', update);
+        });
+    }
+
+    destroy() {
+        this._listeners.forEach(({ el, evt, fn, cap }) => el.removeEventListener(evt, fn, cap));
+        this._listeners = [];
+        this.teacherScheduleData = {};
+        this.mainTeacherData = {};
+        this.medTeacherData = {};
+        this.currentDate = null;
+        if (this._tooltipEl && this._tooltipEl.parentNode) {
+            this._tooltipEl.parentNode.removeChild(this._tooltipEl);
+        }
+        this._tooltipEl = null;
+    }
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+    window.scheduleCalendarInstance = new ScheduleCalendar();
+    window.scheduleCalendarInstance.init();
+});
+window.openDayModal = (el) => window.scheduleCalendarInstance?.openDayModal(el);
+window.closeModal = () => window.scheduleCalendarInstance?.closeModal();
+window.saveModal = () => window.scheduleCalendarInstance?.saveModal();

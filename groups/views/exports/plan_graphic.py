@@ -1,3 +1,8 @@
+# 📦 export_plan_graphic.py
+# ️ Версия: b_0.0.4.10 (Auto-Height Header Row)
+# ✅ Статус: PRODUCTION-READY
+# 📅 Последнее обновление: 2026-07-31
+
 import openpyxl
 from openpyxl.utils import get_column_letter
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
@@ -12,7 +17,7 @@ import json
 import re
 from urllib.parse import quote
 
-# 🔹 Принудительно русские месяца для заголовков таблицы
+#  Принудительно русские месяца
 RU_MONTHS = {
     1: 'Январь', 2: 'Февраль', 3: 'Март', 4: 'Апрель', 5: 'Май', 6: 'Июнь',
     7: 'Июль', 8: 'Август', 9: 'Сентябрь', 10: 'Октябрь', 11: 'Ноябрь', 12: 'Декабрь'
@@ -20,18 +25,15 @@ RU_MONTHS = {
 
 
 def _sanitize(name):
-    """Очищает строку от недопустимых символов"""
-    if not name:
-        return ""
+    if not name: return ""
     return re.sub(r'[<>:"/\\|?*\x00-\x1F]', '_', str(name).strip()).replace(' ', '_')
 
 
 def export_plan_graphic_to_excel(request, plan_id):
-    """Экспорт План-графика (по дням, как на скриншоте)"""
     plan = get_object_or_404(SchedulePlan, pk=plan_id)
     group_category = getattr(plan.group, 'category', None)
 
-    # --- Сбор данных ---
+    # --- 1. Сбор и подготовка данных ---
     class_days = plan.class_days or {}
     if isinstance(class_days, str):
         try:
@@ -42,34 +44,27 @@ def export_plan_graphic_to_excel(request, plan_id):
     excluded_dates = plan.excluded_dates or []
     additional_dates = plan.additional_dates or []
 
-    # 🔹 🔥 ИСПРАВЛЕНИЕ: Берём программу ИЗ URL (?program_id=7), а не первую попавшуюся
     selected_program_id = request.GET.get('program_id')
     program = None
-
     if selected_program_id:
         try:
             program = TrainingProgram.objects.get(pk=selected_program_id)
         except TrainingProgram.DoesNotExist:
             pass
 
-    # Fallback: если ID не передан или не найден, берём привязанную к плану или первую по категории
     if not program:
         if hasattr(plan, 'training_program') and plan.training_program:
             program = plan.training_program
         elif group_category:
             program = TrainingProgram.objects.filter(categories=group_category).first()
 
-    # Загрузка предметов (порядок: обычные по алфавиту + экзамен в конце)
     program_subjects = []
     if program:
-        exam_item = None
-        other_subjects = []
+        exam_item, other_subjects = None, []
         for ps in ProgramSubject.objects.filter(program=program, is_enabled=True).select_related('subject').order_by(
                 'subject__short_name'):
-            item = {
-                'code': ps.subject.short_name.lower(),
-                'display': ps.subject.short_name_display or ps.subject.short_name.upper(),
-            }
+            item = {'code': ps.subject.short_name.lower(),
+                    'display': ps.subject.short_name_display or ps.subject.short_name.upper()}
             if ps.subject.short_name.lower() == 'exam':
                 exam_item = item
             else:
@@ -83,60 +78,119 @@ def export_plan_graphic_to_excel(request, plan_id):
         days_in_schedule.append(current_date)
         current_date += timedelta(days=1)
 
-    # --- Генерация Excel ---
+    # --- 2. ПРЕДВАРИТЕЛЬНЫЙ РАСЧЕТ СТРУКТУРЫ ТАБЛИЦЫ ---
+    months_data = defaultdict(list)
+    month_order = []
+    days_with_classes = []
+
+    for d in days_in_schedule:
+        date_key = d.strftime('%Y-%m-%d')
+        if date_key not in class_days: continue
+
+        day_data = class_days[date_key]
+        day_sum = sum(v for k, v in day_data.items()
+                      if not k.startswith('_') and not k.endswith('_topics') and k != 'scheduled'
+                      and isinstance(v, (int, float)) and v > 0)
+
+        if day_sum > 0:
+            days_with_classes.append(d)
+            m_label = f"{RU_MONTHS[d.month]} {d.year}"
+            if m_label not in month_order: month_order.append(m_label)
+            months_data[m_label].append(d)
+
+    # 🔹 РАСЧЕТ ПОСЛЕДНЕЙ КОЛОНКИ ("ИТОГО")
+    total_table_width_idx = 1 + len(days_with_classes) + 1
+    total_col_letter = get_column_letter(total_table_width_idx)
+
+    # Диапазон для объединения ячеек в шапке (УТВЕРЖДАЮ)
+    merge_cols_count = 12
+    merge_start_idx = max(2, total_table_width_idx - merge_cols_count)
+    merge_start_letter = get_column_letter(merge_start_idx)
+    merge_end_letter = total_col_letter
+
+    # --- 3. Генерация Excel ---
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "План-график"
 
     font_small = Font(name='Arial Cyr', size=8)
+    font_dates = Font(name='Arial Cyr', size=8, bold=True)  # 🔹 Выделение дат жирным шрифтом
     font_bold = Font(name='Arial Cyr', size=10, bold=True)
     font_title = Font(name='Arial Cyr', size=14, bold=True)
     thin_border = Border(left=Side('thin'), right=Side('thin'), top=Side('thin'), bottom=Side('thin'))
     align_center = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    align_right_no_wrap = Alignment(horizontal='right', vertical='center', wrap_text=False)
+    align_left_no_wrap = Alignment(horizontal='left', vertical='center', wrap_text=False)
     header_fill = PatternFill(start_color="D9E2F3", end_color="D9E2F3", fill_type="solid")
 
     # --- ШАПКА ---
     row = 1
-    org_name = getattr(plan.group, 'organization_name', 'ООО "Своя автошкола"')
-    ws.cell(row=row, column=1, value=org_name).font = font_bold
 
-    ws.merge_cells(f'AB{row}:AM{row}')
-    approve_cell = ws.cell(row=row, column=28, value='"УТВЕРЖДАЮ"')
-    approve_cell.font = font_bold
-    approve_cell.alignment = align_center
+    # Организация (слева)
+    ws.cell(row=row, column=1, value=getattr(plan.group, 'organization_name', 'ООО "Своя автошкола"')).font = font_bold
+
+    # 🔹 "УТВЕРЖДАЮ" - объединяем ячейки справа
+    ws.merge_cells(f'{merge_start_letter}{row}:{merge_end_letter}{row}')
+    cell = ws.cell(row=row, column=merge_start_idx, value='"УТВЕРЖДАЮ"')
+    cell.font = font_bold
+    cell.alignment = align_right_no_wrap
+
+    row += 1
+    #  "Директор" - объединяем ячейки справа
+    ws.merge_cells(f'{merge_start_letter}{row}:{merge_end_letter}{row}')
+    cell = ws.cell(row=row, column=merge_start_idx, value='Директор')
+    cell.font = font_bold
+    cell.alignment = align_right_no_wrap
+
+    row += 1
+    # 🔹 Подпись - объединяем ячейки справа
+    ws.merge_cells(f'{merge_start_letter}{row}:{merge_end_letter}{row}')
+    cell = ws.cell(row=row, column=merge_start_idx, value='_______________ В.В. Евтушков')
+    cell.font = font_bold
+    cell.alignment = align_right_no_wrap
+
     row += 1
 
-    ws.cell(row=row, column=28, value='Директор').font = font_bold
-    row += 1
-    ws.cell(row=row, column=28, value='_______________ В.В. Евтушков').font = font_bold
-    row += 1
+    # 🔹 Дата - объединяем 8 ячеек справа, текст прижат к левому краю
+    date_cols_count = 8
+    date_merge_start_idx = max(2, total_table_width_idx - date_cols_count + 1)
+    date_merge_start_letter = get_column_letter(date_merge_start_idx)
 
+    ws.merge_cells(f'{date_merge_start_letter}{row}:{total_col_letter}{row}')
     ru_months_text = {1: 'января', 2: 'февраля', 3: 'марта', 4: 'апреля', 5: 'мая', 6: 'июня',
                       7: 'июля', 8: 'августа', 9: 'сентября', 10: 'октября', 11: 'ноября', 12: 'декабря'}
-    ws[f'A{row}'] = f'"{plan.date_start.day:02d}" {ru_months_text[plan.date_start.month]} {plan.date_start.year} года'
-    ws[f'A{row}'].font = font_bold
+    date_text = f'"{plan.date_start.day:02d}" {ru_months_text[plan.date_start.month]} {plan.date_start.year} года'
+    date_cell = ws.cell(row=row, column=date_merge_start_idx, value=date_text)
+    date_cell.font = font_bold
+    date_cell.alignment = align_left_no_wrap
+
     ws.row_dimensions[row].height = 20
     row += 2
 
-    # 🔹 ДИНАМИЧЕСКИЙ ЗАГОЛОВОК
+    # Заголовок План-графика (Строка 6)
     base_title = "План-график"
-    if program and program.plan_graphic_title:
-        base_title = program.plan_graphic_title
+    if program and program.plan_graphic_title: base_title = program.plan_graphic_title
 
-    ws.merge_cells(f'A{row}:AM{row}')
+    ws.merge_cells(f'A{row}:{total_col_letter}{row}')
     title_cell = ws.cell(row=row, column=1, value=base_title)
     title_cell.font = font_title
-    title_cell.alignment = align_center
+    # 🔹 Важно: wrap_text=True для переноса текста
+    title_cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+
+    # 🔹 КРИТИЧЕСКИ ВАЖНО: Не устанавливаем высоту вообще!
+    # Убираем ws.row_dimensions[row].height = None или любое другое значение
+    # Excel сам рассчитает высоту при открытии файла
+
     row += 2
 
-    # 🔹 ИСПРАВЛЕНО: убрано дублирование строк с group_num и merge_cells
+    # Группа - на всю ширину таблицы
     group_num = getattr(plan.group, 'group_number', plan.group.id)
-    ws.merge_cells(f'A{row}:AM{row}')
+    ws.merge_cells(f'A{row}:{total_col_letter}{row}')
     ws.cell(row=row, column=1, value=f'учебная группа № {group_num}').font = font_bold
     ws.cell(row=row, column=1).alignment = align_center
     row += 2
 
-    # --- Форматирование дат ---
+    # Информация (Преподаватель и т.д.) - ограничена шириной таблицы
     def format_dates_list(dates_list):
         if not dates_list: return "—"
         formatted = []
@@ -160,33 +214,14 @@ def export_plan_graphic_to_excel(request, plan_id):
 
     for label, value in info_data:
         ws.cell(row=row, column=1, value=label).font = font_bold
-        ws.merge_cells(f'B{row}:AM{row}')
+        ws.merge_cells(f'B{row}:{total_col_letter}{row}')
         val_cell = ws.cell(row=row, column=2, value=value)
         val_cell.font = font_small
         val_cell.alignment = Alignment(horizontal='left', vertical='center', wrap_text=True)
         row += 1
-    row += 1  # Отступ
+    row += 1
 
     # --- ТАБЛИЦА ---
-    months_data = defaultdict(list)
-    month_order = []
-    days_with_classes = []
-
-    for d in days_in_schedule:
-        date_key = d.strftime('%Y-%m-%d')
-        if date_key not in class_days: continue
-
-        day_data = class_days[date_key]
-        day_sum = sum(v for k, v in day_data.items()
-                      if not k.startswith('_') and not k.endswith('_topics') and k != 'scheduled'
-                      and isinstance(v, (int, float)) and v > 0)
-
-        if day_sum > 0:
-            days_with_classes.append(d)
-            m_label = f"{RU_MONTHS[d.month]} {d.year}"
-            if m_label not in month_order: month_order.append(m_label)
-            months_data[m_label].append(d)
-
     start_col = 1
     ws.cell(row=row, column=start_col, value='Дата/Тема').font = font_bold
     ws.cell(row=row, column=start_col).border = thin_border
@@ -210,20 +245,20 @@ def export_plan_graphic_to_excel(request, plan_id):
     ws.cell(row=row, column=total_col_idx).border = thin_border
     row += 1
 
-    # Дни
+    # 🔹 Дни (ИСПРАВЛЕНО: выделены жирным шрифтом)
     current_col = start_col + 1
     for m_label in month_order:
         for d in months_data[m_label]:
             col_map[d] = current_col
             cell = ws.cell(row=row, column=current_col, value=d.day)
-            cell.font = font_small
+            cell.font = font_dates  # 🔹 Применяем жирный шрифт для дат
             cell.alignment = align_center
             cell.border = thin_border
             current_col += 1
     ws.cell(row=row, column=total_col_idx, value='').border = thin_border
     row += 1
 
-    # Всего часов за день
+    # Всего часов
     ws.cell(row=row, column=start_col, value='Всего').font = font_bold
     ws.cell(row=row, column=start_col).border = thin_border
     ws.cell(row=row, column=start_col).fill = header_fill
@@ -242,7 +277,7 @@ def export_plan_graphic_to_excel(request, plan_id):
     ws.cell(row=row, column=total_col_idx, value='').border = thin_border
     row += 1
 
-    # Предметы (строго из выбранной программы)
+    # Предметы
     for item in program_subjects:
         code, display_name = item['code'], item['display']
         ws.cell(row=row, column=start_col, value=display_name).font = font_small
@@ -270,9 +305,9 @@ def export_plan_graphic_to_excel(request, plan_id):
         row += 1
 
     # --- Настройки печати ---
-    ws.column_dimensions[get_column_letter(start_col)].width = 25
+    ws.column_dimensions[get_column_letter(start_col)].width = 18
     for d in days_with_classes:
-        if d in col_map: ws.column_dimensions[get_column_letter(col_map[d])].width = 4
+        if d in col_map: ws.column_dimensions[get_column_letter(col_map[d])].width = 3.5
     ws.column_dimensions[get_column_letter(total_col_idx)].width = 8
 
     ws.page_setup.orientation = 'landscape'
@@ -295,16 +330,11 @@ def export_plan_graphic_to_excel(request, plan_id):
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     response['Content-Disposition'] = f'attachment; filename*=UTF-8\'\'{quote(filename)}'
 
-    # =============================================================================
-    # Сохранение копии на диске и отправка
-    # =============================================================================
     group_folder = Path(r"C:\django\DrSl\Saves") / str(group_num)
     group_folder.mkdir(parents=True, exist_ok=True)
     file_path = group_folder / filename
 
     wb.save(file_path)
-
     with open(file_path, "rb") as f:
         response.write(f.read())
-
     return response
