@@ -79,22 +79,24 @@
     </a>
 
 
-    <div class="card card-disabled">
+    <!-- 🔹 АКТИВИРОВАННАЯ КАРТОЧКА: ПРОДЛЕНИЕ ДОГОВОРА -->
+    <a href="{% url 'students:student_list' %}?highlight=contract"
+       class="card card-contract">
 
         <div class="card-icon">📄</div>
 
-        <div class="card-title text-muted">
+        <div class="card-title">
             Продление договора
         </div>
 
-        <div class="card-description text-light">
-            Функция в разработке
+        <div class="card-description">
+            Продлите действующий договор учащемуся
         </div>
 
-        <div class="card-soon">
-            🔜 Скоро
+        <div class="card-arrow text-contract-border">
+            →
         </div>
-    </div>
+    </a>
 
 
     <div class="card card-disabled">
@@ -270,6 +272,15 @@
 .card-red {
     background: #fef2f2;
     border: 2px solid #fecaca;
+}
+
+/* 🔹 Стили для новой карточки Продление договора */
+.card-contract {
+    background: #eff6ff;
+    border: 2px solid #bfdbfe;
+}
+.text-contract-border {
+    color: #bfdbfe;
 }
 
 .card-icon {

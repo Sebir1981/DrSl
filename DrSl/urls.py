@@ -10,9 +10,13 @@ from django.contrib.auth import logout
 from django.shortcuts import redirect
 from django.urls import reverse_lazy
 from django.contrib.auth import views as auth_views
+from django.views.decorators.http import require_http_methods
+from django.utils.decorators import method_decorator
+
 
 
 # ✅ Кастомный вход: всегда редиректит на дашборд
+@method_decorator(require_http_methods(["GET", "POST"]), name='dispatch')
 class CustomLoginView(LoginView):
     def get_success_url(self):
         # 1. Проверяем, с какой страницы пришёл пользователь
@@ -26,7 +30,7 @@ class CustomLoginView(LoginView):
 # =========================================================
 # ГЛАВНАЯ СТРАНИЦА
 # =========================================================
-
+@require_http_methods(["GET"])
 def root_page(request):
     if request.user.is_authenticated:
         return redirect('vault:dashboard')
@@ -40,6 +44,7 @@ def root_page(request):
 # ВЫХОД ИЗ СИСТЕМЫ
 # =========================================================
 
+@require_http_methods(["GET", "POST"])
 def custom_logout(request):
     logout(request)
     return redirect('home')

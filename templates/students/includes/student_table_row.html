@@ -1,0 +1,15 @@
+<tr>
+    <td>
+        <a href="{% url 'students:student_detail' student.id %}" class="fw-bold text-decoration-none">
+            {{ student.last_name }} {{ student.first_name }}
+        </a>
+    </td>
+    <td>{{ student.group.group_number|default:"—" }}</td>
+    <td>
+        <span class="badge bg-{{ status_color }}">{{ student.get_status_display }}</span>
+    </td>
+    <td>{{ student.teacher.last_name|default:"—" }}</td>
+    <td>
+        <a href="{% url 'students:student_detail' student.id %}" class="btn btn-sm btn-outline-primary">Подробнее</a>
+    </td>
+</tr>

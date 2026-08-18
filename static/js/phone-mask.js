@@ -45,8 +45,9 @@
     }
 
     function initAllPhoneInputs() {
-        document.querySelectorAll('input#id_phone_student, input[data-phone-mask="true"]').forEach(applyPhoneMask);
-    }
+    // Ищем по маркеру data-phone-mask ИЛИ по полю с именем phone
+    document.querySelectorAll('input[data-phone-mask="true"], input[name="phone"]').forEach(applyPhoneMask);
+}
 
     document.addEventListener('DOMContentLoaded', initAllPhoneInputs);
     document.addEventListener('shown.bs.tab', initAllPhoneInputs);

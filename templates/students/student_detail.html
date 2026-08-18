@@ -30,12 +30,13 @@
                 <p style="margin:0;font-size:14px;"><strong>Адрес:</strong> {{ student.place_of_residence|default:"—" }}</p>
             </div>
 
-                        <!-- 🚗 Обучение (+ Выпадающее меню истории) -->
+            <!-- 🚗 Обучение (+ Выпадающее меню истории) -->
             <div style="background:#f8fafc;padding:15px;border-radius:10px;border:1px solid #e2e8f0; position:relative;">
 
                 <!-- 🔹 Кнопка меню (правый верхний угол) -->
                 <div style="position:absolute; top:12px; right:12px;">
                     <button type="button" onclick="toggleEduHistory()" style="background:none; border:none; cursor:pointer; font-size:20px; color:#94a3b8; padding:2px 6px; border-radius:4px; transition:background 0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='none'">⋮</button>
+
                     <div id="edu-history-menu" style="display:none; position:absolute; right:0; top:100%; margin-top:4px; background:white; border:1px solid #e2e8f0; border-radius:8px; box-shadow:0 4px 15px rgba(0,0,0,0.1); min-width:240px; z-index:200; padding:6px 0; animation:fadeIn 0.15s;">
                         <div style="padding:8px 12px; font-size:12px; color:#64748b; font-weight:600; border-bottom:1px solid #f1f5f9; margin-bottom:4px;">📜 История изменений</div>
 
@@ -49,13 +50,15 @@
                                 <div style="font-size:12px; color:#475569; margin-top:2px;">
                                     {{ ch.old|default:"—" }} → <strong>{{ ch.new|default:"—" }}</strong>
                                 </div>
+                                <div style="font-size:10px; color:#94a3b8; margin-top:2px;">
+                                    ✍️ {{ ch.author|default:"Система" }}
+                                </div>
                             </div>
                             {% endfor %}
                         {% else %}
                             <div style="padding:8px 12px; font-size:12px; color:#94a3b8; text-align:center;">Изменений пока нет</div>
                         {% endif %}
 
-                        <!-- 🔧 Заглушка для мастера -->
                         <div style="padding:8px 12px; font-size:12px; color:#cbd5e1; border-top:1px solid #f1f5f9; margin-top:4px; display:flex; align-items:center; gap:6px;">
                             🔧 Мастер: <span style="font-style:italic;">(в разработке)</span>
                         </div>
@@ -84,7 +87,7 @@
                     <strong>Категория:</strong>
                     {% if student.group and student.group.category %}{{ student.group.category.code|default:student.group.category }}{% else %}—{% endif %}
                 </p>
-                 <!-- 🔹 НОВОЕ: Тип КПП -->
+
                 <p style="margin:0 0 8px 0;font-size:14px;">
                     <strong>Тип КПП:</strong>
                     {% if student.gearbox_type == 'manual' %}
@@ -143,7 +146,7 @@
                 </div>
             </div>
 
-            <!-- 📅 Ключевые даты (исправлены цепочки фильтров) -->
+            <!-- 📅 Ключевые даты -->
             <div style="background:#f8fafc;padding:15px;border-radius:10px;border:1px solid #e2e8f0;">
                 <h3 style="margin:0 0 12px 0;font-size:15px;color:#475569;font-weight:600;">📅 Даты</h3>
                 <div style="display:flex;flex-direction:column;gap:10px;font-size:14px;">
@@ -169,31 +172,70 @@
             </div>
         </div>
 
-        <!-- ✅ Кнопки действий -->
-        <div style="display:flex;gap:10px;justify-content:flex-end;padding-top:15px;border-top:1px solid #f1f5f9;flex-wrap:wrap;">
-            <a href="{% url 'students:student_edit' student.id %}" style="padding:10px 20px;background:#4facfe;color:white;border-radius:8px;text-decoration:none;font-size:14px;font-weight:500;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 4px 12px rgba(79,172,254,0.3)'" onmouseout="this.style.transform='none';this.style.boxShadow='none'">✏️ Редактировать</a>
+        <!-- ✅ Кнопки действий (Только один блок, без дублирования) -->
+        <div style="display:flex; gap:10px; justify-content:flex-end; padding-top:15px; border-top:1px solid #f1f5f9; flex-wrap:wrap; align-items:flex-start; height:auto;">
 
-            <div style="position:relative;">
-                <button type="button" id="actions-trigger" style="padding:10px 20px;background:#f1f5f9;color:#475569;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:6px;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f1f5f9'"> Действия ▼</button>
-                <div id="actions-dropdown" style="position:absolute;right:0;top:calc(100% + 6px);background:white;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 4px 15px rgba(0,0,0,0.1);min-width:220px;z-index:1000;display:none;padding:6px 0;">
-                    <a href="{% url 'students:student_activate' student.id %}" style="display:block;padding:10px 16px;color:#16a34a;text-decoration:none;font-size:14px;" onmouseover="this.style.background='#f0fdf4'" onmouseout="this.style.background='transparent'">✅ Активировать</a>
+            <a href="{% url 'students:student_edit' student.id %}"
+               style="padding:10px 20px; background:#4facfe; color:white; border-radius:8px; text-decoration:none; font-size:14px; font-weight:500; cursor:pointer; transition:all 0.2s; display:inline-block; height:auto;"
+               onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 12px rgba(79,172,254,0.3)'"
+               onmouseout="this.style.transform='none'; this.style.boxShadow='none'">
+                ✏️ Редактировать
+            </a>
+
+            <div style="position:relative; height:auto;">
+                <button type="button" id="actions-trigger"
+                        style="padding:10px 20px; background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; border-radius:8px; font-size:14px; font-weight:500; cursor:pointer; display:flex; align-items:center; gap:6px; height:auto;"
+                        onmouseover="this.style.background='#e2e8f0'"
+                        onmouseout="this.style.background='#f1f5f9'">
+                    Действия ▼
+                </button>
+
+                <div id="actions-dropdown"
+                     style="position:absolute; right:0; top:calc(100% + 6px); background:white; border:1px solid #e2e8f0; border-radius:10px; box-shadow:0 4px 15px rgba(0,0,0,0.1); min-width:220px; z-index:1000; display:none; padding:6px 0;">
+
+                    <!-- 1. Продление договора -->
+                    <form method="post" action="{% url 'students:contract_extension' student.id %}" style="margin:0;">
+                        {% csrf_token %}
+                        <button type="submit" style="display:block;padding:10px 16px;color:#3b82f6;text-decoration:none;font-size:14px;background:transparent;border:none;cursor:pointer;width:100%;text-align:left;font-weight:normal;" onmouseover="this.style.background='#eff6ff'" onmouseout="this.style.background='transparent'">📄 Продление договора</button>
+                    </form>
+
                     <div style="border-top:1px solid #f1f5f9;margin:4px 0;"></div>
-                    <a href="{% url 'students:transfer_student' student.pk %}" style="display:block;padding:10px 16px;color:#475569;text-decoration:none;font-size:14px;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">🔄 Перевести</a>
-                    <a href="{% url 'students:student_refuse' student.id %}" style="display:block;padding:10px 16px;color:#d97706;text-decoration:none;font-size:14px;" onmouseover="this.style.background='#fffbeb'" onmouseout="this.style.background='transparent'">🚫 Отказ</a>
-                    <a href="{% url 'students:student_suspend' student.id %}" style="display:block;padding:10px 16px;color:#7c3aed;text-decoration:none;font-size:14px;" onmouseover="this.style.background='#f5f3ff'" onmouseout="this.style.background='transparent'">⏸️ Приостановить</a>
-                    <a href="{% url 'students:student_dismissal' student.id %}" style="display:block;padding:10px 16px;color:#dc2626;text-decoration:none;font-size:14px;font-weight:500;" onmouseover="this.style.background='#fef2f2'" onmouseout="this.style.background='transparent'">❌ Отчислить</a>
+
+                    <!-- 2. Перевести -->
+                    <form method="post" action="{% url 'students:transfer_student' student.pk %}" style="margin:0;">
+                        {% csrf_token %}
+                        <button type="submit" style="display:block;padding:10px 16px;color:#475569;text-decoration:none;font-size:14px;background:transparent;border:none;cursor:pointer;width:100%;text-align:left;font-weight:normal;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">🔄 Перевести</button>
+                    </form>
+
+                    <!-- 3. Отказ -->
+                    <form method="post" action="{% url 'students:student_refuse' student.id %}" style="margin:0;">
+                        {% csrf_token %}
+                        <button type="submit" style="display:block;padding:10px 16px;color:#d97706;text-decoration:none;font-size:14px;background:transparent;border:none;cursor:pointer;width:100%;text-align:left;font-weight:normal;" onmouseover="this.style.background='#fffbeb'" onmouseout="this.style.background='transparent'">🚫 Отказ</button>
+                    </form>
+
+                    <!-- 4. Приостановить -->
+                    <form method="post" action="{% url 'students:student_suspend' student.id %}" style="margin:0;">
+                        {% csrf_token %}
+                        <button type="submit" style="display:block;padding:10px 16px;color:#7c3aed;text-decoration:none;font-size:14px;background:transparent;border:none;cursor:pointer;width:100%;text-align:left;font-weight:normal;" onmouseover="this.style.background='#f5f3ff'" onmouseout="this.style.background='transparent'">⏸️ Приостановить</button>
+                    </form>
+
+                    <!-- 5. Отчислить -->
+                    <form method="post" action="{% url 'students:student_dismissal' student.id %}" style="margin:0;">
+                        {% csrf_token %}
+                        <button type="submit" style="display:block;padding:10px 16px;color:#dc2626;text-decoration:none;font-size:14px;font-weight:500;background:transparent;border:none;cursor:pointer;width:100%;text-align:left;" onmouseover="this.style.background='#fef2f2'" onmouseout="this.style.background='transparent'">❌ Отчислить</button>
+                    </form>
                 </div>
             </div>
         </div>
 
-              <!-- 🔹 Полная история -->
+        <!-- 🔹 Полная история -->
         <div style="margin-top:25px;border-top:2px solid #f1f5f9;padding-top:20px;">
             <h3 style="margin:0 0 15px 0;font-size:16px;color:#1e293b;font-weight:600;">📜 Полная история</h3>
             {% if activity_log %}
             <div style="background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0;max-height:300px;overflow-y:auto;">
                 {% for event in activity_log reversed %}
                 <div style="padding:12px 15px;border-bottom:1px solid #e2e8f0;display:flex;gap:12px;align-items:flex-start;background:white;">
-                    <!-- Дата с защитой от ошибок -->
+                    <!-- Дата -->
                     <div style="min-width:85px;font-size:12px;color:#64748b;font-weight:600;background:#f1f5f9;padding:4px 8px;border-radius:6px;text-align:center;">
                         {{ event.date|default:"—" }}
                     </div>
@@ -202,13 +244,27 @@
                             {% if event.type == 'transfer' %}🔄{% elif event.type == 'credit_result' %}📋{% elif event.type == 'exam_result' %}🎓{% elif event.type == 'dismissal' %}❌{% elif event.type == 'refusal' %}🚫{% elif event.type == 'suspension' %}⏸️{% elif event.type == 'activation' %}✅{% elif event.type == 'teacher_change' %}👨‍🏫{% else %}📝{% endif %}
                             {{ event.title|default:"Событие" }}
                         </div>
+
+                        <!-- Детали события -->
                         <div style="font-size:13px;color:#475569;line-height:1.4;">
-                            {% if event.type == 'transfer' %}{{ event.details.from_group|default:"—" }} → <strong>{{ event.details.to_group|default:"—" }}</strong>
-                            {% elif event.type == 'teacher_change' %}{{ event.details.from|default:"—" }} → <strong>{{ event.details.to|default:"—" }}</strong>
-                            {% elif event.type == 'credit_result' %}{{ event.details.result_icon|default:"" }} {{ event.details.result|default:"" }}{% if event.details.attempt_number is not None %} • Попытка №{{ event.details.attempt_number }}{% endif %}{% if event.details.attempt_type == 'paid' %} • Платная{% elif event.details.attempt_type == 'free' %} • Бесплатная{% endif %}
-                            {% elif event.type == 'dismissal' %}{% if event.details.order_number %}Приказ №{{ event.details.order_number }}{% endif %}{% if event.details.comment %} • {{ event.details.comment }}{% endif %}
-                            {% elif event.type in 'refusal,suspension,activation' %}{{ event.details.comment|default:"Без комментария" }}
-                            {% else %}{{ event.details|default:"—" }}{% endif %}
+                            {% if event.type == 'transfer' %}
+                                {{ event.details.from_group|default:"—" }} → <strong>{{ event.details.to_group|default:"—" }}</strong>
+                            {% elif event.type == 'teacher_change' %}
+                                {{ event.details.from|default:"—" }} → <strong>{{ event.details.to|default:"—" }}</strong>
+                            {% elif event.type == 'credit_result' %}
+                                {{ event.details.result_icon|default:"" }} {{ event.details.result|default:"" }}{% if event.details.attempt_number is not None %} • Попытка №{{ event.details.attempt_number }}{% endif %}{% if event.details.attempt_type == 'paid' %} • Платная{% elif event.details.attempt_type == 'free' %} • Бесплатная{% endif %}
+                            {% elif event.type == 'dismissal' %}
+                                {% if event.details.order_number %}Приказ №{{ event.details.order_number }}{% endif %}{% if event.details.comment %} • {{ event.details.comment }}{% endif %}
+                            {% elif event.type in 'refusal,suspension,activation' %}
+                                {{ event.details.comment|default:"Без комментария" }}
+                            {% else %}
+                                {{ event.details|default:"—" }}
+                            {% endif %}
+                        </div>
+
+                        <!-- ✍️ Автор события -->
+                        <div style="font-size:11px;color:#94a3b8;margin-top:4px;border-top:1px dashed #e2e8f0;padding-top:4px;">
+                            ✍️ {{ event.author|default:"Система" }}
                         </div>
                     </div>
                 </div>

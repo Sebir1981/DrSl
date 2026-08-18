@@ -2,7 +2,9 @@
 from django.contrib import admin
 from django import forms
 from django.db import models
-from django.utils import timezone  # ✅ Добавлен импорт для работы с датами
+from django.utils import timezone
+from django.utils.safestring import mark_safe
+from django.utils.html import format_html
 from .models import Student, StudentHistory
 from DrSl.widgets import RuDateWidget
 
@@ -13,7 +15,14 @@ from DrSl.widgets import RuDateWidget
 class StudentAdminForm(forms.ModelForm):
     class Meta:
         model = Student
-        fields = '__all__'
+        # ✅ Явный список полей вместо '__all__' (исправляет замечание SonarQube)
+        fields = [
+            'last_name', 'first_name', 'patronymic', 'phone',
+            'birth_date', 'enrolled_date', 'graduated_date', 'transferred_date',
+            'group', 'teacher', 'master',
+            'place_of_birth', 'place_of_residence', 'place_of_registration',
+            'work_study_place', 'position', 'gearbox_type',
+        ]
         widgets = {
             'birth_date': RuDateWidget(),
             'enrolled_date': RuDateWidget(),
@@ -76,7 +85,7 @@ class StudentAdmin(admin.ModelAdmin):
         }),
     )
 
-    #  Метод для красивого отображения статуса
+    # 🔹 Метод для красивого отображения статуса
     @admin.display(description='Статус', ordering='graduated_date')
     def get_status_badge(self, obj):
         if obj.graduated_date:
@@ -84,18 +93,70 @@ class StudentAdmin(admin.ModelAdmin):
         if obj.activity_log:
             last_event = obj.activity_log[-1] if obj.activity_log else {}
             event_type = last_event.get('type', '')
-            if event_type in ['dismissal', 'dismissed']: return '❌ Отчислен'
-            if event_type in ['refusal', 'refused']: return ' Отказ'
-            if event_type in ['suspension', 'suspended']: return '️ Приостановлен'
+            if event_type in ['dismissal', 'dismissed']:
+                return '❌ Отчислен'
+            if event_type in ['refusal', 'refused']:
+                return '🚫 Отказ'
+            if event_type in ['suspension', 'suspended']:
+                return '⏸️ Приостановлен'
         return '🟢 Активен'
 
-    # 🔹 Отображение JSON-лога в читаемом виде
+    # =====================================================================
+    # 🔹 Вспомогательная функция: парсинг деталей события
+    # =====================================================================
+    def _parse_event_details(self, details, entry):
+        """Разбирает details словарь на строку описания"""
+        detail_parts = []
+
+        if 'result_icon' in details and 'result' in details:
+            detail_parts.append(f"{details['result_icon']} {details['result']}")
+
+        if 'attempt_number' in details:
+            detail_parts.append(f"Попытка №{details['attempt_number']}")
+
+        if 'attempt_type' in details:
+            type_label = 'Платная' if details['attempt_type'] == 'paid' else 'Бесплатная'
+            detail_parts.append(type_label)
+
+        if 'topic' in details:
+            topic = details['topic']
+            detail_parts.append(topic[:40] + ('…' if len(topic) > 40 else ''))
+
+        if 'from_group' in details and 'to_group' in details:
+            detail_parts.append(f"{details['from_group']} → {details['to_group']}")
+
+        # Смена преподавателя
+        if 'from' in details and 'to' in details and entry.get('type') == 'teacher_change':
+            detail_parts.append(f"{details['from']} → {details['to']}")
+
+        return ' • '.join(detail_parts) if detail_parts else ''
+
+    # =====================================================================
+    # 🔹 Вспомогательная функция: выбор цвета и иконки
+    # =====================================================================
+    def _get_event_style(self, event_type, details):
+        """Возвращает кортеж (color, icon) для события"""
+        if event_type in ['dismissal', 'dismissed', 'refusal', 'refused']:
+            return '#dc2626', '❌'
+
+        if event_type == 'credit_result':
+            color = '#4facfe' if details.get('result') == 'passed' else '#f59e0b'
+            return color, '📋'
+
+        if event_type == 'transfer':
+            return '#10b981', '🔄'
+
+        if event_type == 'teacher_change':
+            return '#8b5cf6', '👨‍🏫'
+
+        return '#334155', '•'
+
+    # =====================================================================
+    # 🔹 Отображение JSON-лога в читаемом виде (Теперь КОРОТКАЯ)
+    # =====================================================================
     @admin.display(description='📋 Журнал активности')
     def activity_log_display(self, obj):
-        from django.utils.html import format_html
-
         if not obj.activity_log:
-            from django.utils.safestring import mark_safe
             return mark_safe('<span style="color:#94a3b8;">— Записей нет —</span>')
 
         log_items = []
@@ -103,36 +164,11 @@ class StudentAdmin(admin.ModelAdmin):
             date = entry.get('date', '—')
             title = entry.get('title', 'Событие')
             details = entry.get('details', {})
-
-            detail_parts = []
-            if 'result_icon' in details and 'result' in details:
-                detail_parts.append(f"{details['result_icon']} {details['result']}")
-            if 'attempt_number' in details:
-                detail_parts.append(f"Попытка №{details['attempt_number']}")
-            if 'attempt_type' in details:
-                type_label = 'Платная' if details['attempt_type'] == 'paid' else 'Бесплатная'
-                detail_parts.append(type_label)
-            if 'topic' in details:
-                detail_parts.append(details['topic'][:40] + ('…' if len(details['topic']) > 40 else ''))
-            if 'from_group' in details and 'to_group' in details:
-                detail_parts.append(f"{details['from_group']} → {details['to_group']}")
-            # 🔹 Добавлена поддержка смены преподавателя
-            if 'from' in details and 'to' in details and entry.get('type') == 'teacher_change':
-                detail_parts.append(f"{details['from']} → {details['to']}")
-
-            detail_str = ' • '.join(detail_parts) if detail_parts else ''
-
             event_type = entry.get('type', '')
-            if event_type in ['dismissal', 'dismissed', 'refusal', 'refused']:
-                color, icon = '#dc2626', '❌'
-            elif event_type == 'credit_result':
-                color, icon = ('#4facfe' if details.get('result') == 'passed' else '#f59e0b'), '📋'
-            elif event_type == 'transfer':
-                color, icon = '#10b981', '🔄'
-            elif event_type == 'teacher_change':
-                color, icon = '#8b5cf6', '👨‍🏫'
-            else:
-                color, icon = '#334155', '•'
+
+            # Вызываем наши маленькие помощники
+            detail_str = self._parse_event_details(details, entry)
+            color, icon = self._get_event_style(event_type, details)
 
             log_items.append(format_html(
                 '<div style="padding:6px 0; border-bottom:1px solid #f1f5f9; color:{};">'
@@ -147,12 +183,14 @@ class StudentAdmin(admin.ModelAdmin):
             format_html('{}', *log_items)
         )
 
-    # 🔹 🔥 НОВОЕ: Отслеживание смены преподавателя и запись в activity_log
+    # =====================================================================
+    # 🔹 Отслеживание смены преподавателя и запись в activity_log
+    # =====================================================================
     def save_model(self, request, obj, form, change):
         if change:  # Срабатывает только при редактировании существующей записи
             try:
                 old_student = Student.objects.get(pk=obj.pk)
-                if old_student.teacher != obj.teacher:
+                if old_student.teacher_id != obj.teacher_id:
                     log_entry = {
                         'type': 'teacher_change',
                         'date': timezone.now().date().strftime('%Y-%m-%d'),
@@ -167,6 +205,7 @@ class StudentAdmin(admin.ModelAdmin):
                     obj.activity_log = current_log
             except Student.DoesNotExist:
                 pass
+            obj.save(update_fields=['teacher', 'activity_log', 'updated_at'])
         super().save_model(request, obj, form, change)
 
     class Media:

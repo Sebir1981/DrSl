@@ -133,7 +133,7 @@
 </div>
 
 <div class="add-container">
-    <form method="post">
+    <form method="post" novalidate>
         {% csrf_token %}
 
         <!-- 🔹 Личные данные -->
@@ -141,28 +141,40 @@
             <div class="form-section-title">👤 Личные данные</div>
             <div class="form-grid">
                 <div class="form-group">
-                    <label>Фамилия *</label>
-                    <input type="text" name="last_name" required placeholder="Иванов">
+                    <label for="{{ form.last_name.id_for_label }}">Фамилия *</label>
+                    {{ form.last_name }}
+                    {% if form.last_name.errors %}
+                        <div class="text-danger" style="font-size:0.85rem; margin-top:4px;">{{ form.last_name.errors.0 }}</div>
+                    {% endif %}
                 </div>
                 <div class="form-group">
-                    <label>Имя *</label>
-                    <input type="text" name="first_name" required placeholder="Иван">
+                    <label for="{{ form.first_name.id_for_label }}">Имя *</label>
+                    {{ form.first_name }}
+                    {% if form.first_name.errors %}
+                        <div class="text-danger" style="font-size:0.85rem; margin-top:4px;">{{ form.first_name.errors.0 }}</div>
+                    {% endif %}
                 </div>
                 <div class="form-group">
-                    <label>Отчество</label>
-                    <input type="text" name="patronymic" placeholder="Иванович">
+                    <label for="{{ form.patronymic.id_for_label }}">Отчество</label>
+                    {{ form.patronymic }}
                 </div>
                 <div class="form-group">
-                    <label>Телефон *</label>
-                    <input type="tel" name="phone" required placeholder="+375 (29) 123-45-67" id="id_phone" data-phone-mask="true">
+                    <label for="{{ form.phone.id_for_label }}">Телефон *</label>
+                    {{ form.phone }}
+                    {% if form.phone.errors %}
+                        <div class="text-danger" style="font-size:0.85rem; margin-top:4px;">{{ form.phone.errors.0 }}</div>
+                    {% endif %}
                 </div>
                 <div class="form-group">
-                    <label>Дата рождения</label>
-                    <input type="text" name="birth_date" placeholder="дд.мм.гггг" class="ru-date-input">
+                    <label for="{{ form.birth_date.id_for_label }}">Дата рождения</label>
+                    {{ form.birth_date }}  <!-- 👈 Здесь сработает RuDateWidget -->
+                    {% if form.birth_date.errors %}
+                        <div class="text-danger" style="font-size:0.85rem; margin-top:4px;">{{ form.birth_date.errors.0 }}</div>
+                    {% endif %}
                 </div>
                 <div class="form-group full-width">
-                    <label>Место рождения</label>
-                    <input type="text" name="place_of_birth" placeholder="г. Минск">
+                    <label for="{{ form.place_of_birth.id_for_label }}">Место рождения</label>
+                    {{ form.place_of_birth }}
                 </div>
             </div>
         </div>
@@ -172,12 +184,12 @@
             <div class="form-section-title">🏠 Адреса</div>
             <div class="form-grid">
                 <div class="form-group full-width">
-                    <label>Место проживания</label>
-                    <input type="text" name="place_of_residence" placeholder="ул. Примерная, д. 1, кв. 1">
+                    <label for="{{ form.place_of_residence.id_for_label }}">Место проживания</label>
+                    {{ form.place_of_residence }}
                 </div>
                 <div class="form-group full-width">
-                    <label>Место регистрации</label>
-                    <input type="text" name="place_of_registration" placeholder="ул. Примерная, д. 1, кв. 1">
+                    <label for="{{ form.place_of_registration.id_for_label }}">Место регистрации</label>
+                    {{ form.place_of_registration }}
                 </div>
             </div>
         </div>
@@ -187,12 +199,12 @@
             <div class="form-section-title">💼 Работа / учёба</div>
             <div class="form-grid">
                 <div class="form-group full-width">
-                    <label>Место работы/учёбы</label>
-                    <input type="text" name="work_study_place" placeholder="ООО «Пример»">
+                    <label for="{{ form.work_study_place.id_for_label }}">Место работы/учёбы</label>
+                    {{ form.work_study_place }}
                 </div>
                 <div class="form-group">
-                    <label>Должность</label>
-                    <input type="text" name="position" placeholder="Менеджер">
+                    <label for="{{ form.position.id_for_label }}">Должность</label>
+                    {{ form.position }}
                 </div>
             </div>
         </div>
@@ -202,43 +214,27 @@
             <div class="form-section-title">🔗 Учебный процесс</div>
             <div class="form-grid">
                 <div class="form-group">
-                    <label>Группа</label>
-                    <select name="group">
-                        <option value="">— Не назначена —</option>
-                        {% for g in groups %}
-                        <option value="{{ g.pk }}">{{ g.group_number }} — {{ g.category|default:"—" }}</option>
-                        {% endfor %}
-                    </select>
+                    <label for="{{ form.group.id_for_label }}">Группа</label>
+                    {{ form.group }}
                 </div>
                 <div class="form-group">
-                    <label>Преподаватель</label>
-                    <select name="teacher">
-                        <option value="">— Не назначен —</option>
-                        {% for t in teachers %}
-                        <option value="{{ t.pk }}">{{ t.last_name }} {{ t.first_name|slice:":1" }}.</option>
-                        {% endfor %}
-                    </select>
+                    <label for="{{ form.teacher.id_for_label }}">Преподаватель</label>
+                    {{ form.teacher }}
                 </div>
                 <div class="form-group">
-                    <label>Мастер вождения</label>
-                    <select name="master">
-                        <option value="">— Не назначен —</option>
-                        {% for m in masters %}
-                        <option value="{{ m.pk }}">{{ m.last_name }} {{ m.first_name|slice:":1" }}.</option>
-                        {% endfor %}
-                    </select>
+                    <label for="{{ form.master.id_for_label }}">Мастер вождения</label>
+                    {{ form.master }}
                 </div>
                 <div class="form-group">
-                    <label>Тип КПП</label>
-                    <select name="gearbox_type">
-                        <option value="">— Не выбрано —</option>
-                        <option value="manual">🔧 Механическая</option>
-                        <option value="auto">🤖 Автоматическая</option>
-                    </select>
+                    <label for="{{ form.gearbox_type.id_for_label }}">Тип КПП</label>
+                    {{ form.gearbox_type }}
                 </div>
                 <div class="form-group">
-                    <label>Дата зачисления</label>
-                    <input type="text" name="enrolled_date" value="{{ today|date:'d.m.Y' }}" class="ru-date-input">
+                    <label for="{{ form.enrolled_date.id_for_label }}">Дата зачисления</label>
+                    {{ form.enrolled_date }}  <!-- 👈 Здесь тоже сработает RuDateWidget -->
+                    {% if form.enrolled_date.errors %}
+                        <div class="text-danger" style="font-size:0.85rem; margin-top:4px;">{{ form.enrolled_date.errors.0 }}</div>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -249,11 +245,9 @@
             <button type="submit" class="btn btn-primary">💾 Сохранить учащегося</button>
         </div>
     </form>
+    <script src="{% static 'js/date-mask.js' %}" defer></script>
+    <script src="{% static 'js/phone-mask.js' %}" defer></script>
 </div>
 
-<!-- 🔹 Подключение скриптов масок -->
-{% if not debug %}
-<script src="{% static 'js/date-mask.js' %}" defer></script>
-<script src="{% static 'js/phone-mask.js' %}" defer></script>
-{% endif %}
+
 {% endblock %}
