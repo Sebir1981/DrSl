@@ -1,8 +1,10 @@
 /**
- * schedule_calendar.js — Stable Base v1.6
+ * schedule_calendar.js — Stable Base v1.8
  * ✅ Global tooltip with smart positioning
  * ✅ Tooltip never goes outside viewport
  * ✅ Better readability
+ * ✅ FIX: updateTimeSlots now only affects dates within the period
+ * ✅ FIX: Strict boundary check for scheduled dates
  */
 
 const CFG = {
@@ -258,7 +260,14 @@ class ScheduleCalendar {
         const dt = new Date(y, m, d);
         const dateStr = Utils.formatDate(dt);
         const isWk = dt.getDay() === 0 || dt.getDay() === 6;
-        const shouldSchedule = Utils.isScheduledDate(dt, this._state.currentScheduleType);
+        let shouldSchedule = Utils.isScheduledDate(dt, this._state.currentScheduleType);
+
+        // 🔥 Жесткая проверка: дата должна быть строго внутри периода
+        const start = Utils.parseDate(this._state.dateStart);
+        const end = Utils.parseDate(this._state.dateEnd);
+        if (start && end && (dt < start || dt > end)) {
+            shouldSchedule = false;
+        }
 
         let dayData = { slots: [], med: false, _useDefault: true, scheduled: false, manuallyRemoved: false };
         if (savedDays && savedDays[dateStr]) dayData = { ...savedDays[dateStr] };
@@ -627,22 +636,55 @@ class ScheduleCalendar {
         if (this._elements.modal) this._elements.modal.addEventListener('click', (e) => { if (e.target === this._elements.modal) this.closeModal(); });
         if (this._elements.del) this._elements.del.addEventListener('click', () => this.deleteDay());
 
-        const updateTimeSlots = () => {
+                const updateTimeSlots = () => {
             if (!this._elements.monthsContainer) return;
+
+            // 1. Собираем новые слоты из галочек
             const newSlots = [];
             if (this._elements.timeMorning?.checked) newSlots.push('У');
             if (this._elements.timeDay?.checked) newSlots.push('Д');
             if (this._elements.timeEvening?.checked) newSlots.push('В');
 
-            this._elements.monthsContainer.querySelectorAll('.cal-day[data-date]').forEach(el => {
-                let dayData = {}; try { dayData = JSON.parse(el.dataset.daydata || '{}'); } catch (e) {}
+            // 2. Получаем границы текущего периода
+            const startStr = this._elements.dateStart?.value;
+            const endStr = this._elements.dateEnd?.value;
+            const startDate = Utils.parseDate(startStr);
+            const endDate = Utils.parseDate(endStr);
+
+            // 3. Перебираем только реальные дни
+            this._elements.monthsContainer.querySelectorAll('.cal-day:not(.cal-empty)').forEach(el => {
+                const dateStr = el.dataset.date;
+                const dt = Utils.parseDate(dateStr);
+
+                // Проверка: день должен быть в периоде
+                if (!startDate || !endDate || !dt || dt < startDate || dt > endDate) {
+                    return; // Пропускаем дни вне периода
+                }
+
+                let dayData = {};
+                try { dayData = JSON.parse(el.dataset.daydata || '{}'); } catch (e) {}
+
+                // Применяем изменения только к дефолтным дням (не тронутым вручную)
                 if (dayData._useDefault === true && !dayData.manuallyRemoved) {
-                    dayData.slots = [...newSlots];
-                    dayData.scheduled = newSlots.length > 0;
+                    // ✅ ВАЖНО: Проверяем, должен ли этот день вообще быть по расписанию
+                    const shouldSchedule = Utils.isScheduledDate(dt, this._state.currentScheduleType);
+
+                    if (shouldSchedule) {
+                        // Если день чётный/нечётный — применяем слоты
+                        dayData.slots = [...newSlots];
+                        dayData.scheduled = newSlots.length > 0;
+                    } else {
+                        // Если день НЕ должен быть по расписанию — оставляем пустым
+                        dayData.slots = [];
+                        dayData.scheduled = false;
+                    }
+
                     el.dataset.daydata = JSON.stringify(dayData);
                     this._updateDayVisuals(el);
                 }
             });
+
+            // 4. Обновляем JSON для формы
             this.updateJSON();
         };
 

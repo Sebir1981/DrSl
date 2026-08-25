@@ -1,0 +1,324 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ title }} — Автошкола{% endblock %}
+
+{% block content %}
+<style>
+.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+.page-title { font-size: 32px; font-weight: 700; color: white; margin: 0; }
+.btn-back { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; background: white; color: #475569; text-decoration: none; border-radius: 8px; font-weight: 600; }
+.form-container { max-width: 900px; margin: 0 auto; }
+.form-section { background: white; border-radius: 12px; padding: 24px; margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+.section-title { font-size: 18px; font-weight: 700; color: #1e293b; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 2px solid #e2e8f0; display: flex; align-items: center; gap: 8px; }
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; }
+.form-group { display: flex; flex-direction: column; gap: 6px; }
+.form-label { font-size: 13px; font-weight: 600; color: #475569; }
+.form-input { padding: 10px 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; font-family: inherit; width: 100%; box-sizing: border-box; }
+.form-input:focus { outline: none; border-color: #3b82f6; }
+.form-hint { font-size: 11px; color: #94a3b8; }
+.form-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px; }
+.btn-save { padding: 12px 32px; background: #10b981; color: white; border: none; border-radius: 8px; font-weight: 600; font-size: 15px; cursor: pointer; }
+.btn-save:hover { background: #059669; }
+.btn-cancel { padding: 12px 32px; background: #e2e8f0; color: #475569; border: none; border-radius: 8px; font-weight: 600; font-size: 15px; cursor: pointer; text-decoration: none; }
+.errorlist { list-style: none; padding: 0; margin: 0; }
+.errorlist li { color: #dc2626; font-size: 12px; }
+    .category-checkboxes-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px;
+    padding: 12px;
+    background: #f8fafc;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+}
+
+.category-checkbox-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: white;
+    border: 2px solid #e2e8f0;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 13px;
+}
+
+.category-checkbox-item:hover {
+    border-color: #3b82f6;
+    background: #eff6ff;
+}
+
+.category-checkbox-item input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: #3b82f6;
+    cursor: pointer;
+}
+
+.category-checkbox-item input[type="checkbox"]:checked + span {
+    font-weight: 600;
+    color: #1e293b;
+}
+
+.category-checkbox-item:has(input:checked) {
+    border-color: #3b82f6;
+    background: #eff6ff;
+}
+</style>
+
+<div class="page-header">
+    <h1 class="page-title">📋 {{ title }}</h1>
+    <a href="{% url 'masters:master_pouts_list' %}" class="btn-back">← Назад к списку</a>
+</div>
+
+<div class="form-container">
+    <form method="POST" novalidate>
+        {% csrf_token %}
+
+        <div class="form-section">
+            <div class="section-title"> Основные данные</div>
+            <div class="form-grid">
+                <div class="form-group">
+    <label class="form-label">Фамилия *</label>
+    {{ form.last_name }}
+    {% if form.last_name.errors %}<ul class="errorlist">{% for error in form.last_name.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+</div>
+<div class="form-group">
+    <label class="form-label">Имя *</label>
+    {{ form.first_name }}
+    {% if form.first_name.errors %}<ul class="errorlist">{% for error in form.first_name.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+</div>
+<div class="form-group">
+    <label class="form-label">Отчество</label>
+    {{ form.patronymic }}
+    {% if form.patronymic.errors %}<ul class="errorlist">{% for error in form.patronymic.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+</div>
+                <div class="form-group">
+                    <label class="form-label">№ паспорта *</label>
+                    {{ form.passport_number }}
+                    {% if form.passport_number.errors %}<ul class="errorlist">{% for error in form.passport_number.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Дата рождения *</label>
+                    {{ form.birth_date }}
+                    {% if form.birth_date.errors %}<ul class="errorlist">{% for error in form.birth_date.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <div class="section-title">🪪 Водительское удостоверение</div>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label class="form-label">№ водительского удостоверения *</label>
+                    {{ form.license_number }}
+                    {% if form.license_number.errors %}<ul class="errorlist">{% for error in form.license_number.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                </div>
+                <div class="form-group" style="grid-column: 1 / -1;">
+                    <label class="form-label">Категории *</label>
+                    <div class="category-checkboxes-grid">
+                        {% for choice in form.license_category %}
+                        <label class="category-checkbox-item">
+                            {{ choice.tag }}
+                            <span>{{ choice.choice_label }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                    {% if form.license_category.errors %}<ul class="errorlist">{% for error in form.license_category.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Срок действия ВУ *</label>
+                    {{ form.license_expiry }}
+                    {% if form.license_expiry.errors %}<ul class="errorlist">{% for error in form.license_expiry.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="form-section">
+            <div class="section-title">🏥 Медицинская справка</div>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label class="form-label">№ медицинской справки</label>
+                    {{ form.medical_cert_number }}
+                    {% if form.medical_cert_number.errors %}<ul class="errorlist">{% for error in form.medical_cert_number.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Срок действия до</label>
+                    {{ form.medical_cert_expiry }}
+                    {% if form.medical_cert_expiry.errors %}<ul class="errorlist">{% for error in form.medical_cert_expiry.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <div class="section-title">📜 Свидетельства о повышение квалификации</div>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label class="form-label">№ свидетельства</label>
+                    {{ form.qualification_cert_number }}
+                    {% if form.qualification_cert_number.errors %}<ul class="errorlist">{% for error in form.qualification_cert_number.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Срок действия до</label>
+                    {{ form.qualification_cert_expiry }}
+                    {% if form.qualification_cert_expiry.errors %}<ul class="errorlist">{% for error in form.qualification_cert_expiry.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <div class="section-title">📞 Контакты и автомобиль</div>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label class="form-label">Номер телефона *</label>
+                    {{ form.phone }}
+                    <span class="form-hint">Формат: +375 (XX) XXX-XX-XX</span>
+                    {% if form.phone.errors %}<ul class="errorlist">{% for error in form.phone.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                </div>
+                <div class="form-group">
+                    <label class="form-label">№ топливной карты *</label>
+                    {{ form.fuel_card_number }}
+                    <span class="form-hint">Ровно 9 цифр</span>
+                    {% if form.fuel_card_number.errors %}<ul class="errorlist">{% for error in form.fuel_card_number.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Закреплённый автомобиль</label>
+                    {{ form.car }}
+                    {% if form.car.errors %}<ul class="errorlist">{% for error in form.car.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <a href="{% url 'masters:master_pouts_list' %}" class="btn-cancel">Отмена</a>
+            <button type="submit" class="btn-save">💾 Сохранить</button>
+        </div>
+    </form>
+</div>
+
+<!-- 🔹 Скрипты масок -->
+<script src="{% static 'js/date-mask.js' %}"></script>
+<script src="{% static 'js/phone-mask.js' %}"></script>
+
+<!-- 🔹 Принудительная инициализация масок на этой странице -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 1. Маска дат — принудительно применяем ко всем полям с датами
+    const dateFieldNames = [
+        'birth_date',
+        'license_expiry',
+        'medical_cert_expiry',
+        'qualification_cert_expiry'
+    ];
+
+    dateFieldNames.forEach(function(fieldName) {
+        const input = document.querySelector('input[name="' + fieldName + '"]');
+        if (input) {
+            // Гарантированно добавляем атрибут
+            input.setAttribute('data-date-input', 'true');
+            input.type = 'text';
+            input.placeholder = 'дд.мм.гггг';
+            input.setAttribute('autocomplete', 'off');
+            input.setAttribute('inputmode', 'numeric');
+
+            // Если маска ещё не применена — применяем вручную
+            if (!input.dataset.maskApplied) {
+                input.dataset.maskApplied = '1';
+
+                // Преобразуем YYYY-MM-DD в DD.MM.YYYY при загрузке
+                let val = input.value.trim();
+                if (val && /^\d{4}-\d{2}-\d{2}$/.test(val)) {
+                    const [y, m, d] = val.split('-');
+                    input.value = d + '.' + m + '.' + y;
+                }
+
+                // Блокировка не-цифр
+                input.addEventListener('keydown', function(e) {
+                    const allowed = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab', 'Home', 'End'];
+                    if (allowed.includes(e.key)) return;
+                    if (!/^\d$/.test(e.key) && e.key !== '.' && e.key !== '/') {
+                        e.preventDefault();
+                    }
+                });
+
+                // Автомаска при вводе
+                input.addEventListener('input', function(e) {
+                    let raw = e.target.value.replace(/\D/g, '').slice(0, 8);
+                    let formatted = '';
+                    if (raw.length > 0) formatted += raw.slice(0, 2);
+                    if (raw.length > 2) formatted += '.' + raw.slice(2, 4);
+                    if (raw.length > 4) formatted += '.' + raw.slice(4, 8);
+                    if (e.target.value !== formatted) {
+                        e.target.value = formatted;
+                    }
+                });
+
+                // Нормализация года при потере фокуса
+                input.addEventListener('blur', function(e) {
+                    const parts = e.target.value.trim().split('.');
+                    if (parts.length === 3 && parts[2].length === 2) {
+                        let year = parseInt(parts[2], 10);
+                        year = (year >= 70 && year <= 99) ? year + 1900 : year + 2000;
+                        e.target.value = parts[0] + '.' + parts[1] + '.' + year;
+                    }
+                });
+            }
+        }
+    });
+
+    // 2. Маска телефона — принудительно
+    const phoneInput = document.querySelector('input[name="phone"]');
+    if (phoneInput) {
+        phoneInput.setAttribute('data-phone-input', 'true');
+        phoneInput.setAttribute('autocomplete', 'off');
+
+        if (!phoneInput.dataset.phoneMaskApplied) {
+            phoneInput.dataset.phoneMaskApplied = '1';
+
+            phoneInput.addEventListener('input', function(e) {
+                let value = e.target.value.replace(/\D/g, '');
+
+                // Если начинается с 375, оставляем
+                if (value.startsWith('375')) {
+                    value = value.slice(0, 12);
+                } else if (value.startsWith('8')) {
+                    value = '375' + value.slice(1, 10);
+                } else {
+                    value = '375' + value.slice(0, 9);
+                }
+
+                let formatted = '+375';
+                if (value.length > 3) formatted += ' (' + value.slice(3, 5);
+                if (value.length > 5) formatted += ') ' + value.slice(5, 8);
+                if (value.length > 8) formatted += '-' + value.slice(8, 10);
+                if (value.length > 10) formatted += '-' + value.slice(10, 12);
+
+                if (e.target.value !== formatted) {
+                    e.target.value = formatted;
+                }
+            });
+
+            phoneInput.addEventListener('focus', function(e) {
+                if (!e.target.value) e.target.value = '+375 (';
+            });
+
+            phoneInput.addEventListener('blur', function(e) {
+                if (e.target.value === '+375 (') e.target.value = '';
+            });
+        }
+    }
+
+    // 3. Маска для топливной карты (только 9 цифр)
+    const fuelInput = document.querySelector('input[name="fuel_card_number"]');
+    if (fuelInput) {
+        fuelInput.setAttribute('inputmode', 'numeric');
+        fuelInput.setAttribute('maxlength', '9');
+
+        fuelInput.addEventListener('input', function(e) {
+            e.target.value = e.target.value.replace(/\D/g, '').slice(0, 9);
+        });
+    }
+});
+</script>
+{% endblock %}

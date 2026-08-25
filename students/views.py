@@ -38,6 +38,7 @@ def _parse_date_from_request(request, field_name, default_date=None):
     except (ValueError, AttributeError):
         return default_date
 
+
 def _parse_int_or_none(request, field_name):
     """Парсит ID из запроса, возвращает int или None"""
     val = request.POST.get(field_name, '').strip()
@@ -47,10 +48,7 @@ def _parse_int_or_none(request, field_name):
 
 
 def _format_date_for_display(date_str):
-    """
-    Вспомогательная функция для форматирования даты.
-    Возвращает дату в формате дд.мм.гггг.
-    """
+    """Возвращает дату в формате дд.мм.гггг."""
     if len(date_str) == 10 and date_str[4] == '-':
         parts = date_str.split('-')
         return f"{parts[2]}.{parts[1]}.{parts[0]}"
@@ -66,8 +64,6 @@ def _prepare_credits_data(activity_log):
             if entry.get('type') == 'credit_result':
                 details = entry.get('details') or {}
                 date_str = entry.get('date', '')
-
-                # Теперь форматирование даты вынесено в отдельную функцию
                 display_date = _format_date_for_display(date_str)
 
                 attempts.append({
@@ -94,6 +90,7 @@ def _prepare_credits_data(activity_log):
             'display_status': display_status
         })
     return credits_data
+
 
 def _prepare_change_history(activity_log, author_name):
     """Генерирует историю изменений для выпадающего меню."""
@@ -122,7 +119,7 @@ def _prepare_change_history(activity_log, author_name):
 
 
 # =============================================================================
-# ✅ 0. Создание карточки учащегося (НОВАЯ ЛОГИКА С ФОРМОЙ)
+# ✅ 0. Создание карточки учащегося
 # =============================================================================
 @login_required
 @require_http_methods(["GET", "POST"])
@@ -132,7 +129,11 @@ def student_add(request):
         if form.is_valid():
             student = form.save()
 
-            # 👉 ИСПОЛЬЗУЕМ СЕРВИС ДЛЯ ПЕРВОГО СОБЫТИЯ
+            # 🔹 Наследуем преподавателя из группы при создании (если не задан вручную)
+            if student.group and student.group.teacher and not student.teacher_id:
+                student.teacher = student.group.teacher
+                student.save()
+
             service = StudentStatusService(student)
             service.add_event(
                 event_type='enrollment',
@@ -146,18 +147,16 @@ def student_add(request):
         else:
             for field, errors in form.errors.items():
                 messages.error(request, f"⚠️ Ошибка в поле '{field}': {', '.join(errors)}")
-            # Если ошибка — не редиректим, а показываем форму снова
     else:
         form = StudentPublicAddForm()
 
-    # GET-запрос: подготовка данных для формы
     groups = Group.objects.filter(status='active').order_by('group_number')
     teachers = Teacher.objects.filter(is_active=True).order_by('last_name', 'first_name')
     masters = Master.objects.all().order_by('last_name', 'first_name')
 
     context = {
         'title': '➕ Добавить учащегося',
-        'form': form,  # <--- Передаём форму в шаблон
+        'form': form,
         'groups': groups,
         'teachers': teachers,
         'masters': masters,
@@ -193,10 +192,13 @@ def student_list(request):
             Q(patronymic__icontains=search_query)
         )
 
-    group_filter = request.GET.get('group')
+    group_filter = request.GET.get('group', '').strip()
     if group_filter:
         if group_filter.isdigit():
-            students = students.filter(group_id=group_filter)
+            # 🔹 Значение может быть номерм группы ИЛИ её ID — проверяем оба варианта
+            students = students.filter(
+                Q(group__group_number=group_filter) | Q(group_id=group_filter)
+            )
         else:
             students = students.filter(group__group_number__icontains=group_filter)
 
@@ -212,7 +214,6 @@ def student_list(request):
     groups = Group.objects.filter(status='active').order_by('group_number')
     teachers = Teacher.objects.filter(is_active=True).order_by('last_name', 'first_name')
 
-    # Подготовка данных для шаблона
     students_data = []
     for s in students:
         service = StudentStatusService(s)
@@ -256,18 +257,14 @@ def student_detail(request, student_id):
     )
 
     activity_log = student.activity_log or []
-
-    # Подготовка данных (через вспомогательные функции)
     credits_data = _prepare_credits_data(activity_log)
 
-    # Последний перевод
     last_transfer = None
     for entry in reversed(activity_log):
         if entry.get('type') == 'transfer':
             last_transfer = entry
             break
 
-    # История изменений
     author_name = request.user.get_full_name() or request.user.username
     change_history = _prepare_change_history(activity_log, author_name)
 
@@ -283,7 +280,7 @@ def student_detail(request, student_id):
 
 
 # =============================================================================
-# ✅ 4. Перевод в другую группу
+# ✅ 4. Перевод в другую группу (с наследованием преподавателя)
 # =============================================================================
 @login_required
 @require_http_methods(["GET", "POST"])
@@ -303,17 +300,25 @@ def transfer_student(request, student_id):
             messages.warning(request, 'Учащийся уже находится в этой группе.')
             return render(request, TEMPLATE_TRANSFER_STUDENT, {'student': student, 'groups': groups})
 
+        old_group_number = student.group.group_number if student.group else '—'
+
         service = StudentStatusService(student)
         service.add_event(
             event_type='transfer',
             created_by=request.user,
             event_date=TODAY,
             details={
-                'from_group': student.group.group_number if student.group else '—',
+                'from_group': old_group_number,
                 'to_group_id': target_group.id,
                 'to_group': target_group.group_number
             }
         )
+
+        # 🔹 Назначаем новую группу и наследуем преподавателя
+        student.group = target_group
+        if target_group.teacher:
+            student.teacher = target_group.teacher
+        student.save()
 
         messages.success(request, f'✅ Учащийся успешно переведён в группу {target_group.group_number}.')
         return redirect(REDIRECT_STUDENT_DETAIL, student_id=student.pk)
@@ -338,7 +343,6 @@ def student_refusal(request, student_id):
 
         if form.is_valid():
             comment = form.cleaned_data.get('comment', '')
-
             parsed_date = _parse_date_from_request(request, 'refusal_date') or TODAY
 
             service = StudentStatusService(student)
@@ -352,12 +356,10 @@ def student_refusal(request, student_id):
 
             messages.success(request, f"✅ Зафиксирован отказ: {student.last_name} {student.first_name}")
             return redirect(REDIRECT_STUDENT_DETAIL, student_id=student.id)
-
         else:
             for field, errors in form.errors.items():
                 messages.error(request, f"⚠️ Ошибка в поле '{field}': {', '.join(errors)}")
                 break
-
     else:
         form = RefusalForm()
 
@@ -422,7 +424,6 @@ def student_dismissal(request, student_id):
         if form.is_valid():
             order_number = form.cleaned_data.get('order_number')
             comment = form.cleaned_data.get('comment', '')
-
             parsed_date = _parse_date_from_request(request, 'event_date') or TODAY
 
             service = StudentStatusService(student)
@@ -442,12 +443,10 @@ def student_dismissal(request, student_id):
                 f"✅ {student.last_name} {student.first_name} отчислен. Приказ №{order_number if order_number else '—'}"
             )
             return redirect(REDIRECT_STUDENT_DETAIL, student_id=student.id)
-
         else:
             for field, errors in form.errors.items():
                 messages.error(request, f"⚠️ Ошибка в поле '{field}': {', '.join(errors)}")
                 break
-
     else:
         form = DismissalForm()
 
@@ -493,7 +492,6 @@ def contract_extension(request, student_id):
 
             messages.success(request, f'✅ Договор продлён! Новый номер: {new_contract_number}')
             return redirect(REDIRECT_STUDENT_DETAIL, student_id=student.id)
-
         else:
             for field, errors in form.errors.items():
                 messages.error(request, f"⚠️ Ошибка в поле '{field}': {', '.join(errors)}")
@@ -524,45 +522,65 @@ def surname_suggestions(request):
 # 🔹 Вспомогательные функции для student_edit
 # =============================================================================
 def _handle_group_change(student, new_group_id, old_group_id, request):
-    """Обрабатывает смену группы и добавляет событие, если группа изменилась."""
+    """
+    Обрабатывает смену группы: назначает группу, наследует преподавателя,
+    записывает событие перевода. Возвращает True, если группа изменилась.
+    """
     if new_group_id and new_group_id.isdigit():
         new_group_id = int(new_group_id)
         if new_group_id != old_group_id:
             target_group = get_object_or_404(Group, pk=new_group_id, status='active')
+            old_group_number = student.group.group_number if student.group else '—'
+
+            # 🔹 Назначаем новую группу и наследуем преподавателя
+            student.group = target_group
+            if target_group.teacher:
+                student.teacher = target_group.teacher
+
             service = StudentStatusService(student)
             service.add_event(
                 event_type='transfer',
                 created_by=request.user,
                 details={
-                    'from_group': student.group.group_number if student.group else '—',
+                    'from_group': old_group_number,
                     'to_group_id': target_group.id,
                     'to_group': target_group.group_number
                 }
             )
+            return True
     elif new_group_id is None or new_group_id == '':
         student.group = None
+    return False
 
 
 def _handle_teacher_change(student, new_teacher_id, old_teacher_id, request):
-    """Обрабатывает смену преподавателя и добавляет событие, если преподаватель изменился."""
+    """
+    Обрабатывает РУЧНУЮ смену преподавателя.
+    Вызывается только если группа НЕ менялась (иначе преподаватель унаследован).
+    """
     if new_teacher_id and new_teacher_id.isdigit():
         new_teacher_id = int(new_teacher_id)
-        if new_teacher_id != old_teacher_id:
+        if new_teacher_id != student.teacher_id:
+            old_teacher = student.teacher
             target_teacher = get_object_or_404(Teacher, pk=new_teacher_id, is_active=True)
+            student.teacher = target_teacher
+
             service = StudentStatusService(student)
             service.add_event(
                 event_type='teacher_change',
                 created_by=request.user,
                 details={
+                    'from': str(old_teacher) if old_teacher else '—',
+                    'to': f"{target_teacher.last_name} {target_teacher.first_name[:1]}.",
                     'to_teacher_id': target_teacher.id,
-                    'to_teacher': f"{target_teacher.last_name} {target_teacher.first_name[:1]}."
                 }
             )
     elif new_teacher_id is None or new_teacher_id == '':
         student.teacher = None
 
 
-# ✅ 10. Редактирование учащегося (теперь когнитивная сложность ~5)
+# =============================================================================
+# ✅ 10. Редактирование учащегося
 # =============================================================================
 @login_required
 @require_http_methods(["GET", "POST"])
@@ -591,13 +609,17 @@ def student_edit(request, student_id):
         student.position = request.POST.get('position', '').strip()
         student.gearbox_type = request.POST.get('gearbox_type', '')
 
-        # 4. Обработка связей (вынесено в функции-помощники)
+        # 4. Обработка связей
         new_group_id = request.POST.get('group')
         new_teacher_id = request.POST.get('teacher')
         new_master_id = request.POST.get('master')
 
-        _handle_group_change(student, new_group_id, old_group_id, request)
-        _handle_teacher_change(student, new_teacher_id, old_teacher_id, request)
+        # 🔹 Смена группы → преподаватель наследуется автоматически
+        group_changed = _handle_group_change(student, new_group_id, old_group_id, request)
+
+        # 🔹 Ручная смена преподавателя — только если группа НЕ менялась
+        if not group_changed:
+            _handle_teacher_change(student, new_teacher_id, old_teacher_id, request)
 
         # Мастер
         if new_master_id and new_master_id.isdigit():
@@ -610,7 +632,6 @@ def student_edit(request, student_id):
         messages.success(request, f'✅ Данные учащегося {student.last_name} обновлены!')
         return redirect(REDIRECT_STUDENT_DETAIL, student_id=student.pk)
 
-    # GET-запрос: подготовка данных для формы
     groups = Group.objects.filter(status='active').order_by('group_number')
     teachers = Teacher.objects.filter(is_active=True).order_by('last_name', 'first_name')
     masters = Master.objects.all().order_by('last_name', 'first_name')
@@ -624,6 +645,7 @@ def student_edit(request, student_id):
     }
     return render(request, 'students/student_edit.html', context)
 
+
 # =============================================================================
 # ✅ 11. API для живого поиска (Live Search)
 # =============================================================================
@@ -633,7 +655,6 @@ def get_students_api(request):
     query = request.GET.get('q', '').strip()
     student_id = request.GET.get('student_id')
 
-    # 🔹 Основной queryset
     qs = Student.objects.select_related('group', 'teacher', 'master')
 
     if student_id:
@@ -642,7 +663,6 @@ def get_students_api(request):
         if len(query) == 0:
             students = qs.all()
         else:
-            # ✅ Регистронезависимый поиск (i__startswith)
             students = qs.filter(
                 Q(last_name__istartswith=query) |
                 Q(first_name__istartswith=query) |
@@ -653,7 +673,6 @@ def get_students_api(request):
     suggestions_list = []
 
     for s in students[:50]:
-        # Данные для таблицы
         service = StudentStatusService(s)
         status_data = service.get_current_status()
         row_html = render_to_string('students/includes/student_table_row.html', {
@@ -662,19 +681,12 @@ def get_students_api(request):
         })
         rows_html.append(row_html)
 
-        # 📌 Генерируем красивую строку для выпадающего списка
-        # Собираем ФИО
         full_name = f"{s.last_name} {s.first_name}"
         if s.patronymic:
             full_name += f" {s.patronymic}"
 
-        # Дата рождения (короткая)
         birth_str = s.birth_date.strftime('%d.%m.%Y') if s.birth_date else ''
-
-        # Группа
         group_str = f"(гр. {s.group.group_number})" if s.group else ''
-
-        # Итоговая строка для подсказки
         display_text = f"{full_name} {birth_str} {group_str}".strip()
 
         suggestions_list.append({

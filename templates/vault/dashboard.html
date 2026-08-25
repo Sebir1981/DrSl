@@ -290,7 +290,7 @@
             </a>
 
             <!-- Мастера -->
-            <a href="{% url 'masters:master_list' %}" class="card reference">
+            <a href="{% url 'masters:master_pouts_list' %}" class="card reference">
                 <span class="icon">🚗</span>
                 <span class="title">Мастера</span>
                 <span class="count">{{ masters_count|default:0 }}</span>
@@ -310,8 +310,8 @@
                 <span class="count">⚙️</span>
             </a>
 
-            <!-- Автопарк (заглушка) -->
-            <a href="#" class="card coming-soon">
+            <!-- Автопарк -->
+            <a href="{% url 'cars:car_list' %}" class="card reference">
                 <span class="icon">🚙</span>
                 <span class="title">Автопарк</span>
                 <span class="count">🔜</span>

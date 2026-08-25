@@ -1,0 +1,52 @@
+<tr>
+    <td><strong>{{ master.full_name }}</strong></td>
+    <td>
+        {% if master.license_category %}
+            <div class="category-badges" title="{{ master.license_categories_display }}">
+                {% if master.license_category|length > 3 %}
+                    <span class="category-badge">{{ master.license_category|first }}</span>
+                    <span class="category-more">…</span>
+                    {% for cat in master.license_category|slice:"-2:" %}
+                    <span class="category-badge">{{ cat }}</span>
+                    {% endfor %}
+                {% else %}
+                    {% for cat in master.license_category %}
+                    <span class="category-badge">{{ cat }}</span>
+                    {% endfor %}
+                {% endif %}
+            </div>
+        {% else %}
+            <span class="category-badge-none">—</span>
+        {% endif %}
+    </td>
+    <td>
+        {% if master.is_license_valid %}
+            <span class="status-valid">{{ master.license_expiry|date:"d.m.Y" }}</span>
+        {% else %}
+            <span class="status-expired">{{ master.license_expiry|date:"d.m.Y" }}</span>
+        {% endif %}
+    </td>
+    <td>
+        {% if master.medical_cert_expiry %}
+            {% if master.is_medical_valid %}
+                <span class="status-valid">{{ master.medical_cert_expiry|date:"d.m.Y" }}</span>
+            {% else %}
+                <span class="status-expired">{{ master.medical_cert_expiry|date:"d.m.Y" }}</span>
+            {% endif %}
+        {% else %}
+            <span style="color: #94a3b8;">—</span>
+        {% endif %}
+    </td>
+    <td>{{ master.phone }}</td>
+    <td>
+        {% if master.car %}
+            {{ master.car.make }} {{ master.car.license_plate }}
+        {% else %}
+            <span style="color: #94a3b8;">—</span>
+        {% endif %}
+    </td>
+    <td style="text-align: center;">
+        <a href="{% url 'masters:master_pouts_edit' master.pk %}" class="action-btn" title="Редактировать">✏️</a>
+        <button type="button" class="action-btn" title="Удалить" onclick="showDeleteModal({{ master.pk }}, '{{ master.full_name|escapejs }}')">🗑️</button>
+    </td>
+</tr>

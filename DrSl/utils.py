@@ -1,4 +1,4 @@
-﻿# DrSl/utils.py
+# DrSl/utils.py
 
 from DrSl.utils import get_user_fio
 

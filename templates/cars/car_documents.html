@@ -1,0 +1,401 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} — Автошкола{% endblock %}
+
+{% block content %}
+<style>
+.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 16px; }
+.page-title { font-size: 32px; font-weight: 700; color: white; margin: 0; display: flex; align-items: center; gap: 12px; }
+.btn-back { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; background: white; color: #475569; text-decoration: none; border-radius: 8px; font-weight: 600; transition: all 0.2s; border: none; }
+.btn-back:hover { background: #f1f5f9; color: #1e293b; }
+.car-info { background: white; border-radius: 12px; padding: 16px 24px; margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+.car-info-title { font-size: 14px; color: #64748b; margin-bottom: 8px; }
+.car-info-value { font-size: 18px; font-weight: 700; color: #1e293b; }
+.form-container { max-width: 1000px; margin: 0 auto; }
+.form-section { background: white; border-radius: 12px; padding: 24px; margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+.section-title { font-size: 18px; font-weight: 700; color: #1e293b; margin-bottom: 20px; display: flex; align-items: center; gap: 8px; padding-bottom: 12px; border-bottom: 2px solid #e2e8f0; }
+.sub-section { background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 10px; padding: 16px 20px; margin-bottom: 20px; }
+.sub-section:last-child { margin-bottom: 0; }
+.sub-section-title { font-size: 15px; font-weight: 700; color: #475569; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; padding-bottom: 10px; border-bottom: 2px solid #cbd5e1; }
+.sub-section-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+.form-group { display: flex; flex-direction: column; gap: 6px; }
+.form-label { font-size: 13px; font-weight: 600; color: #475569; }
+.form-input { padding: 10px 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; transition: border-color 0.2s; font-family: inherit; }
+.form-input:focus { outline: none; border-color: #3b82f6; }
+.form-input:disabled { background: #f1f5f9; color: #94a3b8; cursor: not-allowed; }
+.form-hint { font-size: 11px; color: #94a3b8; }
+.checkbox-inline { display: flex; align-items: center; gap: 12px; padding: 5px 10px; background: white; border: 2px solid #e2e8f0; border-radius: 8px; transition: all 0.2s; }
+.checkbox-inline:hover { border-color: #cbd5e1; }
+.checkbox-inline input[type="checkbox"] { width: 20px; height: 20px; accent-color: #3b82f6; cursor: pointer; flex-shrink: 0; }
+.checkbox-inline label { font-weight: 600; color: #1e293b; cursor: pointer; margin: 0; flex: 1; }
+.tire-change-container { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
+.tire-form-side { display: flex; flex-direction: column; gap: 16px; }
+.tire-visual-side { display: flex; flex-direction: column; align-items: center; }
+.car-top-view { position: relative; width: 200px; height: 280px; margin: 20px 0; }
+.car-body { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 120px; height: 300px; background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%); border-radius: 20px; border: 3px solid #94a3b8; }
+.car-body::before { content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 48px; opacity: 0.3; }
+.wheel { position: absolute; width: 30px; height: 70px; background: #1e293b; border-radius: 8px; border: 3px solid #475569; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; }
+.wheel:hover { border-color: #3b82f6; transform: scale(1.05); }
+.wheel.selected { background: #10b981; border-color: #059669; box-shadow: 0 0 12px rgba(16, 185, 129, 0.5); }
+.wheel-number { color: white; font-weight: 700; font-size: 18px; }
+.wheel-1 { top: 20px; left: 30px; }
+.wheel-2 { top: 20px; right: 30px; }
+.wheel-3 { bottom: 10px; left: 30px; }
+.wheel-4 { bottom: 10px; right: 30px; }
+.wheel-checkbox { position: absolute; opacity: 0; width: 0; height: 0; }
+.wheel-label { position: absolute; inset: 0; cursor: pointer; }
+.wheel-legend { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; font-size: 12px; color: #64748b; }
+.legend-item { display: flex; align-items: center; gap: 6px; }
+.legend-dot { width: 12px; height: 12px; border-radius: 3px; background: #1e293b; }
+.legend-dot.selected { background: #10b981; }
+.btn-apply { margin-top: 16px; padding: 10px 24px; background: #3b82f6; color: white; border: none; border-radius: 8px; font-weight: 600; font-size: 14px; cursor: pointer; transition: all 0.2s; align-self: flex-end; }
+.btn-apply:hover { background: #2563eb; transform: translateY(-1px); }
+.btn-apply:disabled { background: #94a3b8; cursor: not-allowed; }
+.form-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px; }
+.btn-save { padding: 12px 32px; background: #10b981; color: white; border: none; border-radius: 8px; font-weight: 600; font-size: 15px; cursor: pointer; transition: all 0.2s; }
+.btn-save:hover { background: #059669; transform: translateY(-1px); }
+.btn-cancel { padding: 12px 32px; background: #e2e8f0; color: #475569; border: none; border-radius: 8px; font-weight: 600; font-size: 15px; cursor: pointer; text-decoration: none; transition: all 0.2s; }
+.btn-cancel:hover { background: #cbd5e1; }
+.errorlist { list-style: none; padding: 0; margin: 0; }
+.errorlist li { color: #dc2626; font-size: 12px; margin-top: 4px; }
+@media (max-width: 768px) { .tire-change-container { grid-template-columns: 1fr; } }
+</style>
+
+<div class="page-header">
+    <h1 class="page-title">📋 {{ title }}</h1>
+    <a href="{% url 'cars:car_list' %}" class="btn-back">← Назад к списку</a>
+</div>
+
+<div class="car-info">
+    <div class="car-info-title">Автомобиль</div>
+    <div class="car-info-value">{{ car.make }} — {{ car.license_plate }}</div>
+</div>
+
+<div class="form-container">
+    <!-- 🔹 Форма техкарты (документы) -->
+    <form method="POST" action="{% url 'cars:car_documents' car.pk %}">
+        {% csrf_token %}
+
+        <div class="form-section">
+            <div class="section-title">📋 Техкарта</div>
+
+            <!-- 🔹 Технический осмотр -->
+            <div class="sub-section">
+                <div class="sub-section-title">🔧 Технический осмотр</div>
+                <div class="sub-section-grid">
+                    <div class="form-group">
+                        <label class="form-label">Дата окончания Гос тех. осмотра</label>
+                        <input type="text" name="tech_inspection_date" id="id_tech_inspection_date"
+                               class="form-input" data-date-input="true" placeholder="дд.мм.гггг" autocomplete="off"
+                               value="{{ doc_form.tech_inspection_date.value|date:'d.m.Y'|default:'' }}">
+                        {% if doc_form.tech_inspection_date.errors %}
+                        <ul class="errorlist">{% for error in doc_form.tech_inspection_date.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="sub-section-grid" style="margin-top: 16px;">
+                    <div class="form-group">
+                        <label class="form-label">Дата проведения внутреннего ТО</label>
+                        <input type="text" name="internal_tech_inspection_date" id="id_internal_tech_inspection_date"
+                               class="form-input" data-date-input="true" placeholder="дд.мм.гггг" autocomplete="off"
+                               value="{{ doc_form.internal_tech_inspection_date.value|date:'d.m.Y'|default:'' }}">
+                        {% if doc_form.internal_tech_inspection_date.errors %}
+                        <ul class="errorlist">{% for error in doc_form.internal_tech_inspection_date.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+                        {% endif %}
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Пробег</label>
+                        <input type="number" name="internal_tech_odometer" id="id_internal_tech_odometer"
+                               class="form-input" placeholder="км"
+                               value="{{ doc_form.internal_tech_odometer.value|default:'' }}">
+                        {% if doc_form.internal_tech_odometer.errors %}
+                        <ul class="errorlist">{% for error in doc_form.internal_tech_odometer.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- 🔹 ОСГО -->
+            <div class="sub-section">
+                <div class="sub-section-title">🛡️ Обязательного страхования гражданской ответственности владельцев транспортных средств (ОСГО)</div>
+                <div class="sub-section-grid">
+                    <div class="form-group">
+                        <label class="form-label">Второй взнос</label>
+                        <div class="checkbox-inline">
+                            <input type="checkbox" name="insurance_active" id="id_insurance_active" class="form-check-input"
+                                   {% if doc_form.insurance_active.value %}checked{% endif %}>
+                            <label for="id_insurance_active">Второй взнос</label>
+                        </div>
+                        {% if doc_form.insurance_active.errors %}
+                        <ul class="errorlist">{% for error in doc_form.insurance_active.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+                        {% endif %}
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Дата второго взноса</label>
+                        <input type="text" name="insurance_next_payment" id="id_insurance_next_payment"
+                               class="form-input" data-date-input="true" placeholder="дд.мм.гггг" autocomplete="off"
+                               value="{{ doc_form.insurance_next_payment.value|date:'d.m.Y'|default:'' }}">
+                        <span class="form-hint">Если стоит галочка — дата до этого дня</span>
+                        {% if doc_form.insurance_next_payment.errors %}
+                        <ul class="errorlist">{% for error in doc_form.insurance_next_payment.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+                        {% endif %}
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Дата окончания страховки</label>
+                        <input type="text" name="insurance_expiry" id="id_insurance_expiry"
+                               class="form-input" data-date-input="true" placeholder="дд.мм.гггг" autocomplete="off"
+                               value="{{ doc_form.insurance_expiry.value|date:'d.m.Y'|default:'' }}">
+                        <span class="form-hint">Если есть второй взнос — берётся автоматически</span>
+                        {% if doc_form.insurance_expiry.errors %}
+                        <ul class="errorlist">{% for error in doc_form.insurance_expiry.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- 🔹 Опрессовка баллона -->
+            <div class="sub-section">
+                <div class="sub-section-title">⛽ Опрессовка баллона</div>
+                <div class="sub-section-grid">
+                    <div class="form-group">
+                        <label class="form-label">Дата опрессовки до</label>
+                        <input type="text" name="gas_cylinder_test_date" id="id_gas_cylinder_test_date"
+                               class="form-input" data-date-input="true" placeholder="дд.мм.гггг" autocomplete="off"
+                               value="{{ doc_form.gas_cylinder_test_date.value|date:'d.m.Y'|default:'' }}">
+                        {% if doc_form.gas_cylinder_test_date.errors %}
+                        <ul class="errorlist">{% for error in doc_form.gas_cylinder_test_date.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <a href="{% url 'cars:car_list' %}" class="btn-cancel">Отмена</a>
+                <button type="submit" class="btn-save">💾 Сохранить техкарту</button>
+            </div>
+        </div>
+    </form>
+
+    <!-- 🔹 Форма замены колёс (ОТДЕЛЬНАЯ ФОРМА) -->
+    <div class="form-section">
+        <div class="section-title">🛞 Замена колёс</div>
+
+        <form method="POST" action="{% url 'cars:car_documents' car.pk %}">
+            {% csrf_token %}
+
+            <div class="tire-change-container">
+                <!-- Левая часть: форма -->
+                <div class="tire-form-side">
+                    <div class="form-group">
+                        <label class="form-label">Дата замены колёс</label>
+                        <input type="text" name="tire_date" id="id_tire_date"
+                               class="form-input" data-date-input="true" placeholder="дд.мм.гггг" autocomplete="off"
+                               value="{{ tire_form.date.value|date:'d.m.Y'|default:'' }}">
+                        {% if tire_form.date.errors %}
+                        <ul class="errorlist">{% for error in tire_form.date.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+                        {% endif %}
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Показания одометра при замене колёс</label>
+                        <input type="number" name="tire_odometer" id="id_tire_odometer"
+                               class="form-input" placeholder="км"
+                               value="{{ tire_form.odometer.value|default:'' }}">
+                        {% if tire_form.odometer.errors %}
+                        <ul class="errorlist">{% for error in tire_form.odometer.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+                        {% endif %}
+                    </div>
+
+                    <!-- История замен -->
+                    <div class="form-group" style="margin-top: 20px;">
+                        <label class="form-label">📜 История замен колёс</label>
+                        <div style="background: white; border: 2px solid #e2e8f0; border-radius: 8px; padding: 12px; max-height: 250px; overflow-y: auto;">
+                            {% if tire_changes %}
+                                <div style="color: #10b981; font-weight: 600; margin-bottom: 10px; text-align: center;">
+                                    Найдено записей: {{ tire_changes.count }}
+                                </div>
+                                {% for change in tire_changes %}
+                                <div style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-size: 13px; {% if forloop.first %}background: #f0fdf4;{% endif %}">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                                        <div>
+                                            <strong style="color: #1e293b;">{{ change.date|date:"d.m.Y" }}</strong>
+                                            <span style="color: #64748b; margin-left: 12px;">{{ change.odometer }} км</span>
+                                        </div>
+                                        <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+                                            {% for wheel in change.wheels %}
+                                            <span style="background: #10b981; color: white; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 600;">
+                                                №{{ wheel }}
+                                            </span>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                                <div style="text-align: center; color: #94a3b8; padding: 30px;">
+                                    📭 История замен пуста<br>
+                                    <small>Всего записей: {{ tire_changes.count|default:0 }}</small>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Правая часть: визуальный выбор колёс -->
+                <div class="tire-visual-side">
+                    <div class="car-top-view">
+                        <div class="car-body"></div>
+
+                        <div class="wheel wheel-1" onclick="toggleWheel(1)">
+                            <input type="checkbox" name="wheels" value="1" id="wheel-1" class="wheel-checkbox">
+                            <label for="wheel-1" class="wheel-label"><span class="wheel-number">1</span></label>
+                        </div>
+
+                        <div class="wheel wheel-2" onclick="toggleWheel(2)">
+                            <input type="checkbox" name="wheels" value="2" id="wheel-2" class="wheel-checkbox">
+                            <label for="wheel-2" class="wheel-label"><span class="wheel-number">2</span></label>
+                        </div>
+
+                        <div class="wheel wheel-3" onclick="toggleWheel(3)">
+                            <input type="checkbox" name="wheels" value="3" id="wheel-3" class="wheel-checkbox">
+                            <label for="wheel-3" class="wheel-label"><span class="wheel-number">3</span></label>
+                        </div>
+
+                        <div class="wheel wheel-4" onclick="toggleWheel(4)">
+                            <input type="checkbox" name="wheels" value="4" id="wheel-4" class="wheel-checkbox">
+                            <label for="wheel-4" class="wheel-label"><span class="wheel-number">4</span></label>
+                        </div>
+                    </div>
+
+                    <div class="wheel-legend">
+                        <div class="legend-item"><div class="legend-dot"></div><span>1 — переднее левое</span></div>
+                        <div class="legend-item"><div class="legend-dot"></div><span>2 — переднее правое</span></div>
+                        <div class="legend-item"><div class="legend-dot"></div><span>3 — заднее левое</span></div>
+                        <div class="legend-item"><div class="legend-dot"></div><span>4 — заднее правое</span></div>
+                    </div>
+
+                    <button type="button" class="btn-apply" onclick="applyTireChange()">✅ Применить</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+// Логика выбора колёс
+function toggleWheel(wheelNum) {
+    const checkbox = document.getElementById(`wheel-${wheelNum}`);
+    const wheelDiv = document.querySelector(`.wheel-${wheelNum}`);
+    checkbox.checked = !checkbox.checked;
+    if (checkbox.checked) {
+        wheelDiv.classList.add('selected');
+    } else {
+        wheelDiv.classList.remove('selected');
+    }
+}
+
+// Применение замены колёс
+function applyTireChange() {
+    const selectedWheels = Array.from(document.querySelectorAll('input[name="wheels"]:checked')).map(cb => cb.value);
+
+    if (selectedWheels.length === 0) {
+        alert('⚠️ Выберите хотя бы одно колесо!');
+        return;
+    }
+
+    const dateInput = document.querySelector('input[name="tire_date"]');
+    const odometerInput = document.querySelector('input[name="tire_odometer"]');
+
+    if (!dateInput.value || !odometerInput.value) {
+        alert('⚠️ Заполните дату и показания одометра!');
+        return;
+    }
+
+    // Показываем подтверждение
+    const wheelNames = selectedWheels.map(w => '№' + w).join(', ');
+    const confirmMsg = `Заменить колёса: ${wheelNames}\nДата: ${dateInput.value}\nПробег: ${odometerInput.value} км\n\nНажмите OK для сохранения.`;
+
+    if (confirm(confirmMsg)) {
+        // Находим форму и отправляем
+        const form = dateInput.closest('form');
+        if (form) {
+            form.submit();
+        } else {
+            alert('❌ Ошибка: форма не найдена');
+        }
+    }
+}
+
+// Логика страховки
+document.addEventListener('DOMContentLoaded', function() {
+    const checkbox = document.getElementById('id_insurance_active');
+    const nextPaymentInput = document.getElementById('id_insurance_next_payment');
+
+    if (checkbox && nextPaymentInput) {
+        function updateNextPaymentState() {
+            if (checkbox.checked) {
+                nextPaymentInput.disabled = false;
+                nextPaymentInput.style.opacity = '1';
+            } else {
+                nextPaymentInput.disabled = true;
+                nextPaymentInput.style.opacity = '0.5';
+                nextPaymentInput.value = '';
+            }
+        }
+        updateNextPaymentState();
+        checkbox.addEventListener('change', updateNextPaymentState);
+    }
+});
+
+// Маска даты
+function applyDateMask(input) {
+    if (input.dataset.maskApplied) return;
+    input.type = 'text';
+    input.placeholder = 'дд.мм.гггг';
+    input.setAttribute('inputmode', 'numeric');
+    input.setAttribute('autocomplete', 'off');
+    input.dataset.maskApplied = '1';
+
+    let val = input.value.trim();
+    if (val && /^\d{4}-\d{2}-\d{2}$/.test(val)) {
+        const [y, m, d] = val.split('-');
+        input.value = `${d}.${m}.${y}`;
+    }
+
+    input.addEventListener('keydown', function(e) {
+        const allowed = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab'];
+        if (allowed.includes(e.key)) return;
+        if (!/^\d$/.test(e.key) && e.key !== '.' && e.key !== '/') {
+            e.preventDefault();
+        }
+    });
+
+    input.addEventListener('input', function(e) {
+        let raw = e.target.value.replace(/\D/g, '').slice(0, 8);
+        let formatted = '';
+        if (raw.length > 0) formatted += raw.slice(0, 2);
+        if (raw.length > 2) formatted += '.' + raw.slice(2, 4);
+        if (raw.length > 4) formatted += '.' + raw.slice(4, 8);
+        if (e.target.value !== formatted) {
+            e.target.value = formatted;
+        }
+    });
+
+    input.addEventListener('blur', function(e) {
+        const parts = e.target.value.trim().split('.');
+        if (parts.length === 3 && parts[2].length === 2) {
+            let year = parseInt(parts[2], 10);
+            year = (year >= 70 && year <= 99) ? year + 1900 : year + 2000;
+            e.target.value = `${parts[0]}.${parts[1]}.${year}`;
+        }
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('input[data-date-input="true"]').forEach(applyDateMask);
+});
+</script>
+{% endblock %}

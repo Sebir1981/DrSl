@@ -1,0 +1,25 @@
+<tr>
+    <td><strong>{{ forloop.counter }}</strong></td>
+    <td>
+        <strong>{{ t.last_name }} {{ t.first_name }}</strong>
+        {% if t.patronymic %}<br><small style="color:#94a3b8">{{ t.patronymic }}</small>{% endif %}
+    </td>
+    <td>{{ t.phone }}</td>
+    <td>
+        {% if t.teaches_truck %}<span class="badge badge-truck">🚛 Грузовой</span>{% endif %}
+        {% if t.teaches_car %}<span class="badge badge-car">🚗 Легковой</span>{% endif %}
+        {% if not t.teaches_truck and not t.teaches_car %}<span class="none">—</span>{% endif %}
+    </td>
+    <td style="text-align: center;">
+        <span class="schedule-icons">
+            {% if t.schedule_morning %}🌅{% endif %}{% if t.schedule_evening %}🌆{% endif %}{% if t.schedule_weekend %}📅{% endif %}
+        </span>
+        {% if not t.schedule_morning and not t.schedule_evening and not t.schedule_weekend %}<span class="none">—</span>{% endif %}
+    </td>
+    <td style="text-align: center; white-space: nowrap;">
+        <div style="display: flex; gap: 4px; justify-content: center; align-items: center;">
+            <a href="{% url 'teachers:teacher_edit' t.pk %}" class="action-btn edit" title="Редактировать">✏️</a>
+            <button type="button" class="action-btn delete" title="Удалить" onclick="showDeleteModal({{ t.pk }}, '{{ t.last_name|escapejs }} {{ t.first_name|escapejs }}')">🗑️</button>
+        </div>
+    </td>
+</tr>

@@ -103,3 +103,43 @@ class SchedulePlanForm(forms.ModelForm):
         cleaned_data = super().clean()
         # Здесь можно добавить валидацию, если нужно
         return cleaned_data
+
+
+# =============================================================================
+# ✅ ФОРМА ДЛЯ ГРУППЫ (исправлена, вынесена из SchedulePlanForm)
+# =============================================================================
+class GroupForm(forms.ModelForm):
+    contract_start = forms.DateField(
+        label="Начало договора",
+        required=False,
+        widget=RuDateWidget(attrs={'class': 'form-control vDateField'})  # <-- добавили vDateField
+    )
+    contract_end = forms.DateField(
+        label="Окончание договора",
+        required=False,
+        widget=RuDateWidget(attrs={'class': 'form-control vDateField'})
+    )
+    exam_internal_theory_date = forms.DateField(
+        label="ПДД (внутр.)",
+        required=False,
+        widget=RuDateWidget(attrs={'class': 'form-control vDateField'})
+    )
+    exam_internal_driving_date = forms.DateField(
+        label="Вождение (внутр.)",
+        required=False,
+        widget=RuDateWidget(attrs={'class': 'form-control vDateField'})
+    )
+    exam_gai_date = forms.DateField(
+        label="Экзамен ГАИ",
+        required=False,
+        widget=RuDateWidget(attrs={'class': 'form-control vDateField'})
+    )
+
+    class Meta:
+        model = Group
+        fields = [
+            'contract_start', 'contract_end',
+            'exam_internal_theory_date', 'exam_internal_driving_date', 'exam_gai_date',
+            'status', 'schedule_type', 'duration',
+            'classroom', 'teacher', 'comments',
+        ]

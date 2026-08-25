@@ -1,0 +1,589 @@
+{% extends "base.html" %}
+{% block title %}Автопарк — Автошкола{% endblock %}
+
+{% block content %}
+<style>
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.page-title {
+    font-size: 32px;
+    font-weight: 700;
+    color: white;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.header-buttons {
+    display: flex;
+    gap: 12px;
+}
+
+.btn-home {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    background: white;
+    color: #475569;
+    text-decoration: none;
+    border-radius: 8px;
+    font-weight: 600;
+    transition: all 0.2s;
+    border: none;
+}
+
+.btn-home:hover {
+    background: #f1f5f9;
+    color: #1e293b;
+}
+
+.btn-add {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    background: #3b82f6;
+    color: white;
+    text-decoration: none;
+    border-radius: 8px;
+    font-weight: 600;
+    transition: all 0.2s;
+    border: none;
+}
+
+.btn-add:hover {
+    background: #2563eb;
+    color: white;
+}
+
+.search-card {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 24px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.search-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #475569;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.search-form {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.search-input {
+    flex: 1;
+    min-width: 250px;
+    padding: 10px 14px;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 14px;
+    transition: border-color 0.2s;
+}
+
+.search-input:focus {
+    outline: none;
+    border-color: #3b82f6;
+}
+
+.btn-search {
+    padding: 10px 20px;
+    background: #3b82f6;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s;
+}
+
+.btn-search:hover {
+    background: #2563eb;
+}
+
+.btn-reset {
+    padding: 10px 20px;
+    background: #e2e8f0;
+    color: #475569;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s;
+}
+
+.btn-reset:hover {
+    background: #cbd5e1;
+}
+
+.table-card {
+    background: white;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.data-table th {
+    background: #f8fafc;
+    padding: 14px 16px;
+    text-align: left;
+    font-weight: 600;
+    color: #475569;
+    font-size: 13px;
+    border-bottom: 2px solid #e2e8f0;
+    white-space: nowrap;
+}
+
+.data-table td {
+    padding: 14px 16px;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: middle;
+    font-size: 14px;
+}
+
+.data-table tr:hover {
+    background: #f8fafc;
+}
+
+.data-table tr:last-child td {
+    border-bottom: none;
+}
+
+.status-active {
+    color: #16a34a;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.status-expired {
+    color: #dc2626;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.status-none {
+    color: #94a3b8;
+}
+
+.status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.status-dot.active { background: #22c55e; }
+.status-dot.expired { background: #ef4444; }
+
+.action-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 4px;
+    font-size: 14px;
+    transition: all 0.2s;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+}
+
+.action-btn:hover {
+    background: #f1f5f9;
+}
+
+.action-btn.edit:hover {
+    background: #fef3c7;
+}
+
+.action-btn.delete:hover {
+    background: #fee2e2;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 40px;
+    color: #94a3b8;
+    font-size: 15px;
+}
+</style>
+
+<!-- 🔹 ЗАГОЛОВОК -->
+<div class="page-header">
+    <h1 class="page-title">🚗 Автопарк</h1>
+    <div class="header-buttons">
+        <a href="{% url 'vault:dashboard' %}" class="btn-home">← На главную</a>
+        <a href="{% url 'cars:car_add' %}" class="btn-add">+ Добавить автомобиль</a>
+    </div>
+</div>
+
+<!-- 🔹 ПОИСК -->
+<div class="search-card">
+    <div class="search-title">🔍 Поиск по марке или гос. номеру</div>
+    <form method="GET" class="search-form" id="searchForm">
+        <input type="text"
+               name="q"
+               class="search-input"
+               id="searchInput"
+               placeholder="Например: Toyota или 1234 AA-1"
+               value="{{ request.GET.q|default:'' }}"
+               autocomplete="off">
+        <button type="submit" class="btn-search">🔍 Найти</button>
+        <a href="{% url 'cars:car_list' %}" class="btn-reset">✕ Сброс</a>
+    </form>
+</div>
+
+<!-- 🔹 ТАБЛИЦА -->
+<div class="table-card">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Марка</th>
+                <th>Гос. номер</th>
+                <th>Страховка до</th>
+                <th>Техосмотр до</th>
+                <th>Внутренний ТО от</th>
+                <th>КПП / Топливо</th>
+                <th>Одометр</th>
+                <th style="width: 120px; text-align: center;">Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in cars_data %}
+            {% with car=item.car %}
+            <tr>
+                <td><strong>{{ car.make }}</strong></td>
+                <td>{{ car.license_plate }}</td>
+
+                <!-- Страховка до -->
+                <td>
+                    {% if item.insurance_expiry %}
+                        {% if item.insurance_expiry < today %}
+                            <span class="status-expired">
+                                <span class="status-dot expired"></span>
+                                {{ item.insurance_expiry|date:"d.m.Y" }}
+                            </span>
+                        {% else %}
+                            <span class="status-active">
+                                <span class="status-dot active"></span>
+                                {{ item.insurance_expiry|date:"d.m.Y" }}
+                            </span>
+                        {% endif %}
+                    {% else %}
+                        <span class="status-none">—</span>
+                    {% endif %}
+                </td>
+
+                <!-- Техосмотр до -->
+                <td>
+                    {% if item.tech_inspection_date %}
+                        {% if item.tech_inspection_date < today %}
+                            <span class="status-expired">
+                                <span class="status-dot expired"></span>
+                                {{ item.tech_inspection_date|date:"d.m.Y" }}
+                            </span>
+                        {% else %}
+                            <span class="status-active">
+                                <span class="status-dot active"></span>
+                                {{ item.tech_inspection_date|date:"d.m.Y" }}
+                            </span>
+                        {% endif %}
+                    {% else %}
+                        <span class="status-none">—</span>
+                    {% endif %}
+                </td>
+
+                <!-- Внутренний ТО до -->
+                <td>
+                    {% if item.internal_tech_inspection_date %}
+                        {% if item.internal_tech_inspection_date < today %}
+                            <span class="status-expired">
+                                <span class="status-dot expired"></span>
+                                {{ item.internal_tech_inspection_date|date:"d.m.Y" }}
+                            </span>
+                        {% else %}
+                            <span class="status-active">
+                                <span class="status-dot active"></span>
+                                {{ item.internal_tech_inspection_date|date:"d.m.Y" }}
+                            </span>
+                        {% endif %}
+                    {% else %}
+                        <span class="status-none">—</span>
+                    {% endif %}
+                </td>
+
+                <!-- КПП / Топливо -->
+                <td>
+                    {{ car.get_transmission_display }} / {{ car.get_fuel_display }}
+                </td>
+
+                <!-- Одометр -->
+                <td>
+                    <strong>{{ car.current_odometer|default:car.initial_odometer }}</strong> км
+                </td>
+
+                <!-- Действия -->
+                <td style="text-align: center;">
+                <a href="{% url 'cars:car_documents' car.pk %}"
+                   class="action-btn"
+                   title="Редактировать документы"
+                   style="color: #0ea5e9;">📄</a>
+                <a href="{% url 'cars:car_edit' car.pk %}"
+                   class="action-btn edit"
+                   title="Редактировать авто">✏️</a>
+                <button type="button"
+                        class="action-btn delete"
+                        title="Удалить"
+                        onclick="showDeleteModal({{ car.pk }}, '{{ car.make|escapejs }}', '{{ car.license_plate|escapejs }}')">🗑️</button>
+            </td>
+            </tr>
+            {% endwith %}
+            {% empty %}
+            <tr>
+                <td colspan="8" class="empty-state">
+                    🚗 Автомобили не добавлены
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- 🔹 Модальное окно подтверждения удаления (полностью независимое) -->
+<div id="deleteModal" style="
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    z-index: 9999;
+    justify-content: center;
+    align-items: center;
+">
+    <div style="
+        background: white;
+        border-radius: 16px;
+        padding: 0;
+        max-width: 480px;
+        width: 90%;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        animation: modalSlideIn 0.3s ease;
+        overflow: hidden;
+    ">
+        <!-- Заголовок -->
+        <div style="
+            background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+            color: white;
+            padding: 20px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        ">
+            <h5 style="margin: 0; font-size: 18px; font-weight: 700;">
+                ⚠️ Подтверждение удаления
+            </h5>
+            <button onclick="closeDeleteModal()" style="
+                background: rgba(255,255,255,0.2);
+                border: none;
+                color: white;
+                width: 32px;
+                height: 32px;
+                border-radius: 50%;
+                cursor: pointer;
+                font-size: 18px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                transition: all 0.2s;
+            " onmouseover="this.style.background='rgba(255,255,255,0.3)'"
+               onmouseout="this.style.background='rgba(255,255,255,0.2)'">
+                ✕
+            </button>
+        </div>
+
+        <!-- Содержимое -->
+        <div style="padding: 24px;">
+            <p style="margin: 0 0 16px 0; color: #1e293b; font-size: 15px;">
+                Вы действительно хотите удалить автомобиль:
+            </p>
+            <div style="
+                background: #f8fafc;
+                border-left: 4px solid #3b82f6;
+                padding: 12px 16px;
+                border-radius: 6px;
+                margin-bottom: 16px;
+            ">
+                <p style="margin: 0 0 4px 0; font-weight: 700; color: #1e293b; font-size: 16px;" id="deleteCarMake"></p>
+                <p style="margin: 0; color: #64748b; font-size: 14px;" id="deleteCarPlate"></p>
+            </div>
+            <div style="
+                background: #fef3c7;
+                border: 1px solid #fbbf24;
+                border-radius: 8px;
+                padding: 12px 16px;
+                font-size: 13px;
+                color: #92400e;
+            ">
+                ⚠️ Это действие <strong>нельзя отменить</strong>.<br>
+                Будут также удалены все связанные данные: документы, история ТО и замены шин.
+            </div>
+        </div>
+
+        <!-- Кнопки -->
+        <div style="
+            padding: 16px 24px;
+            background: #f8fafc;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        ">
+            <button onclick="closeDeleteModal()" style="
+                padding: 10px 20px;
+                background: white;
+                color: #475569;
+                border: 2px solid #e2e8f0;
+                border-radius: 8px;
+                font-weight: 600;
+                font-size: 14px;
+                cursor: pointer;
+                transition: all 0.2s;
+            " onmouseover="this.style.background='#f1f5f9'"
+               onmouseout="this.style.background='white'">
+                Отмена
+            </button>
+            <form id="deleteForm" method="POST" style="display: inline;">
+                {% csrf_token %}
+                <button type="submit" style="
+                    padding: 10px 20px;
+                    background: #dc2626;
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    font-weight: 600;
+                    font-size: 14px;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 6px;
+                " onmouseover="this.style.background='#b91c1c'"
+                   onmouseout="this.style.background='#dc2626'">
+                    🗑️ Удалить
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-30px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+</style>
+
+<script>
+// ==========================================
+// 1. ЛОГИКА МОДАЛЬНОГО ОКНА УДАЛЕНИЯ
+// ==========================================
+function showDeleteModal(carId, carMake, carPlate) {
+    document.getElementById('deleteCarMake').textContent = carMake;
+    document.getElementById('deleteCarPlate').textContent = carPlate;
+    document.getElementById('deleteForm').action = '/cars/' + carId + '/delete/';
+
+    const modal = document.getElementById('deleteModal');
+    modal.style.display = 'flex';
+
+    // Закрытие по клику на затемнённый фон
+    modal.onclick = function(event) {
+        if (event.target === modal) {
+            closeDeleteModal();
+        }
+    };
+}
+
+function closeDeleteModal() {
+    document.getElementById('deleteModal').style.display = 'none';
+}
+
+// Закрытие модального окна по клавише Escape
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+        closeDeleteModal();
+    }
+});
+
+
+// ==========================================
+// 2. АВТОМАТИЧЕСКИЙ ПОИСК ПРИ ВВОДЕ (Debounce)
+// ==========================================
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('searchInput');
+    const searchForm = document.getElementById('searchForm');
+    let debounceTimer;
+
+    if (searchInput && searchForm) {
+        searchInput.addEventListener('input', function() {
+            // Очищаем предыдущий таймер, если пользователь продолжает печатать
+            clearTimeout(debounceTimer);
+
+            // Устанавливаем новый таймер (300 мс задержка перед отправкой)
+            debounceTimer = setTimeout(function() {
+                // Если поле не пустое — отправляем форму автоматически
+                if (searchInput.value.trim().length > 0) {
+                    searchForm.submit();
+                }
+            }, 300);
+        });
+    }
+});
+</script>
+{% endblock %}

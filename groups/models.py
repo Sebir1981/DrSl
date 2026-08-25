@@ -1,3 +1,5 @@
+# groups/models.py
+
 from django.db import models
 from django.core.validators import RegexValidator
 from teachers.models import Teacher
@@ -163,6 +165,39 @@ class Group(models.Model):
     def __str__(self):
         cat = self.category.code if self.category else "Без категории"
         return f"{self.group_number} ({cat})"
+
+    def save(self, *args, **kwargs):
+        # Запоминаем старого преподавателя ДО сохранения
+        old_teacher_id = None
+        if self.pk:
+            old_teacher_id = (
+                Group.objects.filter(pk=self.pk)
+                .values_list('teacher_id', flat=True)
+                .first()
+            )
+
+        super().save(*args, **kwargs)
+
+        # 🔹 Если преподаватель группы изменился — обновляем всех учащихся группы
+        if self.pk and old_teacher_id != self.teacher_id and self.teacher_id:
+            from students.models import Student
+            from students.services import StudentStatusService
+
+            old_teacher = Teacher.objects.filter(pk=old_teacher_id).first() if old_teacher_id else None
+            new_teacher = self.teacher
+
+            # Обновляем только тех, у кого преподаватель отличается
+            for st in Student.objects.filter(group=self).exclude(teacher_id=self.teacher_id):
+                service = StudentStatusService(st)
+                service.add_event(
+                    event_type='teacher_change',
+                    details={
+                        'from': str(old_teacher) if old_teacher else '—',
+                        'to': f"{new_teacher.last_name} {new_teacher.first_name[:1]}.",
+                        'to_teacher': f"{new_teacher.last_name} {new_teacher.first_name[:1]}.",
+                        'to_teacher_id': new_teacher.id,
+                    }
+                )
 
     @property
     def contract_period(self):

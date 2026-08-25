@@ -4,46 +4,140 @@
 
 {% block extra_js %}
 <script src="{% static 'js/phone-mask.js' %}" defer></script>
+<script src="{% static 'js/live_search.js' %}"></script>
 {% endblock %}
 
 {% block content %}
+<style>
+.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 16px; }
+.page-title { font-size: 32px; font-weight: 700; color: white; margin: 0; display: flex; align-items: center; gap: 12px; }
+.header-buttons { display: flex; gap: 12px; }
+.btn-home, .btn-add { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 8px; font-weight: 600; text-decoration: none; transition: all 0.2s; border: none; cursor: pointer; }
+.btn-home { background: white; color: #475569; }
+.btn-home:hover { background: #f1f5f9; }
+.btn-add { background: #3b82f6; color: white; }
+.btn-add:hover { background: #2563eb; }
+
+.search-card, .table-card { background: white; border-radius: 12px; padding: 20px; margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+.filter-title { font-size: 14px; font-weight: 600; color: #475569; margin-bottom: 12px; }
+.filter-form { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.search-input { flex: 1; min-width: 220px; padding: 10px 14px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; }
+.search-input:focus { outline: none; border-color: #3b82f6; }
+.filter-group { display: flex; gap: 12px; align-items: center; background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 8px; padding: 8px 14px; }
+.filter-group strong { font-size: 13px; color: #475569; }
+.filter-label { display: flex; gap: 6px; align-items: center; font-size: 14px; cursor: pointer; }
+.filter-label input { width: 16px; height: 16px; accent-color: #3b82f6; cursor: pointer; margin: 0; }
+.btn-search { padding: 10px 20px; background: #3b82f6; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; }
+.btn-search:hover { background: #2563eb; }
+.btn-reset { padding: 10px 20px; background: #e2e8f0; color: #475569; border: none; border-radius: 8px; font-weight: 600; text-decoration: none; }
+.btn-reset:hover { background: #cbd5e1; }
+
+.data-table { width: 100%; border-collapse: collapse; }
+.data-table th { background: #f8fafc; padding: 14px 16px; text-align: left; font-weight: 600; color: #475569; font-size: 13px; border-bottom: 2px solid #e2e8f0; }
+.data-table td { padding: 14px 16px; border-bottom: 1px solid #f1f5f9; font-size: 14px; vertical-align: middle; }
+.data-table tr:hover { background: #f8fafc; }
+.data-table tr:last-child td { border-bottom: none; }
+.empty-state { text-align: center; padding: 40px; color: #94a3b8; font-size: 15px; }
+
+.badge { display: inline-block; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; white-space: nowrap; margin-right: 4px; }
+.badge-truck { background: #fef3c7; color: #92400e; }
+.badge-car { background: #dbeafe; color: #1d4ed8; }
+.schedule-icons { font-size: 15px; letter-spacing: 2px; }
+.none { color: #94a3b8; }
+
+.action-btn { background: none; border: none; cursor: pointer; padding: 4px 6px; border-radius: 4px; font-size: 14px; transition: all 0.2s; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; }
+.action-btn:hover { background: #f1f5f9; }
+.action-btn.edit:hover { background: #fef3c7; }
+.action-btn.delete:hover { background: #fee2e2; }
+
+.suggestion-item:hover { background: #f1f5f9; }
+</style>
+
+<!-- 🔹 ЗАГОЛОВОК -->
 <div class="page-header">
-    <h1>📚 Преподаватели</h1>
-    <div>
-        <a href="{% url 'vault:dashboard' %}" class="btn" style="margin-right: 10px; background:#e2e8f0; color:#334155;">← На главную</a>
-        <a href="{% url 'admin:teachers_teacher_add' %}" class="btn btn-primary">+ Добавить</a>
+    <h1 class="page-title">📚 Преподаватели</h1>
+    <div class="header-buttons">
+        <a href="{% url 'vault:dashboard' %}" class="btn-home">← На главную</a>
+        <a href="{% url 'teachers:teacher_add' %}" class="btn-add">+ Добавить преподавателя</a>
     </div>
 </div>
 
-<!-- Фильтры -->
-<form method="get" style="display:flex;gap:15px;margin-bottom:20px;flex-wrap:wrap;align-items:center;">
-    <div style="display:flex;gap:8px;align-items:center;background:white;padding:8px 15px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.05);">
-        <strong>🚗 Тип:</strong>
-        <label><input type="checkbox" name="vehicle" value="truck" {% if active_vehicle == 'truck' %}checked{% endif %}> 🚛</label>
-        <label><input type="checkbox" name="vehicle" value="car" {% if active_vehicle == 'car' %}checked{% endif %}> 🚗</label>
+<!-- 🔹 ПОИСК -->
+<div class="search-card" style="position: relative;">
+    <div class="filter-title">🔍 Живой поиск по ФИО или телефону</div>
+    <div style="display: flex; gap: 12px; align-items: center;">
+        <input type="text"
+               data-live-search="true"
+               data-target="teachers-tbody"
+               data-api-url="{% url 'teachers:teacher_search_api' %}"
+               class="search-input"
+               id="search-input"
+               placeholder="Начните вводить фамилию..."
+               autocomplete="off">
+        <a href="{% url 'teachers:teacher_list' %}" class="btn-reset">✕ Сброс</a>
     </div>
-    <div style="display:flex;gap:8px;align-items:center;background:white;padding:8px 15px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.05);">
-        <strong>🕐 График:</strong>
-        <label><input type="checkbox" name="schedule" value="morning" {% if active_schedule == 'morning' %}checked{% endif %}> 🌅</label>
-        <label><input type="checkbox" name="schedule" value="evening" {% if active_schedule == 'evening' %}checked{% endif %}> 🌆</label>
-        <label><input type="checkbox" name="schedule" value="weekend" {% if active_schedule == 'weekend' %}checked{% endif %}> 📅</label>
-    </div>
-    <button type="submit" class="btn btn-primary" style="padding:6px 12px;font-size:13px;">Применить</button>
-    <a href="?" class="btn" style="padding:6px 12px;font-size:13px;background:#94a3b8;color:white;">Сбросить</a>
-</form>
+    <div id="search-suggestions" style="
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 20px;
+        right: 20px;
+        background: white;
+        border: 2px solid #e2e8f0;
+        border-radius: 8px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+        z-index: 100;
+        max-height: 300px;
+        overflow-y: auto;
+        margin-top: 4px;
+    "></div>
+</div>
 
-<div class="data-table">
-    <table>
+<!-- 🔹 ФИЛЬТРЫ (отдельная карточка) -->
+<div class="search-card">
+    <div class="filter-title">🎛️ Фильтры по типу и графику</div>
+    <form method="get" class="filter-form" id="teacherFilterForm">
+        <div class="filter-group">
+            <strong>🚗 Тип:</strong>
+            <label class="filter-label">
+                <input type="checkbox" name="vehicle" value="truck" {% if active_vehicle == 'truck' %}checked{% endif %}> 🚛
+            </label>
+            <label class="filter-label">
+                <input type="checkbox" name="vehicle" value="car" {% if active_vehicle == 'car' %}checked{% endif %}> 🚗
+            </label>
+        </div>
+        <div class="filter-group">
+            <strong>🕐 График:</strong>
+            <label class="filter-label">
+                <input type="checkbox" name="schedule" value="morning" {% if active_schedule == 'morning' %}checked{% endif %}> 🌅
+            </label>
+            <label class="filter-label">
+                <input type="checkbox" name="schedule" value="evening" {% if active_schedule == 'evening' %}checked{% endif %}> 🌆
+            </label>
+            <label class="filter-label">
+                <input type="checkbox" name="schedule" value="weekend" {% if active_schedule == 'weekend' %}checked{% endif %}> 📅
+            </label>
+        </div>
+        <button type="submit" class="btn-search">🔍 Применить</button>
+        <a href="?" class="btn-reset">✕ Сбросить</a>
+    </form>
+</div>
+
+<!-- 🔹 ТАБЛИЦА -->
+<div class="table-card">
+    <table class="data-table">
         <thead>
             <tr>
-                <th>№</th>
+                <th style="width: 40px;">№</th>
                 <th>ФИО</th>
                 <th>Телефон</th>
                 <th>Тип</th>
-                <th>График</th>
+                <th style="text-align: center;">График</th>
+                <th style="width: 100px; text-align: center;">Действия</th>
             </tr>
         </thead>
-        <tbody>
+        <!-- ✅ Добавлен id и data-empty-colspan для живого поиска -->
+        <tbody id="teachers-tbody" data-empty-colspan="6">
             {% for t in teachers %}
             <tr>
                 <td><strong>{{ forloop.counter }}</strong></td>
@@ -53,27 +147,67 @@
                 </td>
                 <td>{{ t.phone }}</td>
                 <td>
-                    {% if t.teaches_truck %}<span style="display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:500;background:#e0f2fe;color:#0369a1;margin-right:4px;">🚛 Грузовой</span>{% endif %}
-                    {% if t.teaches_car %}<span style="display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:500;background:#e0f2fe;color:#0369a1;margin-right:4px;">🚗 Легковой</span>{% endif %}
-                    {% if not t.teaches_truck and not t.teaches_car %}—{% endif %}
+                    {% if t.teaches_truck %}<span class="badge badge-truck">🚛 Грузовой</span>{% endif %}
+                    {% if t.teaches_car %}<span class="badge badge-car">🚗 Легковой</span>{% endif %}
+                    {% if not t.teaches_truck and not t.teaches_car %}<span class="none">—</span>{% endif %}
                 </td>
-                <td style="text-align:center;font-size:14px;">
-                    {% if t.schedule_morning %}🌅{% endif %}{% if t.schedule_evening %}🌆{% endif %}{% if t.schedule_weekend %}📅{% endif %}
-                    {% if not t.schedule_morning and not t.schedule_evening and not t.schedule_weekend %}—{% endif %}
+                <td style="text-align: center;">
+                    <span class="schedule-icons">
+                        {% if t.schedule_morning %}🌅{% endif %}{% if t.schedule_evening %}🌆{% endif %}{% if t.schedule_weekend %}📅{% endif %}
+                    </span>
+                    {% if not t.schedule_morning and not t.schedule_evening and not t.schedule_weekend %}<span class="none">—</span>{% endif %}
+                </td>
+                <td style="text-align: center; white-space: nowrap;">
+                    <div style="display: flex; gap: 4px; justify-content: center; align-items: center;">
+                        <a href="{% url 'teachers:teacher_edit' t.pk %}" class="action-btn edit" title="Редактировать">✏️</a>
+                        <button type="button" class="action-btn delete" title="Удалить" onclick="showDeleteModal({{ t.pk }}, '{{ t.last_name|escapejs }} {{ t.first_name|escapejs }}')">🗑️</button>
+                    </div>
                 </td>
             </tr>
             {% empty %}
-            <tr><td colspan="5" class="empty-state">📭 Преподаватели не найдены.</td></tr>
+            <tr>
+                <td colspan="6" class="empty-state">📭 Преподаватели не найдены.</td>
+            </tr>
             {% endfor %}
         </tbody>
     </table>
 </div>
 
+<!-- 🔹 Модальное окно удаления -->
+<div id="deleteModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); z-index: 9999; justify-content: center; align-items: center;">
+    <div style="background: white; border-radius: 16px; max-width: 480px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); overflow: hidden;">
+        <div style="background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%); color: white; padding: 20px 24px; display: flex; justify-content: space-between; align-items: center;">
+            <h5 style="margin: 0; font-size: 18px;">⚠️ Подтверждение удаления</h5>
+            <button onclick="closeDeleteModal()" style="background: rgba(255,255,255,0.2); border: none; color: white; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 18px;">✕</button>
+        </div>
+        <div style="padding: 24px;">
+            <p style="margin: 0 0 16px 0;">Вы действительно хотите удалить преподавателя:</p>
+            <div style="background: #f8fafc; border-left: 4px solid #3b82f6; padding: 12px 16px; border-radius: 6px; margin-bottom: 16px;">
+                <p style="margin: 0; font-weight: 700; font-size: 16px;" id="deleteTeacherName"></p>
+            </div>
+            <div style="background: #fef3c7; border: 1px solid #fbbf24; border-radius: 8px; padding: 12px 16px; font-size: 13px; color: #92400e;">
+                ⚠️ Это действие <strong>нельзя отменить</strong>.
+            </div>
+        </div>
+        <div style="padding: 16px 24px; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; gap: 12px; justify-content: flex-end;">
+            <button onclick="closeDeleteModal()" style="padding: 10px 20px; background: white; color: #475569; border: 2px solid #e2e8f0; border-radius: 8px; font-weight: 600; cursor: pointer;">Отмена</button>
+            <form id="deleteForm" method="POST" style="display: inline;">
+                {% csrf_token %}
+                <button type="submit" style="padding: 10px 20px; background: #dc2626; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">🗑️ Удалить</button>
+            </form>
+        </div>
+    </div>
+</div>
+
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    document.querySelectorAll('[id^="id_phone_"]').forEach(input => {
-        input.id = 'id_phone';
-    });
-});
+function showDeleteModal(teacherId, teacherName) {
+    document.getElementById('deleteTeacherName').textContent = teacherName;
+    document.getElementById('deleteForm').action = '/teachers/' + teacherId + '/delete/';
+    const modal = document.getElementById('deleteModal');
+    modal.style.display = 'flex';
+    modal.onclick = function(event) { if (event.target === modal) closeDeleteModal(); };
+}
+function closeDeleteModal() { document.getElementById('deleteModal').style.display = 'none'; }
+document.addEventListener('keydown', function(event) { if (event.key === 'Escape') closeDeleteModal(); });
 </script>
 {% endblock %}

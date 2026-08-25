@@ -1,9 +1,10 @@
 # students/services.py
 import datetime
-from typing import Optional, Dict, List
+from typing import Optional, Dict
 from django.db import transaction
 from django.utils import timezone
 
+from groups.models import Group
 from .models import Student, StudentHistory
 
 
@@ -36,7 +37,7 @@ class StudentStatusService:
             event_type=event_type,
             event_date=event_date,
             comment=comment,
-            created_by=created_by  # <--- Записываем пользователя, который сделал действие
+            created_by=created_by
         )
 
         # 2. Обновление activity_log (в ISO-формате для правильной сортировки)
@@ -46,7 +47,7 @@ class StudentStatusService:
             'date': event_date.isoformat(),
             'title': self._get_title(event_type, details),
             'details': details,
-            'author': author_name  # <--- ДОБАВЛЕНО: записываем имя автора в JSON
+            'author': author_name
         }
         current_log = self.student.activity_log or []
         current_log.append(log_entry)
@@ -61,19 +62,31 @@ class StudentStatusService:
             update_fields=['group', 'teacher', 'transferred_date', 'graduated_date', 'activity_log', 'updated_at'])
 
         return history
+
     def _can_perform_event(self, _event_type: str) -> bool:
         """Проверка разрешенных переходов статусов."""
-        # Здесь можно реализовать строгую машину состояний
-        # Например: Нельзя активировать, если студент уже активен.
         return True
 
     def _update_student_fields(self, event_type: str, event_date: datetime.date, details: Dict):
         """Обновляет поля самого студента в зависимости от события."""
         if event_type == 'transfer':
-            self.student.group_id = details.get('to_group_id')
+            new_group_id = details.get('to_group_id')
+            self.student.group_id = new_group_id
             self.student.transferred_date = event_date
+
+            # 🔹 НАСЛЕДОВАНИЕ: преподаватель из новой группы
+            if new_group_id:
+                new_group = (
+                    Group.objects.select_related('teacher')
+                    .filter(pk=new_group_id)
+                    .first()
+                )
+                if new_group and new_group.teacher_id:
+                    self.student.teacher_id = new_group.teacher_id
+
         elif event_type == 'teacher_change':
             self.student.teacher_id = details.get('to_teacher_id')
+
         elif event_type == 'graduation':
             self.student.graduated_date = event_date
 
@@ -93,8 +106,6 @@ class StudentStatusService:
 
     def get_current_status(self):
         """Возвращает текущий статус студента и цвет для отображения."""
-
-        # ✅ КОНСТАНТЫ для статуса "Активен"
         DEFAULT_STATUS = 'Активен'
         DEFAULT_COLOR = '#16a34a'
 
@@ -124,82 +135,4 @@ class StudentStatusService:
             if etype in status_map:
                 return status_map[etype]
 
-        # Если ничего не найдено, возвращаем дефолт
         return {'status': DEFAULT_STATUS, 'color': DEFAULT_COLOR}
-
-    def test_add_suspension_event(self):
-        """Сервис: добавление события приостановки."""
-        self.service.add_event(
-            event_type='suspension',
-            details={'comment': 'По медицинским показаниям'}
-        )
-        self.student.refresh_from_db()
-
-        self.assertEqual(len(self.student.activity_log), 1)
-        self.assertEqual(self.student.activity_log[0]['type'], 'suspension')
-        self.assertEqual(self.student.activity_log[0]['details']['comment'], 'По медицинским показаниям')
-
-    def test_add_refusal_event(self):
-        """Сервис: добавление события отказа."""
-        self.service.add_event(
-            event_type='refusal',
-            details={'comment': 'Личные причины'}
-        )
-        self.student.refresh_from_db()
-
-        self.assertEqual(len(self.student.activity_log), 1)
-        self.assertEqual(self.student.activity_log[0]['type'], 'refusal')
-        self.assertEqual(self.student.activity_log[0]['details']['comment'], 'Личные причины')
-
-    def test_add_dismissal_event(self):
-        """Сервис: добавление события отчисления."""
-        self.service.add_event(
-            event_type='dismissal',
-            details={'order_number': '45-У', 'comment': 'За неуспеваемость'}
-        )
-        self.student.refresh_from_db()
-
-        self.assertEqual(len(self.student.activity_log), 1)
-        self.assertEqual(self.student.activity_log[0]['type'], 'dismissal')
-        self.assertEqual(self.student.activity_log[0]['details']['order_number'], '45-У')
-
-    def test_add_activation_event(self):
-        """Сервис: добавление события активации."""
-        # Сначала создаём приостановку
-        self.service.add_event(event_type='suspension')
-
-        # Затем активируем
-        self.service.add_event(event_type='activation')
-        self.student.refresh_from_db()
-
-        # В логе должно быть 2 события
-        self.assertEqual(len(self.student.activity_log), 2)
-        self.assertEqual(self.student.activity_log[-1]['type'], 'activation')
-
-    def test_add_teacher_change_event(self):
-        """Сервис: добавление события смены преподавателя."""
-        self.service.add_event(
-            event_type='teacher_change',
-            details={
-                'to_teacher_id': 999,
-                'to_teacher': 'Иванов И.И.'
-            }
-        )
-        self.student.refresh_from_db()
-
-        self.assertEqual(len(self.student.activity_log), 1)
-        self.assertEqual(self.student.activity_log[0]['type'], 'teacher_change')
-        self.assertEqual(self.student.activity_log[0]['details']['to_teacher'], 'Иванов И.И.')
-
-    def test_get_current_status_active(self):
-        """Сервис: метод get_current_status возвращает 'Активен' для нового студента."""
-        status = self.service.get_current_status()
-        self.assertEqual(status['status'], 'Активен')
-        self.assertEqual(status['color'], '#16a34a')
-
-    def test_get_current_status_suspended(self):
-        """Сервис: метод get_current_status возвращает 'Приостановлен' после suspension."""
-        self.service.add_event(event_type='suspension')
-        status = self.service.get_current_status()
-        self.assertEqual(status['status'], 'Приостановлен')
-        self.assertEqual(status['color'], '#7c3aed')

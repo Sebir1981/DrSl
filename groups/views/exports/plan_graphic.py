@@ -1,7 +1,7 @@
 # 📦 export_plan_graphic.py
-# ️ Версия: b_0.0.4.10 (Auto-Height Header Row)
+# ️ Версия: b_0.0.4.11 (Auto-Height Header & Title)
 # ✅ Статус: PRODUCTION-READY
-# 📅 Последнее обновление: 2026-07-31
+# 📅 Последнее обновление: 2026-08-19
 
 import openpyxl
 from openpyxl.utils import get_column_letter
@@ -114,7 +114,7 @@ def export_plan_graphic_to_excel(request, plan_id):
     ws.title = "План-график"
 
     font_small = Font(name='Arial Cyr', size=8)
-    font_dates = Font(name='Arial Cyr', size=8, bold=True)  # 🔹 Выделение дат жирным шрифтом
+    font_dates = Font(name='Arial Cyr', size=8, bold=True)
     font_bold = Font(name='Arial Cyr', size=10, bold=True)
     font_title = Font(name='Arial Cyr', size=14, bold=True)
     thin_border = Border(left=Side('thin'), right=Side('thin'), top=Side('thin'), bottom=Side('thin'))
@@ -134,13 +134,15 @@ def export_plan_graphic_to_excel(request, plan_id):
     cell = ws.cell(row=row, column=merge_start_idx, value='"УТВЕРЖДАЮ"')
     cell.font = font_bold
     cell.alignment = align_right_no_wrap
+    ws.row_dimensions[row].height = None  # Авто-высота
 
     row += 1
-    #  "Директор" - объединяем ячейки справа
+    # "Директор" - объединяем ячейки справа
     ws.merge_cells(f'{merge_start_letter}{row}:{merge_end_letter}{row}')
     cell = ws.cell(row=row, column=merge_start_idx, value='Директор')
     cell.font = font_bold
     cell.alignment = align_right_no_wrap
+    ws.row_dimensions[row].height = None  # Авто-высота
 
     row += 1
     # 🔹 Подпись - объединяем ячейки справа
@@ -148,6 +150,7 @@ def export_plan_graphic_to_excel(request, plan_id):
     cell = ws.cell(row=row, column=merge_start_idx, value='_______________ В.В. Евтушков')
     cell.font = font_bold
     cell.alignment = align_right_no_wrap
+    ws.row_dimensions[row].height = None  # Авто-высота
 
     row += 1
 
@@ -163,8 +166,8 @@ def export_plan_graphic_to_excel(request, plan_id):
     date_cell = ws.cell(row=row, column=date_merge_start_idx, value=date_text)
     date_cell.font = font_bold
     date_cell.alignment = align_left_no_wrap
+    ws.row_dimensions[row].height = None  # Авто-высота
 
-    ws.row_dimensions[row].height = 20
     row += 2
 
     # Заголовок План-графика (Строка 6)
@@ -174,12 +177,8 @@ def export_plan_graphic_to_excel(request, plan_id):
     ws.merge_cells(f'A{row}:{total_col_letter}{row}')
     title_cell = ws.cell(row=row, column=1, value=base_title)
     title_cell.font = font_title
-    # 🔹 Важно: wrap_text=True для переноса текста
     title_cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
-
-    # 🔹 КРИТИЧЕСКИ ВАЖНО: Не устанавливаем высоту вообще!
-    # Убираем ws.row_dimensions[row].height = None или любое другое значение
-    # Excel сам рассчитает высоту при открытии файла
+    ws.row_dimensions[row].height = None  # 🔥 Автоматическая высота под 1–3 строки
 
     row += 2
 
@@ -188,6 +187,7 @@ def export_plan_graphic_to_excel(request, plan_id):
     ws.merge_cells(f'A{row}:{total_col_letter}{row}')
     ws.cell(row=row, column=1, value=f'учебная группа № {group_num}').font = font_bold
     ws.cell(row=row, column=1).alignment = align_center
+    ws.row_dimensions[row].height = None
     row += 2
 
     # Информация (Преподаватель и т.д.) - ограничена шириной таблицы
@@ -218,6 +218,7 @@ def export_plan_graphic_to_excel(request, plan_id):
         val_cell = ws.cell(row=row, column=2, value=value)
         val_cell.font = font_small
         val_cell.alignment = Alignment(horizontal='left', vertical='center', wrap_text=True)
+        ws.row_dimensions[row].height = None
         row += 1
     row += 1
 
@@ -245,13 +246,13 @@ def export_plan_graphic_to_excel(request, plan_id):
     ws.cell(row=row, column=total_col_idx).border = thin_border
     row += 1
 
-    # 🔹 Дни (ИСПРАВЛЕНО: выделены жирным шрифтом)
+    # 🔹 Дни (выделены жирным шрифтом)
     current_col = start_col + 1
     for m_label in month_order:
         for d in months_data[m_label]:
             col_map[d] = current_col
             cell = ws.cell(row=row, column=current_col, value=d.day)
-            cell.font = font_dates  # 🔹 Применяем жирный шрифт для дат
+            cell.font = font_dates
             cell.alignment = align_center
             cell.border = thin_border
             current_col += 1

@@ -115,6 +115,35 @@
         border-radius: 6px;
     }
 
+    /* 🔹 НОВЫЕ СТИЛИ ДЛЯ ПОИСКА И ТАБЛИЦЫ НЕРАСПРЕДЕЛЁННЫХ */
+    .search-section {
+        background: #f8fafc;
+        padding: 12px;
+        border-radius: 6px;
+        margin-top: 15px;
+        border: 1px solid #e2e8f0;
+    }
+    .unassigned-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+        margin-top: 10px;
+    }
+    .unassigned-table th {
+        text-align: left;
+        padding: 8px 10px;
+        background: #f1f5f9;
+        border-bottom: 2px solid #e2e8f0;
+        font-weight: 600;
+        color: #475569;
+    }
+    .unassigned-table td {
+        padding: 6px 10px;
+        border-bottom: 1px solid #f1f5f9;
+    }
+    .unassigned-table tr:hover { background: #f8fafc; }
+    .unassigned-table input[type="checkbox"] { cursor: pointer; }
+
     @media (max-width: 600px) {
         .form-grid { grid-template-columns: 1fr; }
         .stats-bar { flex-direction: column; }
@@ -139,117 +168,79 @@
         </div>
     </div>
 
-    <!-- 🔹 Форма настроек + дат -->
-<form method="post">
-    {% csrf_token %}
-    <div class="form-grid">
-        <!-- Даты договора -->
-        <div class="field">
-            <label>📅 Начало договора</label>
-            <input type="date" name="contract_start" value="{{ group.contract_start|date:'Y-m-d' }}">
-        </div>
-        <div class="field">
-            <label>📅 Окончание договора</label>
-            <input type="date" name="contract_end" value="{{ group.contract_end|date:'Y-m-d' }}">
+    <!-- 🔹 Форма настроек + дат (ВЕРХНЯЯ ФОРМА) -->
+    <form method="post">
+        {% csrf_token %}
+        <div class="form-grid">
+            <!-- Даты договора -->
+            <div class="field">
+                <label for="{{ form.contract_start.id_for_label }}">📅 Начало договора</label>
+                {{ form.contract_start }}
+            </div>
+            <div class="field">
+                <label for="{{ form.contract_end.id_for_label }}">📅 Окончание договора</label>
+                {{ form.contract_end }}
+            </div>
+
+            <!-- Даты экзаменов -->
+            <div class="field">
+                <label for="{{ form.exam_internal_theory_date.id_for_label }}">📚 ПДД (внутр.)</label>
+                {{ form.exam_internal_theory_date }}
+            </div>
+            <div class="field">
+                <label for="{{ form.exam_internal_driving_date.id_for_label }}">🚗 Вождение (внутр.)</label>
+                {{ form.exam_internal_driving_date }}
+            </div>
+            <div class="field">
+                <label for="{{ form.exam_gai_date.id_for_label }}">🏁 Экзамен ГАИ</label>
+                {{ form.exam_gai_date }}
+            </div>
+
+            <!-- Статус -->
+            <div class="field">
+                <label for="{{ form.status.id_for_label }}">🚦 Статус</label>
+                {{ form.status }}
+            </div>
+
+            <!-- Тип расписания -->
+            <div class="field">
+                <label for="{{ form.schedule_type.id_for_label }}">🗓️ Тип расписания</label>
+                {{ form.schedule_type }}
+            </div>
+
+            <!-- Срок обучения -->
+            <div class="field">
+                <label for="{{ form.duration.id_for_label }}">⏱️ Срок обучения</label>
+                {{ form.duration }}
+            </div>
+
+            <!-- Аудитория -->
+            <div class="field">
+                <label for="{{ form.classroom.id_for_label }}">🏫 Аудитория</label>
+                {{ form.classroom }}
+            </div>
+
+            <!-- Преподаватель -->
+            <div class="field">
+                <label for="{{ form.teacher.id_for_label }}">👨‍🏫 Преподаватель</label>
+                {{ form.teacher }}
+            </div>
         </div>
 
-        <!-- Даты экзаменов -->
-        <div class="field">
-            <label>📚 ПДД (внутр.)</label>
-            <input type="date" name="exam_internal_theory_date" value="{{ group.exam_internal_theory_date|date:'Y-m-d' }}">
-        </div>
-        <div class="field">
-            <label>🚗 Вождение (внутр.)</label>
-            <input type="date" name="exam_internal_driving_date" value="{{ group.exam_internal_driving_date|date:'Y-m-d' }}">
-        </div>
-        <div class="field">
-            <label>🏁 Экзамен ГАИ</label>
-            <input type="date" name="exam_gai_date" value="{{ group.exam_gai_date|date:'Y-m-d' }}">
+        <!-- Комментарий -->
+        <div class="field" style="margin-top:10px;">
+            <label for="{{ form.comments.id_for_label }}">📝 Комментарий</label>
+            {{ form.comments }}
         </div>
 
-        <!-- Статус -->
-        <div class="field">
-            <label>🚦 Статус</label>
-            <select name="status">
-                <option value="active" {% if group.status == 'active' %}selected{% endif %}>🟢 Активна</option>
-                <option value="paused" {% if group.status == 'paused' %}selected{% endif %}>🟡 Приостановлена</option>
-                <option value="closed" {% if group.status == 'closed' %}selected{% endif %}>🔒 Закрыта</option>
-            </select>
+        <div class="actions">
+            <button type="submit" name="save_group" class="btn btn-primary">💾 Сохранить</button>
         </div>
+    </form>
 
-        <!-- 🔹 НОВОЕ: Тип расписания -->
-        <div class="field">
-            <label>🗓️ Тип расписания</label>
-            <select name="schedule_type">
-                <option value="directed" {% if group.schedule_type == 'directed' %}selected{% endif %}>📅 По указанию</option>
-                <option value="odd" {% if group.schedule_type == 'odd' %}selected{% endif %}>📅 Нечётные дни (пн-пт)</option>
-                <option value="even" {% if group.schedule_type == 'even' %}selected{% endif %}>📅 Чётные дни (пн-пт)</option>
-                <option value="weekend" {% if group.schedule_type == 'weekend' %}selected{% endif %}>📅 Выходные (сб-вс)</option>
-            </select>
-        </div>
-
-        <!-- 🔹 НОВОЕ: Срок обучения -->
-        <div class="field">
-            <label>⏱️ Срок обучения</label>
-            <select name="duration">
-                <option value="standard" {% if group.duration == 'standard' %}selected{% endif %}>Стандартный</option>
-                <option value="accelerated" {% if group.duration == 'accelerated' %}selected{% endif %}>Ускоренный</option>
-            </select>
-        </div>
-
-        <!-- Аудитория -->
-        <div class="field">
-            <label>🏫 Аудитория</label>
-            <select name="classroom">
-                <option value="">— Не назначена —</option>
-                {% for c in classrooms %}
-                <option value="{{ c.id }}" {% if group.classroom and group.classroom.id == c.id %}selected{% endif %}>
-                    {{ c.classroom_number }} — {{ c.address|default:"—" }}
-                </option>
-                {% endfor %}
-            </select>
-        </div>
-
-        <!-- Преподаватель -->
-        <div class="field">
-            <label>👨‍🏫 Преподаватель</label>
-            <select name="teacher">
-                <option value="">— Не назначен —</option>
-                {% for t in teachers %}
-                <option value="{{ t.id }}" {% if group.teacher and group.teacher.id == t.id %}selected{% endif %}>
-                    {{ t.last_name }} {{ t.first_name|slice:":1" }}.
-                </option>
-                {% endfor %}
-            </select>
-        </div>
-    </div>
-
-    <!-- Комментарий -->
-    <div class="field" style="margin-top:10px;">
-        <label>📝 Комментарий</label>
-        <textarea name="comments" rows="2" placeholder="Заметки...">{{ group.comments }}</textarea>
-    </div>
-
-    <div class="actions">
-        <button type="submit" name="save_group" class="btn btn-primary">💾 Сохранить</button>
-    </div>
-</form>
-
-    <!-- 🔹 Учащиеся -->
+    <!-- 🔹 Учащиеся (уже в группе) -->
     <div style="margin-top:10px;padding-top:10px;border-top:1px solid #e2e8f0;">
         <div class="section-title">👥 Учащиеся ({{ current_students.count }})</div>
-
-        <!-- Форма добавления -->
-        <form method="post" style="display:flex;gap:8px;margin-bottom:10px;">
-            {% csrf_token %}
-            <select name="student_id" required style="flex:1;padding:6px 8px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;">
-                <option value="">— Добавить учащегося —</option>
-                {% for student in available_students %}
-                <option value="{{ student.id }}">{{ student.full_name }}</option>
-                {% endfor %}
-            </select>
-            <button type="submit" name="add_student" class="btn btn-primary" style="padding:6px 12px;">➕</button>
-        </form>
 
         <!-- Список -->
         {% if current_students %}
@@ -270,10 +261,101 @@
     </div>
 
     <!-- 🔹 Прогресс -->
-    <div style="background:#f8fafc;padding:10px;border-radius:6px;text-align:center;">
-        <a href="{% url 'groups:credits_exams' %}?group={{ group.id }}" class="btn btn-secondary" style="width:100%;justify-content:center;">
+    <div style="background:#f8fafc;padding:10px;border-radius:6px;text-align:center;margin-top:15px;">
+        <a href="{% url 'groups:credits_exams' %}?group={{ group.id }}" class="btn btn-secondary" style="width:96%;justify-content:center;">
             📊 Открыть матрицу зачётов
         </a>
     </div>
+
+    <!-- 🔹 НОВЫЙ БЛОК: Нераспределённые учащиеся -->
+    <div class="search-section">
+        <div class="section-title">🔍 Найти нераспределённых учащихся</div>
+        <div style="position:relative; margin-bottom:10px;">
+            <input type="text"
+                   id="search-input"
+                   placeholder="Введите фамилию, имя или отчество..."
+                   autocomplete="off"
+                   data-live-search="true"
+                   data-target="unassignedTableBody"
+                   data-api-url="{% url 'students:get_students_api' %}"
+                   style="width:97%; padding:8px 12px; border:1px solid #cbd5e1; border-radius:6px; font-size:14px;">
+            <div id="search-suggestions"
+                 style="position:absolute; top:100%; left:0; right:0; background:white; border:1px solid #cbd5e1; border-radius:8px; margin-top:4px; box-shadow:0 4px 12px rgba(0,0,0,0.1); max-height:200px; overflow-y:auto; z-index:1000; display:none;">
+            </div>
+        </div>
+    </div>
+
+    <div style="margin-top:15px;">
+        <div class="section-title">📋 Нераспределённые учащиеся</div>
+        <!-- НИЖНЯЯ ФОРМА: Скрытое поле action -->
+        <form method="post" id="bulk-add-form">
+            {% csrf_token %}
+            <!-- 🔥 ВАЖНО: Маркер для Django, чтобы отличить эту форму -->
+            <input type="hidden" name="action" value="add_selected_students">
+
+            <table class="unassigned-table">
+                <thead>
+                    <tr>
+                        <th style="width:30px;"><input type="checkbox" id="selectAll"></th>
+                        <th>ФИО</th>
+                        <th>📞 Телефон</th>
+                        <th>📅 Дата рождения</th>
+                    </tr>
+                </thead>
+                <tbody id="unassignedTableBody">
+                    {% for student in unassigned_students %}
+                    <tr>
+                        <td><input type="checkbox" name="selected_students" value="{{ student.id }}"></td>
+                        <td><strong>{{ student.last_name }} {{ student.first_name }}</strong>{% if student.patronymic %} {{ student.patronymic }}{% endif %}</td>
+                        <td>{{ student.phone|default:"—" }}</td>
+                        <td>{{ student.birth_date|date:"d.m.Y"|default:"—" }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="empty-state" style="padding:20px; text-align:center;">
+                            ✅ Все учащиеся уже распределены по группам
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+            {% if unassigned_students %}
+            <div style="margin-top:10px; display:flex; justify-content:flex-end; gap:8px;">
+                <button type="button" id="clearSelection" class="btn btn-secondary" style="padding:4px 12px;">Снять выбор</button>
+                <button type="submit" name="add_selected_students" class="btn btn-primary" style="padding:4px 12px;">
+                    ➕ Добавить выбранных
+                </button>
+            </div>
+            {% endif %}
+        </form>
+    </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/date-mask.js' %}"></script>
+<script src="{% static 'js/phone-mask.js' %}"></script>
+<script src="{% static 'js/live_search.js' %}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 🔹 Кнопка "Выбрать всех"
+    const selectAll = document.getElementById('selectAll');
+    if (selectAll) {
+        selectAll.addEventListener('change', function() {
+            document.querySelectorAll('#unassignedTableBody input[type="checkbox"]').forEach(cb => {
+                cb.checked = this.checked;
+            });
+        });
+    }
+
+    // 🔹 Кнопка "Снять выбор"
+    document.getElementById('clearSelection')?.addEventListener('click', function() {
+        document.querySelectorAll('#unassignedTableBody input[type="checkbox"]').forEach(cb => {
+            cb.checked = false;
+        });
+        if (selectAll) selectAll.checked = false;
+    });
+});
+</script>
 {% endblock %}

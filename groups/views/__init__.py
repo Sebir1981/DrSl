@@ -40,7 +40,7 @@ __all__ = [
     'schedule_plan_create',
     'schedule_plan_ajax_update_day',
     'schedule_plan_step2',
-    'schedule_plan_delete',  # 🔹 Добавили в список
+    'schedule_plan_delete',
     'group_api_data',
     'check_instructor_availability',
     'get_teacher_schedules',

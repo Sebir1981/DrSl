@@ -21,10 +21,12 @@ urlpatterns = [
     path('schedules/<int:plan_id>/step2/', views.schedule_plan_step2, name='schedule_plan_step2'),
     path('schedules/<int:plan_id>/ajax/update-day/', views.schedule_plan_ajax_update_day,
          name='schedule_plan_ajax_update_day'),
+    path('<int:plan_id>/clear-topics/', views.schedule_plans.clear_plan_topics, name='clear_plan_topics'),
 
     # 🔹 Удаление план-графика
     path('schedules/<int:plan_id>/delete/', views.schedule_plan_delete, name='schedule_plan_delete'),
     path('schedules/<int:plan_id>/delete-plan/', views.schedule_plan_reset, name='schedule_plan_reset'),
+
 
     # 🔹 API
     path('api/instructor/availability/', views.check_instructor_availability, name='check_instructor_availability'),

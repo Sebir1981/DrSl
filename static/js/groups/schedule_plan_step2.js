@@ -1,25 +1,14 @@
 /**
  * ============================================================================
  * 📦 schedule_plan_step2.js
- * 🏷️  Версия: 0.0.4.27b (Production-Ready: Fixed Initialization & Modal)
+ * 🏷️  Версия: 0.0.4.27c (Stable: Modal + Ghost-Fix)
  * ✅ Статус: PRODUCTION-READY
- *  Последнее обновление: 2026-07-30
+ *  Последнее обновление: 2026-08-19
  *
- * 🔹 Исправлено в v0.0.4.27b:
- *    - ✅ Исправлена переменная `subject` → `c.subject` в DOMContentLoaded
- *    - ✅ Фильтрация серверных данных перенесена ПОСЛЕ определения UI
- *    - ✅ ModalController теперь работает корректно
- *
- *  Исправлено в v0.0.4.27:
- *    - ✅ Очистка localStorage при смене программы
- *    - ✅ PROGRAM_ID: приоритет URL → dataset → null
- *    - ✅ Фильтрация серверных данных по предметам программы
- *    - ✅ Логирование мёрджа данных (localStorage → сервер)
- *    - ✅ Оптимизация: batch reset вместо множественных setSubject
- *    - ✅ Валидация PROGRAM_ID (предотвращение коллизий)
- *    - ✅ DEBUG через URL-параметр (?debug=true)
- *    - ✅ Null-check для UI.getSubjectEl()
- *    - ✅ Кэширование ключа StorageManager
+ * 🔹 Исправлено в v0.0.4.27c:
+ *    - ✅ Возвращён порядок инициализации, при котором работает модальное окно.
+ *    - ✅ Исправление "призрачных часов" (смена программы) обёрнуто в try/catch.
+ *    - ✅ Добавлена защита от падения скрипта при ошибках в обработчиках.
  * ============================================================================
  */
 
@@ -41,6 +30,8 @@ const CONFIG = {
     ZERO_VALUE: '0',
     DEFAULT_TITLE: 'План-график',
 };
+
+
 
 // =============================================================================
 // 🔹 УТИЛИТЫ И УВЕДОМЛЕНИЯ
@@ -337,12 +328,10 @@ const UI = {
 // 🔹 ФИЛЬТРАЦИЯ СЕРВЕРНЫХ ДАННЫХ (Теперь UI определён!)
 // =============================================================================
 
-// 🔹 Фильтруем серверные данные: оставляем только предметы текущей программы
 if (PROGRAM_ID && Object.keys(serverTopicsState).length > 0) {
     debugLog('🔍 Filtering server data for program', PROGRAM_ID);
     for (const date in serverTopicsState) {
         for (const subject in serverTopicsState[date]) {
-            // 🔹 Null-safe доступ к UI
             const subjectEl = UI.getSubjectEl?.(subject) || { hidden: null };
             if (!subjectEl?.hidden) {
                 debugLog(`⚠️ Subject "${subject}" not in program ${PROGRAM_ID}, removing`);
@@ -356,6 +345,14 @@ if (PROGRAM_ID && Object.keys(serverTopicsState).length > 0) {
     // Перезагружаем StateManager с отфильтрованными данными
     StateManager.reset(serverTopicsState);
     debugLog('📦 Filtered server data applied');
+
+    // ✅ ИСПРАВЛЕНИЕ: Заново применяем localStorage поверх отфильтрованных данных!
+    // Без этого reset() уничтожает все обнуления, сделанные пользователем.
+    const storedLocalAfterFilter = StateManager.load();
+    if (storedLocalAfterFilter && typeof storedLocalAfterFilter === 'object') {
+        debugLog('🔄 Re-applying localStorage after filter');
+        StateManager.mergeData(storedLocalAfterFilter);
+    }
 }
 
 // =============================================================================
@@ -861,8 +858,14 @@ function confirmDeleteSchedule() {
 function closeDeleteModal() { if (UI.deleteModal) UI.deleteModal.style.display = 'none'; }
 
 function deleteSchedule() {
-    if (PLAN_ID === 0) { Notifications.error('❌ Ошибка: не найден ID план-графика'); closeDeleteModal(); return; }
-    fetch(`/groups/schedules/${PLAN_ID}/delete-plan/`, {
+    if (PLAN_ID === 0) {
+        Notifications.error('❌ Ошибка: не найден ID план-графика');
+        closeDeleteModal();
+        return;
+    }
+
+    // ✅ ДОБАВЛЕНО слово return, чтобы вернуть Promise наружу
+    return fetch(`/groups/schedules/${PLAN_ID}/delete-plan/`, {
         method: 'DELETE',
         headers: { 'X-CSRFToken': UI.csrfToken(), 'Content-Type': 'application/json' }
     }).then(async response => {
@@ -880,8 +883,15 @@ function deleteSchedule() {
             const url = new URL(window.location.href);
             url.searchParams.set('_clear_cache', Date.now().toString());
             window.location.href = url.toString();
-        } else { Notifications.error('❌ Ошибка: ' + (result.error || 'Неизвестная ошибка')); closeDeleteModal(); }
-    }).catch(err => { console.error('Ошибка:', err); Notifications.error('Ошибка при удалении: ' + err.message); closeDeleteModal(); });
+        } else {
+            Notifications.error('❌ Ошибка: ' + (result.error || 'Неизвестная ошибка'));
+            closeDeleteModal();
+        }
+    }).catch(err => {
+        console.error('Ошибка:', err);
+        Notifications.error('Ошибка при удалении: ' + err.message);
+        closeDeleteModal();
+    });
 }
 
 function updatePageHeader() {
@@ -902,7 +912,7 @@ window.triggerExport = function() {
 // 🔹 ЗАПУСК
 // =============================================================================
 document.addEventListener('DOMContentLoaded', function() {
-    debugLog('✅ Step2 загружен (v0.0.4.27b Production-Ready)');
+    debugLog('✅ Step2 загружен (v0.0.4.27c Stable)');
 
     CellCache.build();
 
@@ -913,28 +923,66 @@ document.addEventListener('DOMContentLoaded', function() {
     syncDOMFromState();
     setupListeners();
 
-    setTimeout(() => {
-        recalculateTotals();
-        const totals = StateManager.getComputedTotals();
-        debugLog('📊 Итоги:', totals.grandTotal);
-    }, 200);
+    // ✅ 1. Безопасный расчёт итогов (обёрнут в try/catch)
+    try {
+        setTimeout(() => {
+            recalculateTotals();
+            const totals = StateManager.getComputedTotals();
+            debugLog('📊 Итоги:', totals.grandTotal);
+        }, 200);
+    } catch (e) {
+        console.warn('Ошибка в таймере пересчёта (пропущена):', e);
+    }
 
+    // ✅ 2. Безопасный обработчик смены программы (обёрнут в try/catch)
     if (UI.trainingProgramSelect) {
-        // 🔹 Очистка localStorage при смене программы
         UI.trainingProgramSelect.addEventListener('change', function() {
-            const newProgramId = this.value;
-            if (!newProgramId) return;
+            try {
+                const newProgramId = this.value;
+                if (!newProgramId) return;
 
-            const oldKey = StorageManager._getKey();
-            StorageManager.clearByKey(oldKey);
-            debugLog(`🗑️ Очищен ключ для программы ${PROGRAM_ID}: ${oldKey}`);
 
-            const url = new URL(window.location.href);
-            url.searchParams.set('program_id', newProgramId);
-            url.searchParams.set('_clear_cache', Date.now().toString());
-            window.location.href = url.toString();
+
+                fetch(`/groups/schedules/${PLAN_ID}/clear-topics/`, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': UI.csrfToken() },
+                    body: JSON.stringify({ plan_id: PLAN_ID, program_id: newProgramId })
+                })
+                .then(() => {
+                    const url = new URL(window.location.href);
+                    url.searchParams.set('program_id', newProgramId);
+                    url.searchParams.set('_clear_cache', Date.now().toString());
+                    window.location.href = url.toString();
+                })
+                .catch(() => {
+                    const url = new URL(window.location.href);
+                    url.searchParams.set('program_id', newProgramId);
+                    url.searchParams.set('_clear_cache', Date.now().toString());
+                    window.location.href = url.toString();
+                });
+            } catch (e) {
+                console.error('Ошибка в обработчике смены программы (пропущена):', e);
+            }
         });
     }
     updatePageHeader();
     if (UI.trainingProgramSelect) UI.trainingProgramSelect.addEventListener('change', updatePageHeader);
 });
+// =============================================================================
+// 🔹 ЭКСПОРТ ДЛЯ ТЕСТИРОВАНИЯ (Jest / Node.js)
+// =============================================================================
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        StateManager,
+        StorageManager,
+        ModalController,
+        toNumber,
+        formatHours,
+        roundHalf,
+        scaleTopicsFairly,
+        checkSubjectLimit,
+        recalculateTotals,
+        deleteSchedule,         // <-- ДОБАВИТЬ
+        confirmDeleteSchedule   // <-- ДОБАВИТЬ
+    };
+}

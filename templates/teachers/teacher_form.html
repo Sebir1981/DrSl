@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ title }} — Автошкола{% endblock %}
+
+{% block content %}
+<style>
+.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+.page-title { font-size: 32px; font-weight: 700; color: white; margin: 0; }
+.btn-back { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; background: white; color: #475569; text-decoration: none; border-radius: 8px; font-weight: 600; }
+.btn-back:hover { background: #f1f5f9; }
+.form-container { max-width: 900px; margin: 0 auto; }
+.form-section { background: white; border-radius: 12px; padding: 24px; margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+.section-title { font-size: 18px; font-weight: 700; color: #1e293b; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 2px solid #e2e8f0; display: flex; align-items: center; gap: 8px; }
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; }
+.form-group { display: flex; flex-direction: column; gap: 6px; }
+.form-label { font-size: 13px; font-weight: 600; color: #475569; }
+.form-input { padding: 10px 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; font-family: inherit; width: 100%; box-sizing: border-box; }
+.form-input:focus { outline: none; border-color: #3b82f6; }
+.form-hint { font-size: 11px; color: #94a3b8; }
+.form-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px; }
+.btn-save { padding: 12px 32px; background: #10b981; color: white; border: none; border-radius: 8px; font-weight: 600; font-size: 15px; cursor: pointer; }
+.btn-save:hover { background: #059669; }
+.btn-cancel { padding: 12px 32px; background: #e2e8f0; color: #475569; border: none; border-radius: 8px; font-weight: 600; font-size: 15px; cursor: pointer; text-decoration: none; }
+.errorlist { list-style: none; padding: 0; margin: 0; }
+.errorlist li { color: #dc2626; font-size: 12px; }
+
+/* 🔹 Карточки-чекбоксы */
+.checkbox-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.checkbox-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: #f8fafc;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 14px;
+    font-weight: 500;
+}
+.checkbox-item:hover { border-color: #3b82f6; background: #eff6ff; }
+.checkbox-item input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: #3b82f6;
+    cursor: pointer;
+    margin: 0;
+    flex-shrink: 0;
+}
+.checkbox-item:has(input:checked) {
+    border-color: #3b82f6;
+    background: #eff6ff;
+    color: #1e293b;
+    font-weight: 600;
+}
+</style>
+
+<div class="page-header">
+    <h1 class="page-title">📚 {{ title }}</h1>
+    <a href="{% url 'teachers:teacher_list' %}" class="btn-back">← Назад к списку</a>
+</div>
+
+<div class="form-container">
+    <form method="POST" novalidate>
+        {% csrf_token %}
+
+        <!-- 🔹 Личные данные -->
+        <div class="form-section">
+            <div class="section-title">👤 Личные данные</div>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label class="form-label">Фамилия *</label>
+                    {{ form.last_name }}
+                    {% if form.last_name.errors %}<ul class="errorlist">{% for error in form.last_name.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Имя *</label>
+                    {{ form.first_name }}
+                    {% if form.first_name.errors %}<ul class="errorlist">{% for error in form.first_name.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Отчество</label>
+                    {{ form.patronymic }}
+                    {% if form.patronymic.errors %}<ul class="errorlist">{% for error in form.patronymic.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Телефон *</label>
+                    {{ form.phone }}
+                    <span class="form-hint">Формат: +375 (29) 123-45-67</span>
+                    {% if form.phone.errors %}<ul class="errorlist">{% for error in form.phone.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- 🔹 Тип договора -->
+        <div class="form-section">
+            <div class="section-title">📄 Тип договора</div>
+            <div class="checkbox-grid">
+                <label class="checkbox-item">
+                    {{ form.contract_main }}
+                    <span>💼 По основному договору</span>
+                </label>
+                <label class="checkbox-item">
+                    {{ form.contract_part_time }}
+                    <span>📋 По договору совмещения</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- 🔹 Тип транспорта -->
+        <div class="form-section">
+            <div class="section-title">🚗 Тип транспорта</div>
+            <div class="checkbox-grid">
+                <label class="checkbox-item">
+                    {{ form.teaches_truck }}
+                    <span>🚛 Грузовой</span>
+                </label>
+                <label class="checkbox-item">
+                    {{ form.teaches_car }}
+                    <span>🚗 Легковой</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- 🔹 График работы -->
+        <div class="form-section">
+            <div class="section-title">🕐 График работы</div>
+            <div class="checkbox-grid">
+                <label class="checkbox-item">
+                    {{ form.schedule_morning }}
+                    <span>🌅 Утро</span>
+                </label>
+                <label class="checkbox-item">
+                    {{ form.schedule_evening }}
+                    <span>🌆 Вечер</span>
+                </label>
+                <label class="checkbox-item">
+                    {{ form.schedule_weekend }}
+                    <span>📅 Выходной</span>
+                </label>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <a href="{% url 'teachers:teacher_list' %}" class="btn-cancel">Отмена</a>
+            <button type="submit" class="btn-save">💾 Сохранить</button>
+        </div>
+    </form>
+</div>
+
+<script src="{% static 'js/phone-mask.js' %}"></script>
+{% endblock %}

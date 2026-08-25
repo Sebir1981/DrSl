@@ -11,15 +11,15 @@ from DrSl.widgets import RuDateWidget
 LABEL_COMMENT = "Комментарий"
 TEXTAREA_STYLE = 'resize: vertical;'
 TEXTAREA_CLASS = 'form-control'
-
-
+INPUT_FORMAT_ISO = '%Y-%m-%d'
+INPUT_FORMAT_RU = '%d.%m.%Y'
 # =============================================================================
 # 🔹 Форма для админки учащегося
 # =============================================================================
 class StudentAdminForm(forms.ModelForm):
     birth_date = forms.DateField(
         label="Дата рождения",
-        input_formats=['%d.%m.%Y'],
+        input_formats=['INPUT_FORMAT_RU'],
         widget=RuDateWidget(),
         required=False,
         validators=[]
@@ -62,7 +62,7 @@ class DismissalForm(forms.ModelForm):
         label="Дата приказа",
         # ✅ ИСПРАВЛЕНИЕ: Используем RuDateWidget
         widget=RuDateWidget(attrs={'class': TEXTAREA_CLASS}),
-        input_formats=['%d.%m.%Y', '%Y-%m-%d'],
+        input_formats=['INPUT_FORMAT_RU', 'INPUT_FORMAT_ISO'],
         required=False
     )
     comment = forms.CharField(
@@ -107,13 +107,13 @@ class SuspensionForm(forms.ModelForm):
         label="Дата начала",
         # ✅ ИСПРАВЛЕНИЕ: Используем RuDateWidget
         widget=RuDateWidget(attrs={'class': TEXTAREA_CLASS}),
-        input_formats=['%d.%m.%Y', '%Y-%m-%d']
+        input_formats=['INPUT_FORMAT_RU', 'INPUT_FORMAT_ISO']
     )
     suspension_end = forms.DateField(
         label="Дата окончания",
         # ✅ ИСПРАВЛЕНИЕ: Используем RuDateWidget
         widget=RuDateWidget(attrs={'class': TEXTAREA_CLASS}),
-        input_formats=['%d.%m.%Y', '%Y-%m-%d'],
+        input_formats=['INPUT_FORMAT_RU', 'INPUT_FORMAT_ISO'],
         required=False,
         help_text="Оставьте пустым, если срок не определён"
     )

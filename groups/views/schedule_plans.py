@@ -8,7 +8,8 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse
-from django.conf import settings  # ✅ Добавлен импорт settings
+from django.conf import settings
+from django.views.decorators.http import require_POST
 
 # ✅ ИМПОРТЫ МОДЕЛЕЙ
 from groups.models import Group, SchedulePlan
@@ -428,7 +429,8 @@ def schedule_plan_step2(request, plan_id):
                     plan.med_teacher = None
 
             plan.class_days = class_days
-            plan.save(update_fields=['class_days', 'med_teacher'])
+            # ✅ ДОБАВЛЕНЫ ПОЛЯ excluded_dates и additional_dates В update_fields
+            plan.save(update_fields=['class_days', 'med_teacher', 'excluded_dates', 'additional_dates'])
             return JsonResponse({'success': True})
         except Exception as e:
             import traceback
@@ -521,6 +523,22 @@ def schedule_plan_step2(request, plan_id):
     defaults = {item['code']: item['hours'] for item in program_subjects}
     subjects_list = [(item['code'], item['short_display']) for item in program_subjects]
 
+    # 🔥 ЖЕСТКАЯ ЧИСТКА: Удаляем из class_days предметы, которых нет в текущей программе
+    if training_program:
+        valid_codes = {ps.subject.short_name for ps in training_program.subjects.all()}
+        for date_str in list(class_days.keys()):
+            if date_str.startswith('_'):
+                continue
+            day_data = class_days[date_str]
+            # Удаляем все ключи, которые не являются '_topics' и не входят в valid_codes
+            for key in list(day_data.keys()):
+                if key.endswith('_topics'):
+                    subject_code = key.replace('_topics', '')
+                    if subject_code not in valid_codes:
+                        del day_data[key]
+                elif key not in valid_codes and not key.startswith('_'):
+                    del day_data[key]
+
     # 🔹 Сбор состояний тем для JS (С ФИЛЬТРАЦИЕЙ ПО ПРОГРАММЕ)
     topics_state = {}
 
@@ -609,3 +627,14 @@ def schedule_plan_reset(request, plan_id):
         import traceback
         traceback.print_exc()
         return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+@login_required
+@require_POST
+def clear_plan_topics(request, plan_id):
+    plan = get_object_or_404(SchedulePlan, pk=plan_id)
+    # Очищаем поля с распределением часов
+    plan.class_days = {}
+    plan.excluded_dates = []
+    plan.additional_dates = []
+    plan.save()
+    return JsonResponse({'success': True, 'message': 'Данные план-графика очищены'})

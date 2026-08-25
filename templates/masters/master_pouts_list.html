@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ title }} — Автошкола{% endblock %}
+
+{% block content %}
+<style>
+.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 16px; }
+.page-title { font-size: 32px; font-weight: 700; color: white; margin: 0; display: flex; align-items: center; gap: 12px; }
+.header-buttons { display: flex; gap: 12px; }
+.btn-home, .btn-add, .btn-back { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 8px; font-weight: 600; text-decoration: none; transition: all 0.2s; border: none; cursor: pointer; }
+.btn-home { background: white; color: #475569; }
+.btn-home:hover { background: #f1f5f9; }
+.btn-add { background: #3b82f6; color: white; }
+.btn-add:hover { background: #2563eb; }
+.btn-back { background: white; color: #475569; }
+.search-card, .table-card { background: white; border-radius: 12px; padding: 20px; margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+.search-form { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.search-input { flex: 1; min-width: 250px; padding: 10px 14px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; }
+.search-input:focus { outline: none; border-color: #3b82f6; }
+.btn-search { padding: 10px 20px; background: #3b82f6; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; }
+.btn-reset { padding: 10px 20px; background: #e2e8f0; color: #475569; border: none; border-radius: 8px; font-weight: 600; text-decoration: none; }
+.data-table { width: 100%; border-collapse: collapse; }
+.data-table th { background: #f8fafc; padding: 14px 16px; text-align: left; font-weight: 600; color: #475569; font-size: 13px; border-bottom: 2px solid #e2e8f0; }
+.data-table td { padding: 14px 16px; border-bottom: 1px solid #f1f5f9; font-size: 14px; vertical-align: middle; }
+.data-table tr:hover { background: #f8fafc; }
+.status-valid { color: #16a34a; font-weight: 500; }
+.status-expired { color: #dc2626; font-weight: 500; }
+.action-btn { background: none; border: none; cursor: pointer; padding: 6px 10px; border-radius: 6px; font-size: 16px; text-decoration: none; }
+.action-btn:hover { background: #f1f5f9; }
+.empty-state { text-align: center; padding: 40px; color: #94a3b8; }
+
+/* 🔹 Стили для бейджей категорий */
+.category-badges {
+    display: flex;
+    gap: 4px;
+    flex-wrap: nowrap;
+    align-items: center;
+    white-space: nowrap;
+}
+.category-badge {
+    background: #3b82f6;
+    color: white;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.category-more {
+    color: #64748b;
+    font-weight: 700;
+    font-size: 14px;
+    padding: 0 2px;
+    flex-shrink: 0;
+}
+.category-badge-none { color: #94a3b8; font-style: italic; }
+
+/* 🔹 Стили подсказок живого поиска */
+.suggestion-item:hover { background: #f1f5f9; }
+</style>
+
+<div class="page-header">
+    <h1 class="page-title">🚗 {{ title }}</h1>
+    <div class="header-buttons">
+        <a href="{% url 'vault:dashboard' %}" class="btn-home">← На главную</a>
+        <a href="{% url 'masters:master_pouts_add' %}" class="btn-add">+ Добавить мастера</a>
+    </div>
+</div>
+
+<div class="search-card" style="position: relative;">
+    <div style="font-size: 14px; font-weight: 600; color: #475569; margin-bottom: 12px;">🔍 Живой поиск по ФИО или телефону</div>
+    <div style="display: flex; gap: 12px; align-items: center;">
+        <input type="text"
+               data-live-search="true"
+               data-target="masters-tbody"
+               data-api-url="{% url 'masters:master_pouts_search_api' %}"
+               class="search-input"
+               id="search-input"
+               placeholder="Начните вводить фамилию..."
+               autocomplete="off">
+        <a href="{% url 'masters:master_pouts_list' %}" class="btn-reset">✕ Сброс</a>
+    </div>
+    <div id="search-suggestions" style="
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 20px;
+        right: 20px;
+        background: white;
+        border: 2px solid #e2e8f0;
+        border-radius: 8px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+        z-index: 100;
+        max-height: 300px;
+        overflow-y: auto;
+        margin-top: 4px;
+    "></div>
+</div>
+
+<div class="table-card">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>ФИО</th>
+                <th>Категории</th>
+                <th>ВУ до</th>
+                <th>Мед. справка до</th>
+                <th>Телефон</th>
+                <th>Автомобиль</th>
+                <th style="width: 100px; text-align: center;">Действия</th>
+            </tr>
+        </thead>
+        <!-- ✅ Добавлен id="masters-tbody" и data-empty-colspan для живого поиска -->
+        <tbody id="masters-tbody" data-empty-colspan="7">
+            {% for master in masters %}
+            <tr>
+                <!-- ✅ Исправлено <<td> на <td> -->
+                <td>
+                    <strong>{{ master.last_name }} {{ master.first_name }}</strong>
+                    {% if master.patronymic %}<br><small style="color:#94a3b8">{{ master.patronymic }}</small>{% endif %}
+                </td>
+
+                <!-- 🔹 Категории (первая + … + две последние, в одну строку) -->
+                <td>
+                    {% if master.license_category %}
+                        <div class="category-badges" title="{{ master.license_categories_display }}">
+                            {% if master.license_category|length > 3 %}
+                                <span class="category-badge">{{ master.license_category|first }}</span>
+                                <span class="category-more">…</span>
+                                {% for cat in master.license_category|slice:"-2:" %}
+                                <span class="category-badge">{{ cat }}</span>
+                                {% endfor %}
+                            {% else %}
+                                {% for cat in master.license_category %}
+                                <span class="category-badge">{{ cat }}</span>
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+                    {% else %}
+                        <span class="category-badge-none">—</span>
+                    {% endif %}
+                </td>
+
+                <td>
+                    {% if master.is_license_valid %}
+                        <span class="status-valid">{{ master.license_expiry|date:"d.m.Y" }}</span>
+                    {% else %}
+                        <span class="status-expired">{{ master.license_expiry|date:"d.m.Y" }}</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if master.medical_cert_expiry %}
+                        {% if master.is_medical_valid %}
+                            <span class="status-valid">{{ master.medical_cert_expiry|date:"d.m.Y" }}</span>
+                        {% else %}
+                            <span class="status-expired">{{ master.medical_cert_expiry|date:"d.m.Y" }}</span>
+                        {% endif %}
+                    {% else %}
+                        <span style="color: #94a3b8;">—</span>
+                    {% endif %}
+                </td>
+                <td>{{ master.phone }}</td>
+                <td>
+                    {% if master.car %}
+                        {{ master.car.make }} {{ master.car.license_plate }}
+                    {% else %}
+                        <span style="color: #94a3b8;">—</span>
+                    {% endif %}
+                </td>
+                <td style="text-align: center;">
+                    <a href="{% url 'masters:master_pouts_edit' master.pk %}" class="action-btn" title="Редактировать">✏️</a>
+                    <button type="button" class="action-btn" title="Удалить" onclick="showDeleteModal({{ master.pk }}, '{{ master.full_name|escapejs }}')">🗑️</button>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="7" class="empty-state">🚗 Мастера не добавлены</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- 🔹 Модальное окно удаления -->
+<div id="deleteModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); z-index: 9999; justify-content: center; align-items: center;">
+    <div style="background: white; border-radius: 16px; max-width: 480px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); overflow: hidden;">
+        <div style="background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%); color: white; padding: 20px 24px; display: flex; justify-content: space-between; align-items: center;">
+            <h5 style="margin: 0; font-size: 18px;">⚠️ Подтверждение удаления</h5>
+            <button onclick="closeDeleteModal()" style="background: rgba(255,255,255,0.2); border: none; color: white; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 18px;">✕</button>
+        </div>
+        <div style="padding: 24px;">
+            <p style="margin: 0 0 16px 0;">Вы действительно хотите удалить мастера:</p>
+            <div style="background: #f8fafc; border-left: 4px solid #3b82f6; padding: 12px 16px; border-radius: 6px; margin-bottom: 16px;">
+                <p style="margin: 0; font-weight: 700; font-size: 16px;" id="deleteMasterName"></p>
+            </div>
+            <div style="background: #fef3c7; border: 1px solid #fbbf24; border-radius: 8px; padding: 12px 16px; font-size: 13px; color: #92400e;">
+                ⚠️ Это действие <strong>нельзя отменить</strong>.
+            </div>
+        </div>
+        <div style="padding: 16px 24px; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; gap: 12px; justify-content: flex-end;">
+            <button onclick="closeDeleteModal()" style="padding: 10px 20px; background: white; color: #475569; border: 2px solid #e2e8f0; border-radius: 8px; font-weight: 600; cursor: pointer;">Отмена</button>
+            <form id="deleteForm" method="POST" style="display: inline;">
+                {% csrf_token %}
+                <button type="submit" style="padding: 10px 20px; background: #dc2626; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">🗑️ Удалить</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ✅ Подключаем скрипт живого поиска -->
+<script src="{% static 'js/live_search.js' %}"></script>
+
+<script>
+function showDeleteModal(masterId, masterName) {
+    document.getElementById('deleteMasterName').textContent = masterName;
+    document.getElementById('deleteForm').action = '/masters/' + masterId + '/delete/';
+    const modal = document.getElementById('deleteModal');
+    modal.style.display = 'flex';
+    modal.onclick = function(event) { if (event.target === modal) closeDeleteModal(); };
+}
+function closeDeleteModal() { document.getElementById('deleteModal').style.display = 'none'; }
+document.addEventListener('keydown', function(event) { if (event.key === 'Escape') closeDeleteModal(); });
+</script>
+{% endblock %}

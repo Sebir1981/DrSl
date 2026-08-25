@@ -1,17 +1,42 @@
-# teachers/forms.py  (если добавите даты в модель Teacher)
 from django import forms
 from .models import Teacher
-from core.widgets import RuDateWidget
 
 
-class TeacherAdminForm(forms.ModelForm):
+class TeacherForm(forms.ModelForm):
+    """Форма для создания и редактирования преподавателя"""
+
     class Meta:
         model = Teacher
-        fields = '__all__'
+        fields = [
+            'last_name', 'first_name', 'patronymic', 'phone',
+            'contract_main', 'contract_part_time',
+            'teaches_truck', 'teaches_car',
+            'schedule_morning', 'schedule_evening', 'schedule_weekend',
+        ]
         widgets = {
-            # Если добавите date-поля, укажите здесь:
-            # 'some_date': RuDateWidget(),
+            'last_name': forms.TextInput(attrs={
+                'class': 'form-input',
+                'placeholder': 'Иванов'
+            }),
+            'first_name': forms.TextInput(attrs={
+                'class': 'form-input',
+                'placeholder': 'Иван'
+            }),
+            'patronymic': forms.TextInput(attrs={
+                'class': 'form-input',
+                'placeholder': 'Иванович'
+            }),
+            'phone': forms.TextInput(attrs={
+                'class': 'form-input',
+                'data-phone-input': 'true',
+                'placeholder': '+375 (__) ___-__-__',
+                'autocomplete': 'off'
+            }),
+            'contract_main': forms.CheckboxInput(),
+            'contract_part_time': forms.CheckboxInput(),
+            'teaches_truck': forms.CheckboxInput(),
+            'teaches_car': forms.CheckboxInput(),
+            'schedule_morning': forms.CheckboxInput(),
+            'schedule_evening': forms.CheckboxInput(),
+            'schedule_weekend': forms.CheckboxInput(),
         }
-
-    class Media:
-        js = ('js/phone-mask.js', 'js/date-mask.js')

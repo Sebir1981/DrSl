@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Удаление мастера — Автошкола{% endblock %}
+
+{% block content %}
+<div style="max-width: 500px; margin: 40px auto; background: white; border-radius: 12px; padding: 32px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+    <h2 style="color: #dc2626; margin-bottom: 16px;">⚠️ Подтверждение удаления</h2>
+    <p>Вы действительно хотите удалить мастера <strong>{{ master.full_name }}</strong>?</p>
+    <p style="color: #64748b; font-size: 14px;">Это действие нельзя отменить.</p>
+    <form method="POST" style="margin-top: 24px; display: flex; gap: 12px; justify-content: flex-end;">
+        {% csrf_token %}
+        <a href="{% url 'masters:master_pouts_list' %}" style="padding: 10px 20px; background: #e2e8f0; color: #475569; border-radius: 8px; text-decoration: none; font-weight: 600;">Отмена</a>
+        <button type="submit" style="padding: 10px 20px; background: #dc2626; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">🗑️ Удалить</button>
+    </form>
+</div>
+{% endblock %}

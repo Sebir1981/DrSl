@@ -1,0 +1,297 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} — Автошкола{% endblock %}
+
+{% block content %}
+<style>
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.page-title {
+    font-size: 32px;
+    font-weight: 700;
+    color: white;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.btn-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    background: white;
+    color: #475569;
+    text-decoration: none;
+    border-radius: 8px;
+    font-weight: 600;
+    transition: all 0.2s;
+    border: none;
+}
+
+.btn-back:hover {
+    background: #f1f5f9;
+    color: #1e293b;
+}
+
+.form-container {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.form-section {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 24px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.section-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid #e2e8f0;
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.form-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #475569;
+}
+
+.form-input {
+    padding: 10px 12px;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 14px;
+    transition: border-color 0.2s;
+    font-family: inherit;
+}
+
+.form-input:focus {
+    outline: none;
+    border-color: #3b82f6;
+}
+
+.form-hint {
+    font-size: 11px;
+    color: #94a3b8;
+}
+
+.form-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    margin-top: 24px;
+}
+
+.btn-save {
+    padding: 12px 32px;
+    background: #10b981;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 15px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-save:hover {
+    background: #059669;
+    transform: translateY(-1px);
+}
+
+.btn-cancel {
+    padding: 12px 32px;
+    background: #e2e8f0;
+    color: #475569;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 15px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.2s;
+}
+
+.btn-cancel:hover {
+    background: #cbd5e1;
+}
+
+.errorlist {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.errorlist li {
+    color: #dc2626;
+    font-size: 12px;
+    margin-top: 4px;
+}
+    /* 🔹 Подсекция внутри формы (например, Сертификат) */
+.sub-section {
+    background: #f8fafc;
+    border: 2px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin-top: 8px;
+}
+
+.sub-section-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #475569;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.sub-section-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 16px;
+}
+
+.sub-section-grid .form-input {
+    background: white;
+}
+
+/* Адаптивность: на маленьких экранах поля в столбик */
+@media (max-width: 600px) {
+    .sub-section-grid {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+
+<div class="page-header">
+    <h1 class="page-title">🚗 {{ title }}</h1>
+    <a href="{% url 'cars:car_list' %}" class="btn-back">← Назад к списку</a>
+</div>
+
+<div class="form-container">
+    <form method="POST" novalidate>
+        {% csrf_token %}
+
+        <div class="form-section">
+            <div class="section-title">🚗 Основные данные автомобиля</div>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label class="form-label">Марка автомобиля *</label>
+                    {{ car_form.make }}
+                    {% if car_form.make.errors %}
+                    <ul class="errorlist">{% for error in car_form.make.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+                    {% endif %}
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Государственный номер *</label>
+                    {{ car_form.license_plate }}
+                    <span class="form-hint">Формат: 1234 AA-1</span>
+                    {% if car_form.license_plate.errors %}
+                    <ul class="errorlist">{% for error in car_form.license_plate.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+                    {% endif %}
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">VIN *</label>
+                    {{ car_form.vin }}
+                    <span class="form-hint">Ровно 17 символов</span>
+                    {% if car_form.vin.errors %}
+                    <ul class="errorlist">{% for error in car_form.vin.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+                    {% endif %}
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Вид КПП *</label>
+                    {{ car_form.transmission }}
+                    {% if car_form.transmission.errors %}
+                    <ul class="errorlist">{% for error in car_form.transmission.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+                    {% endif %}
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Вид топлива *</label>
+                    {{ car_form.fuel }}
+                    {% if car_form.fuel.errors %}
+                    <ul class="errorlist">{% for error in car_form.fuel.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+                    {% endif %}
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Номер тех. паспорта *</label>
+                    {{ car_form.pts_number }}
+                    {% if car_form.pts_number.errors %}
+                    <ul class="errorlist">{% for error in car_form.pts_number.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+                    {% endif %}
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Начальный одометр (км) *</label>
+                    {{ car_form.initial_odometer }}
+                    <span class="form-hint">Первичные показания</span>
+                    {% if car_form.initial_odometer.errors %}
+                    <ul class="errorlist">{% for error in car_form.initial_odometer.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+                    {% endif %}
+                </div>
+
+            </div>
+            <!-- ✅ Сертификат соответствия: контейнер с заголовком -->
+<div class="form-group full-width">
+    <div class="sub-section">
+        <div class="sub-section-title">📄 Сертификат соответствия</div>
+        <div class="sub-section-grid">
+            <div class="form-group">
+                <label class="form-label">Номер</label>
+                {{ car_form.cert_number }}
+                {% if car_form.cert_number.errors %}
+                <ul class="errorlist">{% for error in car_form.cert_number.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+                {% endif %}
+            </div>
+            <div class="form-group">
+                <label class="form-label">Дата получения</label>
+                {{ car_form.cert_issue_date }}
+                {% if car_form.cert_issue_date.errors %}
+                <ul class="errorlist">{% for error in car_form.cert_issue_date.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+        </div>
+
+        <div class="form-actions">
+            <a href="{% url 'cars:car_list' %}" class="btn-cancel">Отмена</a>
+            <button type="submit" class="btn-save">💾 Сохранить</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

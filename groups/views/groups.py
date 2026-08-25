@@ -1,3 +1,5 @@
+# groups/views/groups.py
+
 import re
 from collections import defaultdict
 from datetime import datetime, timedelta
@@ -9,31 +11,11 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.utils import timezone
 
 from groups.models import Group, CreditResult
-from groups.forms import SchedulePlanForm
+from groups.forms import SchedulePlanForm, GroupForm
 from reference.models import GroupCategory, Credit
 from students.models import Student
 from teachers.models import Teacher
 from classrooms.models import Classroom
-
-
-# =============================================================================
-# 🔹 Вспомогательные функции
-# =============================================================================
-
-def parse_date_safe(value):
-    """Безопасно парсит дату из строки 'DD.MM.YYYY' или 'YYYY-MM-DD'."""
-    if not value:
-        return None
-    value = value.strip()
-    if not value:
-        return None
-    try:
-        return datetime.strptime(value, '%d.%m.%Y').date()
-    except ValueError:
-        try:
-            return datetime.strptime(value, '%Y-%m-%d').date()
-        except ValueError:
-            return None
 
 
 # =============================================================================
@@ -84,32 +66,56 @@ def group_detail(request, group_id):
     teachers = Teacher.objects.filter(is_active=True).order_by('last_name', 'first_name')
 
     if request.method == 'POST':
+        # 🔹 Определяем, какая форма была отправлена
+        action = request.POST.get('action')
+
         # 🔹 Сохранение настроек группы
-        if 'save_group' in request.POST:
-            group.contract_start = parse_date_safe(request.POST.get('contract_start'))
-            group.contract_end = parse_date_safe(request.POST.get('contract_end'))
-            group.exam_internal_theory_date = parse_date_safe(request.POST.get('exam_internal_theory_date'))
-            group.exam_internal_driving_date = parse_date_safe(request.POST.get('exam_internal_driving_date'))
-            group.exam_gai_date = parse_date_safe(request.POST.get('exam_gai_date'))
-            group.status = request.POST.get('status', 'active')
-            group.schedule_type = request.POST.get('schedule_type', 'directed')
-            group.duration = request.POST.get('duration', 'standard')
-            group.comments = request.POST.get('comments', '')
+        if action == 'save_group' or 'save_group' in request.POST:
+            form = GroupForm(request.POST, instance=group)
+            if form.is_valid():
+                form.save()
+                messages.success(request, '✅ Данные группы сохранены.')
+                return redirect('groups:group_detail', group_id=group.pk)
+            else:
+                for field, errors in form.errors.items():
+                    messages.error(request, f"⚠️ Ошибка в поле '{field}': {', '.join(errors)}")
 
-            # Аудитория
-            cid = request.POST.get('classroom')
-            group.classroom = get_object_or_404(Classroom, pk=cid) if cid and cid.isdigit() else None
+        # 🔹 Массовое добавление выбранных учащихся
+        elif action == 'add_selected_students':
+            student_ids = request.POST.getlist('selected_students')
+            if student_ids:
+                count = 0
+                for sid in student_ids:
+                    try:
+                        student = Student.objects.get(pk=sid)
+                        if student.group != group:
+                            transfer_log = {
+                                'type': 'transfer',
+                                'date': timezone.now().date().strftime('%Y-%m-%d'),
+                                'title': f"Перевод в группу {group.group_number}",
+                                'details': {
+                                    'from_group': str(student.group) if student.group else '—',
+                                    'to_group': str(group.group_number),
+                                }
+                            }
+                            current_log = student.activity_log or []
+                            current_log.append(transfer_log)
+                            current_log.sort(key=lambda x: x.get('date', ''))
 
-            # Преподаватель
-            tid = request.POST.get('teacher')
-            group.teacher = get_object_or_404(Teacher, pk=tid) if tid and tid.isdigit() else None
-
-            group.save()
-            messages.success(request, '✅ Данные группы сохранены.')
+                            student.activity_log = current_log
+                            student.transferred_date = timezone.now().date()
+                            student.group = group
+                            student.save(update_fields=['group', 'transferred_date', 'activity_log', 'updated_at'])
+                            count += 1
+                    except Student.DoesNotExist:
+                        pass
+                messages.success(request, f'✅ {count} учащихся добавлены в группу.')
+            else:
+                messages.warning(request, '⚠️ Не выбрано ни одного учащегося.')
             return redirect('groups:group_detail', group_id=group.pk)
 
-        # 🔹 Добавление учащегося
-        if 'add_student' in request.POST:
+        # 🔹 (Оставляем на случай, если кто-то использует старый путь)
+        elif 'add_student' in request.POST:
             student_id = request.POST.get('student_id')
             if student_id:
                 student = get_object_or_404(Student, pk=student_id)
@@ -136,17 +142,22 @@ def group_detail(request, group_id):
                     messages.success(request, f'✅ {student.last_name} добавлен в группу.')
             return redirect('groups:group_detail', group_id=group.pk)
 
+    else:
+        form = GroupForm(instance=group)
+
     return render(request, 'groups/group_detail.html', {
         'group': group,
+        'form': form,
         'current_students': Student.objects.filter(group=group).order_by('last_name', 'first_name'),
         'available_students': Student.objects.exclude(group=group).order_by('last_name', 'first_name'),
+        'unassigned_students': Student.objects.filter(group__isnull=True).order_by('last_name', 'first_name'),
         'classrooms': classrooms,
         'teachers': teachers,
     })
 
 
 # =============================================================================
-# 🔹 Создание / Редактирование группы
+# 🔹 Создание / Редактирование группы (ИСПРАВЛЕНА НА ФОРМУ)
 # =============================================================================
 @login_required
 def group_form(request, group_id=None):
@@ -159,50 +170,33 @@ def group_form(request, group_id=None):
         is_edit = True
 
     if request.method == 'POST':
-        # 🔹 Сбор и валидация данных
-        group_number = request.POST.get('group_number', '').strip().upper()
-        if not group_number:
-            messages.error(request, '❌ Номер группы обязателен')
-            return redirect('groups:group_form', group_id=group_id) if is_edit else redirect('groups:group_form')
+        form = GroupForm(request.POST, instance=group)
 
-        existing = Group.objects.filter(group_number=group_number)
-        if group:
-            existing = existing.exclude(pk=group.pk)
-        if existing.exists():
-            messages.error(request, f'❌ Группа "{group_number}" уже существует')
-            return redirect('groups:group_form', group_id=group_id) if is_edit else redirect('groups:group_form')
+        # ВАЖНО: Дополнительная валидация уникальности номера группы
+        if form.is_valid():
+            # Проверяем, есть ли уже группа с таким номером (исключая текущую)
+            group_number = form.cleaned_data['group_number']
+            existing = Group.objects.filter(group_number=group_number)
+            if group:
+                existing = existing.exclude(pk=group.pk)
 
-        # 🔹 Инициализация или обновление объекта
-        if not group:
-            group = Group(created_at=timezone.now())
+            if existing.exists():
+                messages.error(request, f'❌ Группа "{group_number}" уже существует')
+                return redirect('groups:group_form', group_id=group_id) if is_edit else redirect('groups:group_form')
 
-        group.group_number = group_number
-        group.category_id = int(request.POST['category']) if request.POST.get('category', '').isdigit() else None
-        group.classroom_id = int(request.POST['classroom']) if request.POST.get('classroom', '').isdigit() else None
-        group.teacher_id = int(request.POST['teacher']) if request.POST.get('teacher', '').isdigit() else None
+            form.save()
+            messages.success(request, f'✅ Группа "{form.instance.group_number}" {"обновлена" if is_edit else "создана"}!')
+            return redirect('groups:group_detail', group_id=form.instance.pk)
+        else:
+            for field, errors in form.errors.items():
+                messages.error(request, f"⚠️ Ошибка в поле '{field}': {', '.join(errors)}")
 
-        # 🔹 Парсинг дат БЕЗОПАСНО (до сохранения)
-        group.contract_start = parse_date_safe(request.POST.get('contract_start'))
-        group.contract_end = parse_date_safe(request.POST.get('contract_end'))
-        group.exam_internal_theory_date = parse_date_safe(request.POST.get('exam_internal_theory_date'))
-        group.exam_internal_driving_date = parse_date_safe(request.POST.get('exam_internal_driving_date'))
-        group.exam_gai_date = parse_date_safe(request.POST.get('exam_gai_date'))
+    else:
+        form = GroupForm(instance=group)
 
-        group.status = request.POST.get('status', 'active')
-        group.schedule_type = request.POST.get('schedule_type', 'directed')
-        group.duration = request.POST.get('duration', 'standard')
-        group.comments = request.POST.get('comments', '').strip()
-        group.updated_at = timezone.now()
-
-        group.save()
-
-        messages.success(request, f'✅ Группа "{group.group_number}" {"обновлена" if is_edit else "создана"}!')
-        return redirect('groups:group_detail', group_id=group.pk)
-
-    # 🔹 GET: подготовка контекста
     return render(request, 'groups/group_form.html', {
         'title': '✏️ Редактирование группы' if is_edit else '➕ Создание группы',
-        'group': group,
+        'form': form,  # <--- Передаём форму в шаблон
         'categories': GroupCategory.objects.all().order_by('code'),
         'classrooms': Classroom.objects.all().order_by('classroom_number'),
         'teachers': Teacher.objects.filter(is_active=True).order_by('last_name', 'first_name'),

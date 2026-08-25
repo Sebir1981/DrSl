@@ -2,6 +2,7 @@
 from django.db import models
 from django.core.validators import RegexValidator
 
+
 # =============================================================================
 # 🔹 Валидатор телефона
 # =============================================================================
@@ -65,7 +66,7 @@ class Student(models.Model):
     )
 
     master = models.ForeignKey(
-        'masters.Master',
+        'masters.MasterPouts',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
@@ -109,6 +110,24 @@ class Student(models.Model):
     # =========================================================
     created_at = models.DateTimeField("Создан", auto_now_add=True)
     updated_at = models.DateTimeField("Обновлён", auto_now=True)
+
+    def save(self, *args, **kwargs):
+        """
+        Автоматически наследует преподавателя из группы
+        при смене группы (или при создании учащегося).
+        """
+        if self.group_id:
+            old_group_id = None
+            if self.pk:
+                old_group_id = (
+                    Student.objects.filter(pk=self.pk)
+                    .values_list('group_id', flat=True)
+                    .first()
+                )
+            # Группа изменилась (или студент создаётся) → наследуем преподавателя
+            if old_group_id != self.group_id and self.group.teacher_id:
+                self.teacher_id = self.group.teacher_id
+        super().save(*args, **kwargs)
 
     # =========================================================
     # Свойства

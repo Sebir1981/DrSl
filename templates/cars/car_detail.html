@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}{{ car.make }} - {{ car.license_plate }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <a href="{% url 'cars:car_list' %}" class="btn btn-secondary mb-3">← Назад к списку</a>
+
+    <div class="row">
+        <!-- Основная информация -->
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">🚗 Основные данные</div>
+                <div class="card-body">
+                    <p><strong>Марка:</strong> {{ car.make }}</p>
+                    <p><strong>Гос. номер:</strong> {{ car.license_plate }}</p>
+                    <p><strong>VIN:</strong> <code>{{ car.vin }}</code></p>
+                    <p><strong>КПП:</strong> {{ car.get_transmission_display }} | <strong>Топливо:</strong> {{ car.get_fuel_display }}</p>
+                    <p><strong>№ Тех. паспорта:</strong> {{ car.pts_number }}</p>
+                    <p><strong>Одометр:</strong> Начальный: {{ car.initial_odometer }} км | Текущий: <strong>{{ car.current_odometer|default:car.initial_odometer }} км</strong></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Документы -->
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header bg-info text-white">📄 Документы</div>
+                <div class="card-body">
+                    <p><strong>Свидетельство соответствия:</strong> {{ docs.cert_number|default:"—" }} (до {{ docs.cert_expiry|default:"—" }})</p>
+                    <p><strong>Тех. осмотр:</strong> {{ docs.tech_inspection_date|default:"—" }}</p>
+                    <p><strong>Страховка:</strong>
+                        {% if docs.insurance_active %}✅ Активна{% else %}❌ Неактивна{% endif %}
+                        (Взнос: {{ docs.insurance_next_payment|default:"—" }}, До: {{ docs.insurance_expiry|default:"—" }})
+                    </p>
+                    <p><strong>Опрессовка баллона:</strong> {{ docs.gas_cylinder_test_date|default:"—" }}</p>
+                    <a href="/admin/cars/cardocument/{{ docs.pk }}/change/" class="btn btn-sm btn-outline-secondary" target="_blank">Редактировать документы (Админка)</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- История замены шин -->
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header bg-warning">🛞 История замены шин</div>
+                <div class="card-body">
+                    <ul class="list-group">
+                        {% for log in tire_logs %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>{{ log.date }}</strong> ({{ log.odometer }} км)<br>
+                                <small class="text-muted">{{ log.comment }}</small>
+                            </div>
+                        </li>
+                        {% empty %}
+                        <li class="list-group-item text-muted">Записей нет</li>
+                        {% endfor %}
+                    </ul>
+                    <a href="/admin/cars/tirechangelog/add/?car={{ car.pk }}" class="btn btn-sm btn-warning mt-3" target="_blank">+ Добавить запись о шинах</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Внутреннее ТО -->
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header bg-success text-white">🔧 Внутреннее ТО</div>
+                <div class="card-body">
+                    <form method="POST">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label class="form-label">Дата ТО</label>
+                            <input type="date" name="date" class="form-control" value="{{ today|date:'Y-m-d' }}" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Показания одометра от (зафиксировано)</label>
+                            <input type="number" class="form-control" value="{{ car.current_odometer|default:car.initial_odometer }}" disabled>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Новые показания одометра (км)</label>
+                            <!-- Заглушка: в будущем здесь будет кнопка "Обновить из справочника" -->
+                            <input type="number" name="odometer_to" class="form-control" required placeholder="Введите текущий пробег">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Комментарий</label>
+                            <textarea name="comment" class="form-control" rows="2"></textarea>
+                        </div>
+                        <button type="submit" name="maintenance_passed" class="btn btn-success w-100">✅ ТО Прошёл</button>
+                    </form>
+
+                    <hr>
+                    <h6>История ТО:</h6>
+                    <ul class="list-group list-group-flush">
+                        {% for log in maintenance_logs %}
+                        <li class="list-group-item">
+                            <strong>{{ log.date }}</strong>: с {{ log.odometer_from }} до {{ log.odometer_to }} км
+                            {% if log.comment %}<br><small class="text-muted">{{ log.comment }}</small>{% endif %}
+                        </li>
+                        {% empty %}
+                        <li class="list-group-item text-muted">Записей нет</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
