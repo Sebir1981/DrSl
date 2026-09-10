@@ -58,9 +58,6 @@ urlpatterns = [
 
     path('logout/', custom_logout, name='logout'),
     path('admin/', admin.site.urls),
-
-    # ❌ УДАЛЕНО: path('', views.home_dashboard, name='home'), <- Это вызывало ошибку!
-
     path('vault/', include('vault.urls')),
     path('groups/', include('groups.urls')),
     path('students/', include('students.urls')),
@@ -70,6 +67,7 @@ urlpatterns = [
     path('masters/', include('masters.urls')),
     path('reference/', include('reference.urls')),
     path('cars/', include('cars.urls')),
+    path('master-plan/', include('master_plan.urls')),
 
     # 🔹 Сброс пароля
     path('password-reset/', auth_views.PasswordResetView.as_view(template_name='registration/password_reset_form.html'), name='password_reset'),

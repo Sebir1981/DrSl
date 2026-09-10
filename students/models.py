@@ -2,9 +2,8 @@
 from django.db import models
 from django.core.validators import RegexValidator
 
-
 # =============================================================================
-# 🔹 Валидатор телефона
+#  Валидатор телефона
 # =============================================================================
 PHONE_VALIDATOR = RegexValidator(
     regex=r'^\+375\s?\(\d{2}\)\s?\d{3}-\d{2}-\d{2}$',
@@ -75,7 +74,7 @@ class Student(models.Model):
 
     GEARBOX_CHOICES = [
         ('', '— Не выбрано —'),
-        ('manual', '🔧 Механическая'),
+        ('manual', ' Механическая'),
         ('auto', '🤖 Автоматическая'),
     ]
     gearbox_type = models.CharField(
@@ -92,6 +91,21 @@ class Student(models.Model):
     # =========================================================
     enrolled_date = models.DateField("Дата зачисления", null=True, blank=True)
     graduated_date = models.DateField("Дата выпуска", null=True, blank=True)
+
+    # =========================================================
+    # 🔹 Учёт часов вождения
+    # =========================================================
+    driving_hours_required = models.IntegerField(
+        "Положено часов вождения",
+        default=0,
+        help_text="Устанавливается при добавлении группы в генплан"
+    )
+
+    driving_hours_completed = models.IntegerField(
+        "Выкатано часов",
+        default=0,
+        help_text="Заполняется из путевых листов"
+    )
 
     # =========================================================
     # 🔹 ЕДИНЫЙ журнал активности (переводы, зачёты, статусы)
@@ -137,6 +151,16 @@ class Student(models.Model):
         """Возвращает полное ФИО"""
         return f"{self.last_name} {self.first_name} {self.patronymic}".strip()
 
+    @property
+    def is_fully_driven(self):
+        """Студент полностью выкатал часы"""
+        return self.driving_hours_completed >= self.driving_hours_required and self.driving_hours_required > 0
+
+    @property
+    def remaining_hours(self):
+        """Осталось выкатать часов"""
+        return max(0, self.driving_hours_required - self.driving_hours_completed)
+
     # =========================================================
     # Строковое представление
     # =========================================================
@@ -176,7 +200,7 @@ class StudentHistory(models.Model):
 
     EVENT_CHOICES = [
         (EVENT_DISMISSED, '❌ Отчислен'),
-        (EVENT_TRANSFERRED, '🔄 Переведён'),
+        (EVENT_TRANSFERRED, ' Переведён'),
         (EVENT_CONTRACT_EXTENDED, '📄 Продление договора'),
         (EVENT_NOTIFIED, '🔔 Уведомление'),
         (EVENT_SUSPENDED, '⏸️ Приостановка'),

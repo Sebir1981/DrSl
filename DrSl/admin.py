@@ -4,6 +4,8 @@ from django.db import models
 from django.shortcuts import redirect
 from django.urls import reverse
 from .widgets import RuDateWidget
+import logging
+logger = logging.getLogger(__name__)
 
 # ✅ Меняем заголовки
 admin.site.site_header = "🔐 Автошкола — Управление"
@@ -76,6 +78,6 @@ class BaseAdmin(admin.ModelAdmin):
         if url_name:
             try:
                 return redirect(reverse(url_name))
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Ошибка в admin: {e}")
         return None

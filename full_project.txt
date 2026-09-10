@@ -1,7 +1,7 @@
 # 📦 Скомпилировано из: C:\django\DrSl
 # 📄 Расширения: .py, .html, .css, .js
-# 📄 Всего файлов: 355
-# 🚫 Пропущено служебных файлов: 7635
+# 📄 Всего файлов: 364
+# 🚫 Пропущено служебных файлов: 7640
 # ============================================================
 
 
@@ -606,19 +606,12 @@ def car_documents(request, pk):
     docs, created = CarDocument.objects.get_or_create(car=car)
 
     if request.method == 'POST':
-        print(f"📩 POST данные: {request.POST}")
-
         # Проверяем, отправлена ли форма замены колёс
         if 'tire_date' in request.POST:
-            print("✅ Обработка формы замены колёс")
             try:
                 wheels = request.POST.getlist('wheels')
                 date_str = request.POST.get('tire_date')
                 odometer = request.POST.get('tire_odometer')
-
-                print(f"🔢 Колёса: {wheels}")
-                print(f"📅 Дата: {date_str}")
-                print(f"📊 Одометр: {odometer}")
 
                 if not wheels:
                     messages.error(request, '⚠️ Выберите хотя бы одно колесо!')
@@ -642,7 +635,7 @@ def car_documents(request, pk):
                     car.current_odometer = odometer_int
                     car.save(update_fields=['current_odometer'])
 
-                    print(f"✅ Запись сохранена! ID: {change.id}")
+                    # print(f"✅ Запись сохранена! ID: {change.id}")
                     messages.success(request, f'✅ Замена колёс {wheels_int} успешно зафиксирована!')
 
             except ValueError as e:
@@ -685,7 +678,7 @@ def car_documents(request, pk):
     doc_form = CarDocumentForm(instance=docs)
     tire_changes = car.tire_changes.all().order_by('-date')
 
-    print(f"📋 Передаём в шаблон {tire_changes.count()} записей")
+    # print(f"📋 Передаём в шаблон {tire_changes.count()} записей")
     for change in tire_changes:
         print(f"   - {change.date}: {change.wheels} at {change.odometer}km")
 
@@ -965,6 +958,8 @@ from django.db import models
 from django.shortcuts import redirect
 from django.urls import reverse
 from .widgets import RuDateWidget
+import logging
+logger = logging.getLogger(__name__)
 
 # ✅ Меняем заголовки
 admin.site.site_header = "🔐 Автошкола — Управление"
@@ -1037,8 +1032,8 @@ class BaseAdmin(admin.ModelAdmin):
         if url_name:
             try:
                 return redirect(reverse(url_name))
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Ошибка в admin: {e}")
         return None
 
 
@@ -1312,11 +1307,11 @@ INSTALLED_APPS = [
     # Пользовательские приложения
     'vault',
     'groups',
+    'masters',
     'students',
     'classrooms',
     'teachers.apps.TeachersConfig',
     'reference',
-    'masters',
     'reports',
     'cars',
     'DrSl',
@@ -1497,6 +1492,8 @@ import logging
 logging.getLogger('django.request').addFilter(
     lambda r: not r.getMessage().endswith('favicon.ico')
 )
+# 📁 Папка для экспортируемых файлов
+EXPORT_DIR = BASE_DIR / 'Saves'
 
 
 
@@ -1618,7 +1615,7 @@ urlpatterns = [
 # >>> Файл: utils.py | Путь: DrSl\utils.py
 #===========================================================
 
-﻿# DrSl/utils.py
+# DrSl/utils.py
 
 from DrSl.utils import get_user_fio
 
@@ -1920,7 +1917,7 @@ class GroupAdmin(BaseAdmin):
 
     @admin.display(description="")
     def contract_section_header(self, obj):
-        return mark_safe(
+        return mark_safe( # nosec B308
             '<div style="font-weight:600; color:#475569; margin-bottom:8px; '
             'padding-bottom:4px; border-bottom:2px solid #e2e8f0;">Действие договора</div>')
 
@@ -2159,6 +2156,8 @@ class GroupForm(forms.ModelForm):
 # >>> Файл: models.py | Путь: groups\models.py
 #===========================================================
 
+# groups/models.py
+
 from django.db import models
 from django.core.validators import RegexValidator
 from teachers.models import Teacher
@@ -2324,6 +2323,39 @@ class Group(models.Model):
     def __str__(self):
         cat = self.category.code if self.category else "Без категории"
         return f"{self.group_number} ({cat})"
+
+    def save(self, *args, **kwargs):
+        # Запоминаем старого преподавателя ДО сохранения
+        old_teacher_id = None
+        if self.pk:
+            old_teacher_id = (
+                Group.objects.filter(pk=self.pk)
+                .values_list('teacher_id', flat=True)
+                .first()
+            )
+
+        super().save(*args, **kwargs)
+
+        # 🔹 Если преподаватель группы изменился — обновляем всех учащихся группы
+        if self.pk and old_teacher_id != self.teacher_id and self.teacher_id:
+            from students.models import Student
+            from students.services import StudentStatusService
+
+            old_teacher = Teacher.objects.filter(pk=old_teacher_id).first() if old_teacher_id else None
+            new_teacher = self.teacher
+
+            # Обновляем только тех, у кого преподаватель отличается
+            for st in Student.objects.filter(group=self).exclude(teacher_id=self.teacher_id):
+                service = StudentStatusService(st)
+                service.add_event(
+                    event_type='teacher_change',
+                    details={
+                        'from': str(old_teacher) if old_teacher else '—',
+                        'to': f"{new_teacher.last_name} {new_teacher.first_name[:1]}.",
+                        'to_teacher': f"{new_teacher.last_name} {new_teacher.first_name[:1]}.",
+                        'to_teacher_id': new_teacher.id,
+                    }
+                )
 
     @property
     def contract_period(self):
@@ -2856,7 +2888,7 @@ __all__ = [
     'schedule_plan_create',
     'schedule_plan_ajax_update_day',
     'schedule_plan_step2',
-    'schedule_plan_delete',  # 🔹 Добавили в список
+    'schedule_plan_delete',
     'group_api_data',
     'check_instructor_availability',
     'get_teacher_schedules',
@@ -2867,12 +2899,15 @@ __all__ = [
 # >>> Файл: api.py | Путь: groups\views\api.py
 #===========================================================
 
-# groups/views/api.py
 import json
+import logging
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from groups.models import Group, SchedulePlan
+
+logger = logging.getLogger(__name__)
+
 
 @login_required
 def group_api_data(request, group_id):
@@ -2887,8 +2922,8 @@ def group_api_data(request, group_id):
         'schedule_type': getattr(group, 'schedule_type', 'custom'),
         'location': group.classroom.address if group.classroom else '',
         'classroom_id': group.classroom_id if group.classroom else None,
-        'category': str(group.category) if group.category else None,  # ✅ Категория (название)
-        'category_id': group.category_id if group.category else None,  # ✅ ID категории
+        'category': str(group.category) if group.category else None,
+        'category_id': group.category_id if group.category else None,
         'duration': group.get_duration_display() if group.duration else '—',
     }
     return JsonResponse(data)
@@ -2936,13 +2971,6 @@ def check_instructor_availability(request):
     return JsonResponse({'available': True})
 
 
-# groups/views/api.py
-import json
-from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse
-from groups.models import SchedulePlan
-
-
 @login_required
 def get_teacher_schedules(request):
     """Возвращает индикаторы занятости преподавателей (У/Д/В)"""
@@ -2963,31 +2991,40 @@ def get_teacher_schedules(request):
             if isinstance(class_days, str):
                 try:
                     class_days = json.loads(class_days)
-                except:
+                except (json.JSONDecodeError, ValueError) as e:
+                    # ✅ Логируем проблему и пропускаем битый план
+                    logger.warning(
+                        "План-график pk=%s содержит некорректный JSON в class_days: %s",
+                        plan.pk, e
+                    )
                     continue
 
             plan_time_slots = class_days.get('_time_slots', [])
             plan_indicators = []
-            if 'morning' in plan_time_slots: plan_indicators.append('У')
-            if 'day' in plan_time_slots: plan_indicators.append('Д')
-            if 'evening' in plan_time_slots: plan_indicators.append('В')
+            if 'morning' in plan_time_slots:
+                plan_indicators.append('У')
+            if 'day' in plan_time_slots:
+                plan_indicators.append('Д')
+            if 'evening' in plan_time_slots:
+                plan_indicators.append('В')
             if not plan_indicators:
                 plan_indicators = ['Д']
 
             for date_str, day_data in class_days.items():
-                if date_str.startswith('_'): continue
+                if date_str.startswith('_'):
+                    continue
                 if not (date_start <= date_str <= date_end):
                     continue
 
                 # 🔹 Для мед. преподавателя: учитываем ТОЛЬКО дни с флагом med=true
                 if is_med_teacher:
                     if not (isinstance(day_data, dict) and day_data.get('med')):
-                        continue  # Пропускаем дни без флага "Медицина"
+                        continue
 
                 # 🔹 Для основного преподавателя: исключаем дни с флагом med=true
                 if exclude_med_days:
                     if isinstance(day_data, dict) and day_data.get('med'):
-                        continue  # Пропускаем дни с флагом "Медицина"
+                        continue
 
                 final_indicators = []
                 start_time = day_data.get('start', '') if isinstance(day_data, dict) else ''
@@ -3002,7 +3039,12 @@ def get_teacher_schedules(request):
                             final_indicators = ['Д']
                         else:
                             final_indicators = ['В']
-                    except:
+                    except (ValueError, AttributeError) as e:
+                        # ✅ Логируем битое время и используем значение по умолчанию
+                        logger.warning(
+                            "Некорректное время '%s' в плане pk=%s на дату %s: %s. Используем 'Д'.",
+                            start_time, plan.pk, date_str, e
+                        )
                         final_indicators = ['Д']
                 else:
                     final_indicators = plan_indicators
@@ -3011,15 +3053,16 @@ def get_teacher_schedules(request):
                     schedule_map[date_str] = []
 
                 for ind in final_indicators:
-                    # 🔹 Проверяем, нет ли уже такого индикатора
-                    existing = [x for x in schedule_map.get(date_str, []) if isinstance(x, dict) and x.get('ind') == ind]
+                    existing = [
+                        x for x in schedule_map.get(date_str, [])
+                        if isinstance(x, dict) and x.get('ind') == ind
+                    ]
                     if not existing:
-                        # 🔹 Добавляем объект с полной информацией
                         schedule_map[date_str].append({
                             'ind': ind,
                             'group': str(plan.group) if plan.group else 'Не указано',
                             'location': plan.location or 'Не указано',
-                            'is_med': is_med_teacher  # 🔹 Помечаем, что это медицина
+                            'is_med': is_med_teacher
                         })
 
     # 🔹 Ищем планы основного преподавателя (исключаем дни с мед. флагом)
@@ -3678,15 +3721,17 @@ from .plan_graphic import export_plan_graphic_to_excel
 #===========================================================
 
 # 📦 export_plan_graphic.py
-# ️ Версия: b_0.0.4.11 (Auto-Height Header & Title)
+# ️ Версия: b_0.0.4.14 (Versioned filenames + PermissionError handling)
 # ✅ Статус: PRODUCTION-READY
-# 📅 Последнее обновление: 2026-08-19
+# 📅 Последнее обновление: 2026-08-25
 
 import openpyxl
 from openpyxl.utils import get_column_letter
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+from django.conf import settings
+from django.contrib import messages
 from django.http import HttpResponse
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, redirect
 from groups.models import SchedulePlan
 from reference.models import TrainingProgram, ProgramSubject
 from datetime import datetime, timedelta
@@ -3694,7 +3739,10 @@ from pathlib import Path
 from collections import defaultdict
 import json
 import re
+import logging
 from urllib.parse import quote
+
+logger = logging.getLogger(__name__)
 
 #  Принудительно русские месяца
 RU_MONTHS = {
@@ -3717,7 +3765,8 @@ def export_plan_graphic_to_excel(request, plan_id):
     if isinstance(class_days, str):
         try:
             class_days = json.loads(class_days)
-        except Exception:
+        except (json.JSONDecodeError, ValueError) as e:
+            logger.warning("План-график pk=%s: некорректный JSON в class_days: %s", plan.pk, e)
             class_days = {}
 
     excluded_dates = plan.excluded_dates or []
@@ -3729,7 +3778,7 @@ def export_plan_graphic_to_excel(request, plan_id):
         try:
             program = TrainingProgram.objects.get(pk=selected_program_id)
         except TrainingProgram.DoesNotExist:
-            pass
+            logger.warning("План-график pk=%s: учебная программа id=%s не найдена", plan.pk, selected_program_id)
 
     if not program:
         if hasattr(plan, 'training_program') and plan.training_program:
@@ -3750,6 +3799,18 @@ def export_plan_graphic_to_excel(request, plan_id):
                 other_subjects.append(item)
         program_subjects = other_subjects + ([exam_item] if exam_item else [])
 
+    # 🔹 Коды предметов, которые реально выводятся в таблице
+    subject_codes = {item['code'] for item in program_subjects}
+
+    def _day_hours(day_data):
+        """Сумма часов за день ТОЛЬКО по предметам программы (без служебных ключей)."""
+        return sum(
+            v for k, v in day_data.items()
+            if (k in subject_codes if subject_codes else
+                (not k.startswith('_') and not k.endswith('_topics') and k != 'scheduled'))
+            and isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0
+        )
+
     # Диапазон дат
     days_in_schedule = []
     current_date = plan.date_start
@@ -3767,9 +3828,7 @@ def export_plan_graphic_to_excel(request, plan_id):
         if date_key not in class_days: continue
 
         day_data = class_days[date_key]
-        day_sum = sum(v for k, v in day_data.items()
-                      if not k.startswith('_') and not k.endswith('_topics') and k != 'scheduled'
-                      and isinstance(v, (int, float)) and v > 0)
+        day_sum = _day_hours(day_data)
 
         if day_sum > 0:
             days_with_classes.append(d)
@@ -3871,15 +3930,15 @@ def export_plan_graphic_to_excel(request, plan_id):
 
     # Информация (Преподаватель и т.д.) - ограничена шириной таблицы
     def format_dates_list(dates_list):
-        if not dates_list: return "—"
+        if not dates_list:
+            return "—"
         formatted = []
         for d in dates_list:
             try:
-                val = datetime.strptime(d, '%Y-%m-%d').strftime('%d.%m.%Y') if isinstance(d, str) else d.strftime(
-                    '%d.%m.%Y')
+                val = datetime.strptime(d, '%Y-%m-%d').strftime('%d.%m.%Y') if isinstance(d, str) else d.strftime('%d.%m.%Y')
                 formatted.append(val)
-            except Exception:
-                pass
+            except (ValueError, TypeError) as e:
+                logger.warning("План-график pk=%s: пропущена некорректная дата %r: %s", plan.pk, d, e)
         return ', '.join(formatted) if formatted else "—"
 
     info_data = [
@@ -3938,7 +3997,7 @@ def export_plan_graphic_to_excel(request, plan_id):
     ws.cell(row=row, column=total_col_idx, value='').border = thin_border
     row += 1
 
-    # Всего часов
+    # Всего часов (считается ТОЛЬКО по предметам программы — сходится с суммой строк)
     ws.cell(row=row, column=start_col, value='Всего').font = font_bold
     ws.cell(row=row, column=start_col).border = thin_border
     ws.cell(row=row, column=start_col).fill = header_fill
@@ -3946,9 +4005,7 @@ def export_plan_graphic_to_excel(request, plan_id):
     for d in days_with_classes:
         if d in col_map:
             c_idx = col_map[d]
-            day_sum = sum(v for k, v in class_days.get(d.strftime('%Y-%m-%d'), {}).items()
-                          if not k.startswith('_') and not k.endswith('_topics') and k != 'scheduled'
-                          and isinstance(v, (int, float)))
+            day_sum = _day_hours(class_days.get(d.strftime('%Y-%m-%d'), {}))
             cell = ws.cell(row=row, column=c_idx, value=int(day_sum) if day_sum == int(day_sum) else day_sum)
             cell.font = font_small
             cell.alignment = align_center
@@ -3968,7 +4025,8 @@ def export_plan_graphic_to_excel(request, plan_id):
             if d in col_map:
                 c_idx = col_map[d]
                 h = class_days.get(d.strftime('%Y-%m-%d'), {}).get(code, 0)
-                if not isinstance(h, (int, float)): h = 0
+                if not isinstance(h, (int, float)) or isinstance(h, bool):
+                    h = 0
 
                 cell = ws.cell(row=row, column=c_idx, value=int(h) if h > 0 and h == int(h) else (h if h > 0 else ''))
                 cell.font = font_small
@@ -4007,16 +4065,42 @@ def export_plan_graphic_to_excel(request, plan_id):
 
     filename = f"План-график_гр{_sanitize(group_num)}_{t_name}_{sched_name}_{location_clean}.xlsx"
 
-    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    response['Content-Disposition'] = f'attachment; filename*=UTF-8\'\'{quote(filename)}'
-
-    group_folder = Path(r"C:\django\DrSl\Saves") / str(group_num)
+    # 🔹 Путь к папке экспорта берём из settings.py
+    group_folder = Path(settings.EXPORT_DIR) / str(group_num)
     group_folder.mkdir(parents=True, exist_ok=True)
-    file_path = group_folder / filename
+    base_path = group_folder / filename
 
-    wb.save(file_path)
-    with open(file_path, "rb") as f:
+    # 🔹 Сохранение: файл свободен — пишем как обычно;
+    #    файл занят (открыт в Excel) — создаём копию с суффиксом (1), (2), ...
+    saved_path = None
+    try:
+        wb.save(base_path)
+        saved_path = base_path
+    except PermissionError:
+        logger.warning("Файл %s занят (открыт в Excel) — сохраняем копию с суффиксом", base_path)
+        for i in range(1, 50):
+            candidate = group_folder / f"{base_path.stem} ({i}){base_path.suffix}"
+            try:
+                wb.save(candidate)
+                saved_path = candidate
+                break
+            except PermissionError:
+                continue
+
+    if saved_path is None:
+        logger.error("План-график pk=%s: не удалось сохранить — все копии файла заняты", plan.pk)
+        messages.error(request, '❌ Не удалось сохранить файл: все копии заняты. Закройте Excel и попробуйте снова.')
+        return redirect(request.META.get('HTTP_REFERER', f'/groups/schedules/{plan.pk}/step2/'))
+
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = f'attachment; filename*=UTF-8\'\'{quote(saved_path.name)}'
+    with open(saved_path, "rb") as f:
         response.write(f.read())
+
+    if saved_path != base_path:
+        messages.warning(request, f'⚠️ Исходный файл занят, сохранена копия: {saved_path.name}')
+    else:
+        messages.success(request, f'✅ План-график экспортирован: {saved_path.name}')
     return response
 
 
@@ -4512,8 +4596,6 @@ from .credits import credits_report as credits_report  # 🔹 Переиспол
 # >>> Файл: schedule_plans.py | Путь: groups\views\schedule_plans.py
 #===========================================================
 
-# groups/views/schedule_plans.py
-
 import json
 from collections import defaultdict
 from datetime import datetime, timedelta
@@ -4532,6 +4614,7 @@ from groups.forms import SchedulePlanForm
 from teachers.models import Teacher
 from classrooms.models import Classroom
 import logging
+
 logger = logging.getLogger(__name__)
 
 
@@ -4560,19 +4643,14 @@ def _is_standard_schedule_day(date_str, schedule_type):
         weekday = d.weekday()  # 0=Пн, 1=Вт, ..., 5=Сб, 6=Вс
 
         if schedule_type == 'even':
-            # Чётные дни, но ТОЛЬКО будние (пн-пт)
             return (d.day % 2 == 0) and (weekday < 5)
-
         if schedule_type == 'odd':
-            # Нечётные дни, но ТОЛЬКО будние (пн-пт)
             return (d.day % 2 == 1) and (weekday < 5)
-
         if schedule_type == 'weekend':
-            # Только выходные (сб=5, вс=6)
             return weekday >= 5
-
-        return False  # custom/directed по умолчанию ничего не генерируют
-    except Exception:
+        return False
+    except (ValueError, TypeError) as e:
+        logger.warning("Некорректная дата '%s' в _is_standard_schedule_day: %s", date_str, e)
         return False
 
 
@@ -4637,86 +4715,125 @@ def schedule_plan_create(request, plan_id=None):
                                 d_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
                                 if date_start <= d_obj <= date_end:
                                     final_class_days[date_str] = day_data
-                                    if day_data.get('is_med') or day_data.get('med') or day_data.get('med_hours', 0) > 0:
+                                    if isinstance(day_data, dict) and (
+                                            day_data.get('is_med') or day_data.get('med') or day_data.get('med_hours',
+                                                                                                           0) > 0):
                                         med_days.append(date_str)
-                            except (ValueError, TypeError):
+                            except (ValueError, TypeError) as e:
+                                logger.warning("Пропущена некорректная дата '%s' в class_days: %s", date_str, e)
                                 continue
-                    except json.JSONDecodeError:
+                    except json.JSONDecodeError as e:
+                        logger.warning("Некорректный JSON в class_days: %s", e)
                         final_class_days = {}
+
+                # 🔥 ФИЛЬТРАЦИЯ: исключаем дни, помеченные JS как удалённые
+                real_excluded = []
+                real_additional = []
+                filtered_class_days = {}
+
+                for date_str, day_data in final_class_days.items():
+                    if date_str.startswith('_'):
+                        filtered_class_days[date_str] = day_data
+                        continue
+                    if not isinstance(day_data, dict):
+                        filtered_class_days[date_str] = day_data
+                        continue
+
+                    # День явно помечен как исключённый пользователем
+                    is_manually_removed = day_data.get('manuallyRemoved', False)
+                    is_scheduled_false = day_data.get('scheduled') is False
+
+                    if is_manually_removed or is_scheduled_false:
+                        # Добавляем в исключения
+                        real_excluded.append(date_str)
+                        # Сохраняем только служебные ключи
+                        filtered_class_days[date_str] = {
+                            'scheduled': False,
+                            'manuallyRemoved': True,
+                            **{k: v for k, v in day_data.items() if k in ('is_med', 'med', 'med_hours')}
+                        }
+                        continue
+
+                    filtered_class_days[date_str] = day_data
+
+                # 🔹 Используем отфильтрованные данные дальше
+                final_class_days = filtered_class_days
 
                 schedule_plan.class_days = final_class_days
 
                 if isinstance(schedule_plan.class_days, dict):
                     schedule_plan.class_days['_med_days'] = med_days
 
-                # 👩‍️ Преподаватель медицины
+                # 👩⚕️ Преподаватель медицины
                 med_teacher_id = request.POST.get('med_teacher')
                 schedule_plan.med_teacher_id = int(
                     med_teacher_id) if med_teacher_id and med_teacher_id.isdigit() else None
 
-                #  Время занятий
+                # ⏰ Время занятий
                 time_slots = []
                 if form.cleaned_data.get('time_morning'): time_slots.append('morning')
                 if form.cleaned_data.get('time_day'): time_slots.append('day')
                 if form.cleaned_data.get('time_evening'): time_slots.append('evening')
                 schedule_plan.class_days['_time_slots'] = time_slots
 
-                #  УМНЫЙ РАСЧЁТ ИСКЛЮЧЁННЫХ/ДОПОЛНИТЕЛЬНЫХ ДНЕЙ
-                real_excluded = []
-                real_additional = []
-
-                # 🔹 Очищаем class_days от исключённых дней
+                # 🧠 УМНЫЙ РАСЧЁТ ИСКЛЮЧЁННЫХ/ДОПОЛНИТЕЛЬНЫХ ДНЕЙ
                 cleaned_class_days = {}
+
+                # 🔹 Обрабатываем дни из final_class_days
                 for date_str, day_data in final_class_days.items():
                     if date_str.startswith('_'):
-                        # Сохраняем служебные ключи
                         cleaned_class_days[date_str] = day_data
                         continue
 
-                    # Проверяем, должен ли день быть по алгоритму
+                    # Проверяем флаг scheduled (JS устанавливает его в false при исключении)
+                    is_scheduled_in_data = True
+                    if isinstance(day_data, dict):
+                        is_scheduled_in_data = day_data.get('scheduled', True)
+
+                    if not is_scheduled_in_data:
+                        # День помечен как исключённый
+                        real_excluded.append(date_str)
+                        # Явно ставим scheduled: false и сохраняем только служебные ключи
+                        cleaned_class_days[date_str] = {
+                            'scheduled': False,
+                            **{k: v for k, v in day_data.items() if k in ('is_med', 'med', 'med_hours')}
+                        }
+                        continue
+
+                    # День активен — проверяем алгоритм
                     is_scheduled_by_algo = _is_standard_schedule_day(date_str, schedule_plan.schedule_type)
 
-                    # 🔹 Если день есть в плане, но НЕ должен быть по алгоритму → это дополнение
                     if not is_scheduled_by_algo:
+                        # День есть, но не должен быть по алгоритму → дополнение
                         real_additional.append(date_str)
-                        cleaned_class_days[date_str] = day_data
-                    # 🔹 Если день должен быть по алгоритму → оставляем как есть
-                    else:
-                        cleaned_class_days[date_str] = day_data
 
-                # 🔹 Теперь проверяем, какие дни ИЗ АЛГОРИТМА были удалены
+                    cleaned_class_days[date_str] = day_data
+
+                # 🔹 Проверяем дни, которые должны быть по алгоритму, но отсутствуют в плане
                 curr = date_start
                 while curr <= date_end:
                     d_str = curr.strftime('%Y-%m-%d')
                     is_scheduled_by_algo = _is_standard_schedule_day(d_str, schedule_plan.schedule_type)
                     is_in_cleaned_plan = (d_str in cleaned_class_days)
 
-                    # Если алгоритм сказал "ДА", а в плане "НЕТ" → Это исключение
+                    # Если алгоритм сказал "ДА", а в плане "НЕТ" → исключение
                     if is_scheduled_by_algo and not is_in_cleaned_plan:
                         real_excluded.append(d_str)
 
                     curr += timedelta(days=1)
 
+                # 🔹 Убираем дубликаты
+                real_excluded = list(set(real_excluded))
+                real_additional = list(set(real_additional))
+
+                # 🔹 Сохраняем в поля модели
                 schedule_plan.excluded_dates = real_excluded
                 schedule_plan.additional_dates = real_additional
                 schedule_plan.class_days = cleaned_class_days
 
-                # 🔹 Сохраняем вычисленные списки в class_days для Шага 2
+                # 🔹 Дублируем в class_days для JS
                 schedule_plan.class_days['_additional_dates'] = schedule_plan.additional_dates
                 schedule_plan.class_days['_excluded_dates'] = schedule_plan.excluded_dates
-
-                # 🔹 Удаляем распределённые часы для исключённых дней
-                for date_str in schedule_plan.excluded_dates:
-                    if date_str in schedule_plan.class_days:
-                        day = schedule_plan.class_days[date_str]
-
-                        if isinstance(day, dict):
-                            # Оставляем только служебную информацию дня
-                            schedule_plan.class_days[date_str] = {
-                                k: v
-                                for k, v in day.items()
-                                if k in ("scheduled", "is_med", "med", "med_hours")
-                            }
 
                 schedule_plan.save()
                 messages.success(request, '✅ План-график сохранён!')
@@ -4763,14 +4880,15 @@ def schedule_plan_create(request, plan_id=None):
 
     cal_class_days = plan.class_days if plan else {}
 
-    # 🔹 Загружаем сохранённые списки исключений/дополнений
-    # 🔹 Безопасная инициализация множеств
+    # 🔹 ЕДИНЫЙ ИСТОЧНИК: читаем из полей модели, fallback на class_days
     if plan:
         excluded_dates_set = set(plan.excluded_dates or [])
         additional_dates_set = set(plan.additional_dates or [])
     else:
-        excluded_dates_set = set()
-        additional_dates_set = set()
+        # Fallback для нового плана (ещё не сохранён)
+        excluded_dates_set = set(cal_class_days.get('_excluded_dates', []) if isinstance(cal_class_days, dict) else [])
+        additional_dates_set = set(
+            cal_class_days.get('_additional_dates', []) if isinstance(cal_class_days, dict) else [])
 
     if cal_start and cal_end:
         if isinstance(cal_start, str): cal_start = datetime.strptime(cal_start, '%Y-%m-%d').date()
@@ -4782,7 +4900,7 @@ def schedule_plan_create(request, plan_id=None):
             date_str = current.strftime('%Y-%m-%d')
             is_scheduled = False
 
-            # 🔹 ШАГ 1: Проверяем базовый алгоритм
+            # ШАГ 1: Базовый алгоритм
             if cal_schedule_type == 'even' and current.day % 2 == 0 and current.weekday() < 5:
                 is_scheduled = True
             elif cal_schedule_type == 'odd' and current.day % 2 == 1 and current.weekday() < 5:
@@ -4790,20 +4908,23 @@ def schedule_plan_create(request, plan_id=None):
             elif cal_schedule_type == 'weekend' and current.weekday() >= 5:
                 is_scheduled = True
 
-            # 🔹 ШАГ 2: Применяем ручные дополнения (приоритет над алгоритмом)
+            # ШАГ 2: Ручные дополнения
             if date_str in additional_dates_set:
                 is_scheduled = True
 
-            # 🔹 ШАГ 3: Применяем ручные исключения (ВЫСШИЙ ПРИОРИТЕТ!)
+            # ШАГ 3: Ручные исключения (ВЫСШИЙ ПРИОРИТЕТ)
             if date_str in excluded_dates_set:
                 is_scheduled = False
 
-            # 🔹 ШАГ 4: Проверяем class_days (НО ТОЛЬКО если не в исключениях!)
+            # ШАГ 4: class_days (проверяем флаг scheduled)
             if date_str in cal_class_days and not date_str.startswith('_'):
-                if date_str not in excluded_dates_set:
-                    is_scheduled = True
+                day_data = cal_class_days[date_str]
+                if isinstance(day_data, dict) and day_data.get('scheduled') is False:
+                    is_scheduled = False  # Явно исключён
+                elif date_str in excluded_dates_set:
+                    is_scheduled = False  # В списке исключений
                 else:
-                    is_scheduled = False  # 🔥 Принудительно отключаем исключённые дни
+                    is_scheduled = True
 
             calendar_data.append({
                 'date': date_str, 'day_name': current.strftime('%a'), 'day_num': current.day,
@@ -4863,14 +4984,24 @@ def schedule_plan_ajax_update_day(request, plan_id):
         if isinstance(class_days, str): class_days = json.loads(class_days)
 
         if action == 'remove':
-            class_days.pop(date_str, None)
-        elif action in ['add', 'update'] and date_str:
-            class_days[date_str] = {'scheduled': True}
+            # Не удаляем день полностью, а помечаем как исключённый
+            if date_str in class_days:
+                day_data = class_days[date_str]
+                if isinstance(day_data, dict):
+                    class_days[date_str] = {
+                        'scheduled': False,
+                        **{k: v for k, v in day_data.items() if k in ('is_med', 'med', 'med_hours')}
+                    }
+                else:
+                    class_days[date_str] = {'scheduled': False}
+            else:
+                class_days[date_str] = {'scheduled': False}
 
         plan.class_days = class_days
         plan.save(update_fields=['class_days', 'updated_at'])
         return JsonResponse({'success': True})
     except Exception as e:
+        logger.error("Ошибка AJAX обновления дня для плана pk=%s: %s", plan_id, e, exc_info=True)
         return JsonResponse({'error': str(e)}, status=400)
 
 
@@ -4879,15 +5010,14 @@ def schedule_plan_ajax_update_day(request, plan_id):
 # =============================================================================
 @login_required
 def schedule_plan_step2(request, plan_id):
-    # 🔹 Внутренняя функция логирования (определена ДО использования)
     def debug_log(message):
         """Логирование для отладки"""
         try:
             if settings.DEBUG:
-                logger.info(f"[SchedulePlan Debug] {message}")
-                print(f"[DEBUG] {message}")  # Для console output при разработке
-        except:
-            pass  # Игнорируем ошибки логирования в продакшне
+                logger.info("[SchedulePlan Debug] %s", message)
+                print(f"[DEBUG] {message}")
+        except Exception as e:
+            logger.warning("Ошибка в debug_log: %s", e)
 
     plan = get_object_or_404(SchedulePlan, pk=plan_id)
 
@@ -4901,7 +5031,8 @@ def schedule_plan_step2(request, plan_id):
             if isinstance(class_days, str):
                 try:
                     class_days = json.loads(class_days)
-                except json.JSONDecodeError:
+                except json.JSONDecodeError as e:
+                    logger.warning("Некорректный JSON в class_days плана pk=%s: %s", plan.pk, e)
                     class_days = {}
 
             # Сохраняем существующие метаданные
@@ -4943,12 +5074,10 @@ def schedule_plan_step2(request, plan_id):
                     plan.med_teacher = None
 
             plan.class_days = class_days
-            # ✅ ДОБАВЛЕНЫ ПОЛЯ excluded_dates и additional_dates В update_fields
             plan.save(update_fields=['class_days', 'med_teacher', 'excluded_dates', 'additional_dates'])
             return JsonResponse({'success': True})
         except Exception as e:
-            import traceback
-            traceback.print_exc()
+            logger.error("Ошибка сохранения step2 для плана pk=%s: %s", plan_id, e, exc_info=True)
             return JsonResponse({'success': False, 'error': str(e)}, status=400)
 
     # =========================================================================
@@ -4958,7 +5087,8 @@ def schedule_plan_step2(request, plan_id):
     if isinstance(raw_days, str):
         try:
             class_days = json.loads(raw_days)
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as e:
+            logger.warning("Некорректный JSON в class_days плана pk=%s: %s", plan.pk, e)
             class_days = {}
     elif isinstance(raw_days, dict):
         class_days = raw_days
@@ -4972,7 +5102,8 @@ def schedule_plan_step2(request, plan_id):
 
     med_days = class_days.get('_med_days', [])
     if not med_days:
-        med_days = [d for d, data in class_days.items() if not d.startswith('_') and data.get('med', 0) > 0]
+        med_days = [d for d, data in class_days.items()
+                    if not d.startswith('_') and isinstance(data, dict) and data.get('med', 0) > 0]
 
     selected_program_id = request.GET.get('program_id')
     training_program = None
@@ -4980,7 +5111,8 @@ def schedule_plan_step2(request, plan_id):
         try:
             training_program = TrainingProgram.objects.get(pk=selected_program_id)
         except TrainingProgram.DoesNotExist:
-            pass
+            logger.warning("Учебная программа id=%s не найдена для плана pk=%s", selected_program_id, plan.pk)
+
     if not training_program and saved_category:
         training_program = TrainingProgram.objects.filter(categories__code=saved_category).prefetch_related(
             'subjects__subject').first()
@@ -5003,18 +5135,26 @@ def schedule_plan_step2(request, plan_id):
                 other_subjects.append(item)
         program_subjects = other_subjects + ([exam_item] if exam_item else [])
 
+    # 🔹 ЕДИНЫЙ ИСТОЧНИК: читаем исключённые/дополнительные дни из полей модели
+    excluded_dates = list(plan.excluded_dates or [])
+    additional_dates = list(plan.additional_dates or [])
+
+    # Fallback: если поля модели пусты, берём из class_days (для старых данных)
+    if not excluded_dates and isinstance(class_days, dict):
+        excluded_dates = class_days.get('_excluded_dates', [])
+    if not additional_dates and isinstance(class_days, dict):
+        additional_dates = class_days.get('_additional_dates', [])
+
     # 🔹 Сбор всех дат для отображения
     all_dates = set()
     for d in class_days.keys():
         if isinstance(d, str) and not d.startswith('_'):
             all_dates.add(d)
-    additional_dates = class_days.get('_additional_dates', [])
     if isinstance(additional_dates, list):
         all_dates.update(additional_dates)
-    excluded_dates = class_days.get('_excluded_dates', [])
-    if isinstance(excluded_dates, list):
-        for d in excluded_dates:
-            all_dates.discard(d)
+    # Исключаем удалённые дни
+    excluded_dates_set = set(excluded_dates)
+    all_dates -= excluded_dates_set
 
     days_by_month = defaultdict(list)
     ru_months = {'January': 'Январь', 'February': 'Февраль', 'March': 'Март', 'April': 'Апрель', 'May': 'Май',
@@ -5030,7 +5170,8 @@ def schedule_plan_step2(request, plan_id):
             for ps in program_subjects:
                 day_info[ps['code']] = day_data.get(ps['code'], '')
             days_by_month[month_name].append(day_info)
-        except (ValueError, TypeError):
+        except (ValueError, TypeError) as e:
+            logger.warning("Пропущена некорректная дата '%s' при формировании таблицы: %s", date_str, e)
             continue
 
     required_hours = float(training_program.total_hours) if training_program else float(plan.required_hours or 0)
@@ -5044,7 +5185,8 @@ def schedule_plan_step2(request, plan_id):
             if date_str.startswith('_'):
                 continue
             day_data = class_days[date_str]
-            # Удаляем все ключи, которые не являются '_topics' и не входят в valid_codes
+            if not isinstance(day_data, dict):
+                continue
             for key in list(day_data.keys()):
                 if key.endswith('_topics'):
                     subject_code = key.replace('_topics', '')
@@ -5055,8 +5197,6 @@ def schedule_plan_step2(request, plan_id):
 
     # 🔹 Сбор состояний тем для JS (С ФИЛЬТРАЦИЕЙ ПО ПРОГРАММЕ)
     topics_state = {}
-
-    # Получаем коды предметов, которые есть в текущей программе
     valid_subject_codes = set()
     if training_program:
         valid_subject_codes = {
@@ -5068,10 +5208,11 @@ def schedule_plan_step2(request, plan_id):
     for date_str, day_data in class_days.items():
         if not isinstance(date_str, str) or date_str.startswith('_'):
             continue
+        if not isinstance(day_data, dict):
+            continue
         for key, value in day_data.items():
             if key.endswith('_topics') and isinstance(value, dict):
                 subject_code = key.replace('_topics', '')
-                # 🔹 Фильтруем: добавляем только предметы текущей программы
                 if subject_code in valid_subject_codes or not valid_subject_codes:
                     topics_state.setdefault(date_str, {})[subject_code] = {
                         str(k): float(v) for k, v in value.items()
@@ -5107,7 +5248,7 @@ def schedule_plan_step2(request, plan_id):
 def schedule_plan_delete(request, plan_id):
     plan = get_object_or_404(SchedulePlan, pk=plan_id)
     if plan.created_by != request.user and not request.user.is_superuser:
-        messages.error(request, ' У вас нет прав для удаления этого план-графика.')
+        messages.error(request, '❌ У вас нет прав для удаления этого план-графика.')
         return redirect('groups:schedule_plans_list')
     group_number = plan.group.group_number
     plan.delete()
@@ -5138,15 +5279,14 @@ def schedule_plan_reset(request, plan_id):
         plan.save(update_fields=['class_days'])
         return JsonResponse({'success': True, 'message': 'Часы очищены', 'action': 'hours_cleared'})
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.error("Ошибка сброса плана pk=%s: %s", plan_id, e, exc_info=True)
         return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
 
 @login_required
 @require_POST
 def clear_plan_topics(request, plan_id):
     plan = get_object_or_404(SchedulePlan, pk=plan_id)
-    # Очищаем поля с распределением часов
     plan.class_days = {}
     plan.excluded_dates = []
     plan.additional_dates = []
@@ -5187,118 +5327,276 @@ if __name__ == '__main__':
 # >>> Файл: admin.py | Путь: masters\admin.py
 #===========================================================
 
-# masters/admin.py
 from django.contrib import admin
-from .models import Master
-from .forms import MasterAdminForm
-from DrSl.admin import BaseAdmin
+from .models import MasterPouts
 
 
-@admin.register(Master)
-class MasterAdmin(BaseAdmin):
-    form = MasterAdminForm
-    list_display = ('full_name', 'phone', 'license_number', 'license_expiry', 'medical_expiry')
-    list_filter = ('license_categories', 'teaching_categories', 'license_expiry', 'medical_expiry')
-    search_fields = ('last_name', 'first_name', 'phone', 'license_number')
-    readonly_fields = ('created_at', 'updated_at')
-
-    fieldsets = (
-        ('👤 Личные данные', {'fields': ('last_name', 'first_name', 'patronymic', 'birth_date', 'address', 'phone')}),
-        ('🪂 Водительское удостоверение', {'fields': ('license_number', 'license_expiry', 'license_categories')}),
-        ('🏥 Мед. справка', {'fields': ('medical_expiry',)}),
-        ('🎓 Обучение', {'fields': ('teaching_categories',)}),
-        ('🕒 Время работы', {'fields': ('work_time_start', 'work_time_end')}),
-        ('📊 Системное', {'fields': ('created_at', 'updated_at'), 'classes': ('collapse', 'extrapretty')}),
-    )
-
-    @admin.display(description="ФИО")
-    def full_name(self, obj):
-        return f"{obj.last_name} {obj.first_name} {obj.patronymic}".strip()
+@admin.register(MasterPouts)
+class MasterPoutsAdmin(admin.ModelAdmin):
+    list_display = ['last_name', 'first_name', 'patronymic', 'license_number', 'phone', 'car']
+    list_filter = ['car']
+    search_fields = ['last_name', 'first_name', 'patronymic', 'phone']
+    ordering = ['last_name', 'first_name']
 
 
 #===========================================================
 # >>> Файл: forms.py | Путь: masters\forms.py
 #===========================================================
 
-# masters/forms.py
 from django import forms
-from .models import Master
-from DrSl.widgets import RuDateWidget
+from .models import MasterPouts
 
-class MasterAdminForm(forms.ModelForm):
-    # ✅ Явно определяем даты БЕЗ наследования BaseDateForm → ограничения 2020-2040 не применяются
-    birth_date = forms.DateField(
-        label="Дата рождения", input_formats=['%d.%m.%Y'],
-        widget=RuDateWidget(), required=False
-    )
-    license_expiry = forms.DateField(
-        label="Срок действия ВУ", input_formats=['%d.%m.%Y'],
-        widget=RuDateWidget(), required=False
-    )
-    medical_expiry = forms.DateField(
-        label="Срок действия мед. справки", input_formats=['%d.%m.%Y'],
-        widget=RuDateWidget(), required=False
+
+class MasterPoutsForm(forms.ModelForm):
+    """Форма для создания и редактирования Мастера ПОУТС"""
+
+    # Явно переопределяем поле категорий как множественный выбор
+    license_category = forms.MultipleChoiceField(
+        choices=MasterPouts.CATEGORY_CHOICES,
+        widget=forms.CheckboxSelectMultiple(),
+        required=True,
+        label="Категории"
     )
 
     class Meta:
-        model = Master
-        fields = '__all__'
+        model = MasterPouts
+        fields = [
+            'last_name', 'first_name', 'patronymic',
+            'passport_number', 'birth_date',
+            'license_number', 'license_category', 'license_expiry',
+            'medical_cert_number', 'medical_cert_expiry',
+            'qualification_cert_number', 'qualification_cert_expiry',
+            'phone', 'fuel_card_number', 'car'
+        ]
         widgets = {
-            'license_categories': forms.CheckboxSelectMultiple(attrs={'style': 'columns: 2; column-gap: 20px;'}),
-            'teaching_categories': forms.CheckboxSelectMultiple(attrs={'style': 'columns: 2; column-gap: 20px;'}),
-            'phone': forms.TextInput(attrs={'placeholder': '+375 (__) ___-__-__'}),
-            'work_time_start': forms.TimeInput(attrs={'type': 'time'}),
-            'work_time_end': forms.TimeInput(attrs={'type': 'time'}),
+            # === ФИО ===
+            'last_name': forms.TextInput(attrs={
+                'class': 'form-input',
+                'placeholder': 'Иванов'
+            }),
+            'first_name': forms.TextInput(attrs={
+                'class': 'form-input',
+                'placeholder': 'Иван'
+            }),
+            'patronymic': forms.TextInput(attrs={
+                'class': 'form-input',
+                'placeholder': 'Иванович'
+            }),
+
+            # === Документы ===
+            'passport_number': forms.TextInput(attrs={
+                'class': 'form-input',
+                'placeholder': 'Например: HB 1234567'
+            }),
+            'birth_date': forms.TextInput(attrs={
+                'class': 'form-input',
+                'data-date-input': 'true',
+                'placeholder': 'дд.мм.гггг',
+                'autocomplete': 'off'
+            }),
+            'license_number': forms.TextInput(attrs={
+                'class': 'form-input',
+                'placeholder': 'Например: AAA 123456'
+            }),
+            'license_expiry': forms.TextInput(attrs={
+                'class': 'form-input',
+                'data-date-input': 'true',
+                'placeholder': 'дд.мм.гггг',
+                'autocomplete': 'off'
+            }),
+            'medical_cert_number': forms.TextInput(attrs={
+                'class': 'form-input',
+                'placeholder': 'Номер справки'
+            }),
+            'medical_cert_expiry': forms.TextInput(attrs={
+                'class': 'form-input',
+                'data-date-input': 'true',
+                'placeholder': 'дд.мм.гггг',
+                'autocomplete': 'off'
+            }),
+            'qualification_cert_number': forms.TextInput(attrs={
+                'class': 'form-input',
+                'placeholder': 'Номер свидетельства'
+            }),
+            'qualification_cert_expiry': forms.TextInput(attrs={
+                'class': 'form-input',
+                'data-date-input': 'true',
+                'placeholder': 'дд.мм.гггг',
+                'autocomplete': 'off'
+            }),
+
+            # === Контакты ===
+            'phone': forms.TextInput(attrs={
+                'class': 'form-input',
+                'data-phone-input': 'true',
+                'placeholder': '+375 (__) ___-__-__',
+                'autocomplete': 'off'
+            }),
+            'fuel_card_number': forms.TextInput(attrs={
+                'class': 'form-input',
+                'placeholder': '9 цифр',
+                'maxlength': '9',
+                'inputmode': 'numeric'
+            }),
+            'car': forms.Select(attrs={
+                'class': 'form-input'
+            }),
         }
 
-    class Media:
-        js = ('js/date-mask.js', 'js/phone-mask.js')
+    def clean_passport_number(self):
+        """Автоматически приводим буквы паспорта к верхнему регистру"""
+        data = self.cleaned_data.get('passport_number', '')
+        return data.upper() if data else data
+
+    def clean_license_number(self):
+        """Автоматически приводим буквы ВУ к верхнему регистру"""
+        data = self.cleaned_data.get('license_number', '')
+        return data.upper() if data else data
 
 
 #===========================================================
 # >>> Файл: models.py | Путь: masters\models.py
 #===========================================================
 
-# masters/models.py
 from django.db import models
-from django.core.validators import RegexValidator
-from reference.models import GroupCategory
+from django.core.validators import RegexValidator, MinLengthValidator, MaxLengthValidator
+from cars.models import Car  # Связь с автопарком
 
-class Master(models.Model):
+
+class MasterPouts(models.Model):
+    """Мастер производственного обучения управлению транспортного средства"""
+
+    # Категории водительских прав
+    CATEGORY_CHOICES = [
+        ('A', 'A — Мотоциклы'),
+        ('A1', 'A1 — Лёгкие мотоциклы'),
+        ('B', 'B — Легковые автомобили'),
+        ('B1', 'B1 — Трициклы и квадрициклы'),
+        ('BE', 'BE — Легковые с прицепом'),
+        ('C', 'C — Грузовые автомобили'),
+        ('C1', 'C1 — Средние грузовые'),
+        ('CE', 'CE — Грузовые с прицепом'),
+        ('D', 'D — Автобусы'),
+        ('D1', 'D1 — Малые автобусы'),
+        ('DE', 'DE — Автобусы с прицепом'),
+        ('M', 'M — Мопеды'),
+        ('TM', 'TM — Трамваи'),
+        ('TB', 'TB — Троллейбусы'),
+    ]
+
+    # === 1. ФИО ===
     last_name = models.CharField("Фамилия", max_length=100)
     first_name = models.CharField("Имя", max_length=100)
     patronymic = models.CharField("Отчество", max_length=100, blank=True)
-    birth_date = models.DateField("Дата рождения", null=True, blank=True)
-    address = models.CharField("Адрес проживания", max_length=255, blank=True)
-    phone = models.CharField(
-        "Номер телефона", max_length=25, blank=True,
-        validators=[RegexValidator(r'^\+375\s?\(\d{2}\)\s?\d{3}-\d{2}-\d{2}$', 'Формат: +375 (29) 123-45-67')]
+    # === 2. Паспорт и дата рождения ===
+    passport_number = models.CharField(
+        "№ паспорта", max_length=20,
+        validators=[RegexValidator(
+            r'^[A-ZА-Я]{2} \d{7}$',
+            'Формат: 2 заглавные буквы, пробел, 7 цифр (например: HB 1234567)'
+        )]
     )
-    # 🔹 Категории прав (M2M для чекбоксов)
-    license_categories = models.ManyToManyField(
-        GroupCategory, verbose_name="Категории прав",
-        related_name='masters_with_license', blank=True
-    )
-    license_number = models.CharField("Номер водительского удостоверения", max_length=50, blank=True)
-    license_expiry = models.DateField("Срок действия ВУ", null=True, blank=True)
-    medical_expiry = models.DateField("Срок действия мед. справки", null=True, blank=True)
-    # 🔹 Категории обучения (M2M для чекбоксов)
-    teaching_categories = models.ManyToManyField(
-        GroupCategory, verbose_name="Категории обучает",
-        related_name='masters_teaching', blank=True
-    )
-    work_time_start = models.TimeField("Начало работы", null=True, blank=True)
-    work_time_end = models.TimeField("Окончание работы", null=True, blank=True)
-    created_at = models.DateTimeField("Создан", auto_now_add=True)
-    updated_at = models.DateTimeField("Обновлён", auto_now=True)
+    birth_date = models.DateField("Дата рождения")
 
-    def __str__(self):
-        return f"{self.last_name} {self.first_name}"
+    # === 3. Водительское удостоверение ===
+    license_number = models.CharField(
+        "№ водительского удостоверения", max_length=20,
+        validators=[RegexValidator(
+            r'^[A-Z]{3} \d{6}$',
+            'Формат: 3 заглавные латинские буквы, пробел, 6 цифр (например: AAA 123456)'
+        )]
+    )
+    license_category = models.JSONField(
+        "Категории ВУ",
+        default=list,
+        help_text="Выберите одну или несколько категорий",
+        blank=True
+    )
+    license_expiry = models.DateField("Срок действия ВУ")
+
+    @property
+    def license_categories_display(self):
+        """Возвращает строку с выбранными категориями"""
+        if not self.license_category:
+            return "—"
+        category_dict = dict(self.CATEGORY_CHOICES)
+        return ", ".join([category_dict.get(cat, cat) for cat in self.license_category])
+
+    # === 4. Медицинская справка ===
+    medical_cert_number = models.CharField(
+        "№ медицинской справки", max_length=30, blank=True
+    )
+    medical_cert_expiry = models.DateField(
+        "Срок действия мед. справки", null=True, blank=True
+    )
+
+    # === 5. Свидетельство о повышении квалификации ===
+    qualification_cert_number = models.CharField(
+        "№ свидетельства о повышении квалификации", max_length=50, blank=True
+    )
+    qualification_cert_expiry = models.DateField(
+        "Срок действия свидетельства", null=True, blank=True
+    )
+
+    # === 6. Телефон ===
+    phone = models.CharField(
+        "Номер телефона", max_length=20,
+        validators=[RegexValidator(
+            r'^\+375 \(\d{2}\) \d{3}-\d{2}-\d{2}$',
+            'Формат: +375 (XX) XXX-XX-XX'
+        )]
+    )
+
+    # === 7. Топливная карта ===
+    fuel_card_number = models.CharField(
+        "№ топливной карты", max_length=9,
+        validators=[
+            MinLengthValidator(9, 'Ровно 9 знаков'),
+            MaxLengthValidator(9, 'Ровно 9 знаков'),
+            RegexValidator(r'^\d{9}$', 'Только 9 цифр')
+        ],
+        help_text="Ровно 9 цифр"
+    )
+
+    # === 8. Автомобиль ===
+    car = models.ForeignKey(
+        Car, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='masters', verbose_name="Закреплённый автомобиль"
+    )
+
+    # Метаданные
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        verbose_name = "Мастер"
-        verbose_name_plural = "🚗 Мастера"
+        verbose_name = "Мастер ПОУТС"
+        verbose_name_plural = "🚗 Мастера ПОУТС"
         ordering = ['last_name', 'first_name']
+
+    @property
+    def full_name(self):
+        """Возвращает полное ФИО: Фамилия Имя Отчество"""
+        parts = [self.last_name, self.first_name, self.patronymic]
+        return ' '.join(p for p in parts if p).strip()
+
+    def __str__(self):
+        return f"{self.full_name} ({self.license_category})"
+
+    @property
+    def is_license_valid(self):
+        """Проверка актуальности ВУ"""
+        from django.utils import timezone
+        return self.license_expiry >= timezone.now().date()
+
+    @property
+    def is_medical_valid(self):
+        """Проверка актуальности мед. справки"""
+        from django.utils import timezone
+        if not self.medical_cert_expiry:
+            return False
+        return self.medical_cert_expiry >= timezone.now().date()
+
+Master = MasterPouts
 
 
 #===========================================================
@@ -5307,9 +5605,15 @@ class Master(models.Model):
 
 from django.urls import path
 from . import views
+
 app_name = 'masters'
+
 urlpatterns = [
-    path('', views.master_list, name='master_list'),
+    path('', views.master_pouts_list, name='master_pouts_list'),
+    path('add/', views.master_pouts_add, name='master_pouts_add'),
+    path('<int:pk>/edit/', views.master_pouts_edit, name='master_pouts_edit'),
+    path('<int:pk>/delete/', views.master_pouts_delete, name='master_pouts_delete'),
+    path('search-api/', views.master_pouts_search_api, name='master_pouts_search_api'),
 ]
 
 
@@ -5317,14 +5621,130 @@ urlpatterns = [
 # >>> Файл: views.py | Путь: masters\views.py
 #===========================================================
 
-from django.shortcuts import render
+from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
-from .models import Master
+from django.contrib import messages
+from django.db.models import Q
+from .models import MasterPouts
+from .forms import MasterPoutsForm
+from django.http import JsonResponse
+from django.template.loader import render_to_string
+
 
 @login_required
-def master_list(request):
-    masters = Master.objects.all().order_by('last_name')
-    return render(request, 'masters/master_list.html', {'masters': masters})
+def master_pouts_list(request):
+    """Список мастеров ПОУТС"""
+    masters = MasterPouts.objects.select_related('car').all()
+
+    query = request.GET.get('q', '').strip()
+    if query:
+        masters = masters.filter(
+            Q(last_name__icontains=query) |
+            Q(first_name__icontains=query) |
+            Q(patronymic__icontains=query) |
+            Q(phone__icontains=query)
+        )
+
+    return render(request, 'masters/master_pouts_list.html', {
+        'masters': masters,
+        'title': 'Мастера ПОУТС'
+    })
+
+
+@login_required
+def master_pouts_add(request):
+    """Добавление мастера ПОУТС"""
+    if request.method == 'POST':
+        form = MasterPoutsForm(request.POST)
+        if form.is_valid():
+            master = form.save()
+            messages.success(request, f'✅ Мастер {master.full_name} добавлен!')
+            return redirect('masters:master_pouts_list')
+    else:
+        form = MasterPoutsForm()
+
+    return render(request, 'masters/master_pouts_form.html', {
+        'form': form,
+        'title': 'Добавить мастера ПОУТС',
+        'is_edit': False
+    })
+
+
+@login_required
+def master_pouts_edit(request, pk):
+    """Редактирование мастера ПОУТС"""
+    master = get_object_or_404(MasterPouts, pk=pk)
+
+    if request.method == 'POST':
+        form = MasterPoutsForm(request.POST, instance=master)
+        if form.is_valid():
+            master = form.save()
+            messages.success(request, f'✅ Данные мастера {master.full_name} обновлены!')
+            return redirect('masters:master_pouts_list')
+    else:
+        form = MasterPoutsForm(instance=master)
+
+    return render(request, 'masters/master_pouts_form.html', {
+        'form': form,
+        'title': 'Редактировать мастера ПОУТС',
+        'is_edit': True,
+        'master': master
+    })
+
+
+@login_required
+def master_pouts_delete(request, pk):
+    """Удаление мастера ПОУТС"""
+    master = get_object_or_404(MasterPouts, pk=pk)
+
+    if request.method == 'POST':
+        full_name = master.full_name
+        master.delete()
+        messages.success(request, f'️ Мастер {full_name} удалён')
+        return redirect('masters:master_pouts_list')
+
+    return render(request, 'masters/master_pouts_confirm_delete.html', {
+        'master': master
+    })
+
+
+def master_pouts_search_api(request):
+    """API для живого поиска мастеров"""
+    query = request.GET.get('q', '').strip()
+    item_id = request.GET.get('id', '').strip()
+
+    masters = MasterPouts.objects.select_related('car').all()
+
+    # Если запрошен конкретный ID — возвращаем только его
+    if item_id:
+        masters = masters.filter(pk=int(item_id))
+    elif query:
+        masters = masters.filter(
+            Q(last_name__icontains=query) |
+            Q(first_name__icontains=query) |
+            Q(patronymic__icontains=query) |
+            Q(phone__icontains=query)
+        )[:10]  # Ограничиваем до 10 подсказок
+
+    # Формируем подсказки
+    suggestions = []
+    for m in masters:
+        full_name = f"{m.last_name} {m.first_name} {m.patronymic}".strip()
+        suggestions.append({
+            'id': m.pk,
+            'suggestion_text': f"👤 {full_name} • 📞 {m.phone}"
+        })
+
+    # Формируем строки таблицы
+    rows = []
+    for master in masters:
+        row_html = render_to_string('masters/_master_row.html', {'master': master}, request=request)
+        rows.append(row_html)
+
+    return JsonResponse({
+        'suggestions': suggestions,
+        'rows': rows
+    })
 
 
 #===========================================================
@@ -7033,9 +7453,84 @@ input.ru-date-input {
 (function() {
     'use strict';
 
+    // =========================================================================
+    // 🔹 Инъекция CSS-стилей (выполняется один раз)
+    // =========================================================================
+    function injectDateMaskStyles() {
+        if (window.__dateMaskStylesInjected) return;
+        window.__dateMaskStylesInjected = true;
+
+        const style = document.createElement('style');
+        style.textContent = `
+            /* 🔹 Подсветка некорректной даты */
+            .date-invalid {
+                border-color: #dc2626 !important;
+                background-color: #fef2f2 !important;
+                animation: dateShake 0.3s ease-in-out;
+            }
+            .date-invalid:focus {
+                outline: none;
+                border-color: #dc2626 !important;
+                box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.15) !important;
+            }
+
+            /* 🔹 Лёгкая тряска при ошибке */
+            @keyframes dateShake {
+                0%, 100% { transform: translateX(0); }
+                25% { transform: translateX(-4px); }
+                75% { transform: translateX(4px); }
+            }
+
+            /* 🔹 Подсказка-тултип через псевдоэлемент */
+            .date-invalid-wrapper {
+                position: relative;
+            }
+            .date-invalid-wrapper::after {
+                content: attr(data-date-error);
+                position: absolute;
+                top: calc(100% + 4px);
+                left: 0;
+                background: #dc2626;
+                color: white;
+                padding: 4px 10px;
+                border-radius: 6px;
+                font-size: 12px;
+                font-weight: 500;
+                white-space: nowrap;
+                z-index: 1000;
+                box-shadow: 0 4px 12px rgba(220, 38, 38, 0.2);
+                opacity: 0;
+                pointer-events: none;
+                transition: opacity 0.2s;
+            }
+            .date-invalid-wrapper:hover::after {
+                opacity: 1;
+            }
+            .date-invalid-wrapper::before {
+                content: '';
+                position: absolute;
+                top: calc(100% + 0px);
+                left: 12px;
+                border: 4px solid transparent;
+                border-bottom-color: #dc2626;
+                opacity: 0;
+                pointer-events: none;
+                transition: opacity 0.2s;
+                z-index: 1000;
+            }
+            .date-invalid-wrapper:hover::before {
+                opacity: 1;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    // =========================================================================
+    // 🔹 Применение маски к полю
+    // =========================================================================
     function applyDateMask(input) {
-        // ✅ Убираем блокировку, чтобы маска перезапускалась при сбое
-        // if (input.dataset.maskApplied) return;
+        // Защита от повторного применения к одному полю
+        if (input.dataset.maskApplied === '1') return;
 
         // Настройка поля
         input.removeAttribute('min');
@@ -7048,13 +7543,23 @@ input.ru-date-input {
         input.setAttribute('autocomplete', 'off');
         input.dataset.maskApplied = '1';
 
+        // Оборачиваем поле для красивого tooltip (если ещё не обёрнуто)
+        if (!input.parentElement.classList.contains('date-invalid-wrapper')) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'date-invalid-wrapper';
+            wrapper.style.position = 'relative';
+            wrapper.style.display = 'inline-block';
+            wrapper.style.width = '100%';
+            input.parentNode.insertBefore(wrapper, input);
+            wrapper.appendChild(input);
+        }
+
         // 1. Инициализация при загрузке
         let val = input.value.trim();
         if (val && /^\d{4}-\d{2}-\d{2}$/.test(val)) {
             const [y, m, d] = val.split('-');
             input.value = `${d}.${m}.${y}`;
         } else if (val && val.length === 6 && /^\d{6}$/.test(val)) {
-            // Если пришло 180826, сразу преобразуем в 18.08.26
             const d = val.slice(0, 2);
             const m = val.slice(2, 4);
             const y = val.slice(4, 6);
@@ -7063,73 +7568,157 @@ input.ru-date-input {
 
         // 2. Блокировка ввода не-цифр
         input.addEventListener('keydown', function(e) {
-            const allowed = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab'];
+            const allowed = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab', 'Home', 'End'];
             if (allowed.includes(e.key)) return;
             if (!/^\d$/.test(e.key) && e.key !== '.' && e.key !== '/') {
                 e.preventDefault();
             }
         });
 
-        // 3. АВТОМАТИЧЕСКАЯ МАСКА ПРИ ВВОДЕ
+        // 3. Автоматическая маска при вводе
         input.addEventListener('input', function(e) {
-            let raw = e.target.value.replace(/\D/g, ''); // Оставляем только цифры
+            let raw = e.target.value.replace(/\D/g, '');
             let formatted = '';
-            raw = raw.slice(0, 8); // Максимум 8 цифр
+            raw = raw.slice(0, 8);
 
             if (raw.length > 0) formatted += raw.slice(0, 2);
             if (raw.length > 2) formatted += '.' + raw.slice(2, 4);
             if (raw.length > 4) formatted += '.' + raw.slice(4, 8);
 
-            // Обновляем, только если изменилось (избегаем бесконечного цикла)
             if (e.target.value !== formatted) {
                 e.target.value = formatted;
             }
+
+            // Снимаем класс ошибки при вводе
+            clearError(input);
         });
 
-        // 4. Превращение короткого года в полный
+        // 4. Проверка корректности даты
+        function isValidDate(day, month, year) {
+            if (isNaN(day) || isNaN(month) || isNaN(year)) return false;
+            if (day < 1 || day > 31) return false;
+            if (month < 1 || month > 12) return false;
+            if (year < 1900 || year > 2100) return false;
+
+            const daysInMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+            // Високосный год
+            if ((year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0)) {
+                daysInMonth[1] = 29;
+            }
+
+            return day <= daysInMonth[month - 1];
+        }
+
         function normalizeYear(year) {
             if (year >= 0 && year <= 99) {
-                if (year >= 70 && year <= 99) return year + 1900;
-                return year + 2000;
+                return (year >= 70 && year <= 99) ? year + 1900 : year + 2000;
             }
             return year;
         }
 
+        function showError(input, message) {
+            input.classList.add('date-invalid');
+            if (input.parentElement && input.parentElement.classList.contains('date-invalid-wrapper')) {
+                input.parentElement.setAttribute('data-date-error', message);
+            }
+        }
+
+        function clearError(input) {
+            input.classList.remove('date-invalid');
+            if (input.parentElement && input.parentElement.classList.contains('date-invalid-wrapper')) {
+                input.parentElement.removeAttribute('data-date-error');
+            }
+        }
+
+        function validateAndFormat(input) {
+            const value = input.value.trim();
+            if (!value) {
+                clearError(input);
+                return true; // Пустое поле — валидно
+            }
+
+            const parts = value.split('.');
+            if (parts.length !== 3) {
+                showError(input, '⚠ Формат: дд.мм.гггг');
+                return false;
+            }
+
+            let day = parseInt(parts[0], 10);
+            let month = parseInt(parts[1], 10);
+            let year = parseInt(parts[2], 10);
+
+            // Нормализация короткого года
+            year = normalizeYear(year);
+
+            if (!isValidDate(day, month, year)) {
+                let errorMsg = '⚠ Некорректная дата';
+                if (month < 1 || month > 12) errorMsg = '⚠ Месяц: 01–12';
+                else if (day < 1 || day > 31) errorMsg = '⚠ День: 01–31';
+                else errorMsg = `⚠ В ${String(month).padStart(2,'0')}.${year} нет ${String(day).padStart(2,'0')} числа`;
+
+                showError(input, errorMsg);
+                return false;
+            }
+
+            // Форматируем с полным годом и ведущими нулями
+            input.value = `${String(day).padStart(2, '0')}.${String(month).padStart(2, '0')}.${year}`;
+            clearError(input);
+            return true;
+        }
+
+        // 5. Проверка при потере фокуса
         input.addEventListener('blur', function(e) {
-            const parts = e.target.value.trim().split('.');
-            if (parts.length === 3 && parts[2].length === 2) {
-                let year = parseInt(parts[2], 10);
-                year = normalizeYear(year);
-                e.target.value = `${parts[0]}.${parts[1]}.${year}`;
+            if (e.target.value.trim() !== '') {
+                validateAndFormat(e.target);
             }
         });
 
-        // 5. Безопасная отправка формы
+        // 6. Защита отправки формы
         const form = input.closest('form');
-        if (form) {
-            form.addEventListener('submit', function() {
-                const parts = input.value.trim().split('.');
-                if (parts.length === 3) {
-                    let year = parseInt(parts[2], 10);
-                    if (year >= 0 && year <= 99) {
-                        year = normalizeYear(year);
-                        input.value = `${parts[0]}.${parts[1]}.${year}`;
+        if (form && !form.dataset.dateMaskBound) {
+            form.dataset.dateMaskBound = '1';
+            form.addEventListener('submit', function(e) {
+                const dateInputs = form.querySelectorAll('input[data-date-input="true"]');
+                let hasInvalid = false;
+
+                dateInputs.forEach(function(inp) {
+                    if (inp.value.trim() !== '' && !validateAndFormat(inp)) {
+                        hasInvalid = true;
+                    }
+                });
+
+                if (hasInvalid) {
+                    e.preventDefault();
+                    const firstInvalid = form.querySelector('.date-invalid');
+                    if (firstInvalid) {
+                        firstInvalid.focus();
+                        firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     }
                 }
             });
         }
     }
 
+    // =========================================================================
+    // 🔹 Инициализация всех полей с датами
+    // =========================================================================
     function initAllDateInputs() {
         document.querySelectorAll('input[data-date-input="true"]').forEach(applyDateMask);
     }
 
+    // Инжектим стили и запускаем инициализацию
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initAllDateInputs);
+        document.addEventListener('DOMContentLoaded', function() {
+            injectDateMaskStyles();
+            initAllDateInputs();
+        });
     } else {
+        injectDateMaskStyles();
         initAllDateInputs();
     }
 
+    // Периодическая проверка для динамически добавленных полей
     setInterval(initAllDateInputs, 500);
 })();
 
@@ -8134,15 +8723,14 @@ if (typeof module !== 'undefined' && module.exports) {
 
 /**
  * Универсальный модуль живого поиска и автоподсказок
+ * static/js/live_search.js
  */
 document.addEventListener('DOMContentLoaded', function() {
-    // Находим поле ввода и контейнер подсказок
     const searchInput = document.querySelector('[data-live-search="true"]');
     const suggestionsBox = document.getElementById('search-suggestions');
 
     if (!searchInput) return;
 
-    // Получаем данные для AJAX
     const targetId = searchInput.getAttribute('data-target');
     const targetElement = document.getElementById(targetId);
     const apiUrl = searchInput.getAttribute('data-api-url');
@@ -8159,54 +8747,53 @@ document.addEventListener('DOMContentLoaded', function() {
         clearTimeout(debounceTimer);
         const query = this.value.trim();
 
-        // Если строка пустая — скрываем подсказки и ничего не делаем (таблица уже полная)
+        // Если строка пустая — скрываем подсказки и восстанавливаем таблицу
         if (query.length === 0) {
             suggestionsBox.style.display = 'none';
+            // Перезагружаем страницу, чтобы показать полный список
+            window.location.search = '';
             return;
         }
 
-        // Разрешаем поиск даже по 1 символу, но с задержкой 300 мс
+        // Задержка 300 мс
         debounceTimer = setTimeout(() => {
             fetch(`${apiUrl}?q=${encodeURIComponent(query)}`)
                 .then(response => response.json())
                 .then(data => {
-                    // Отрисовка подсказок (из suggestions)
                     if (data.suggestions && data.suggestions.length > 0) {
                         let html = '';
                         data.suggestions.forEach(item => {
-                            html += `<div class="suggestion-item" data-id="${item.id}" style="padding:8px 12px;cursor:pointer;border-bottom:1px solid #f1f5f9;font-size:14px;">
+                            html += `<div class="suggestion-item" data-id="${item.id}" style="padding:8px 12px;cursor:pointer;border-bottom:1px solid #f1f5f9;font-size:14px;background:white;">
                                         ${item.suggestion_text}
                                      </div>`;
                         });
                         suggestionsBox.innerHTML = html;
                         suggestionsBox.style.display = 'block';
                     } else {
-                        suggestionsBox.innerHTML = '<div style="padding:8px 12px;color:#64748b;font-size:14px;">Ничего не найдено</div>';
+                        suggestionsBox.innerHTML = '<div style="padding:8px 12px;color:#64748b;font-size:14px;background:white;">Ничего не найдено</div>';
                         suggestionsBox.style.display = 'block';
                     }
                 })
                 .catch(err => console.error(err));
-        }, 300); // Задержка 300 мс для 1 символа
+        }, 300);
     });
 
-    // 3. Обработка клика по подсказке (фильтрация таблицы)
+    // 2. Обработка клика по подсказке
     document.addEventListener('click', function(e) {
         if (e.target.closest('.suggestion-item')) {
             const item = e.target.closest('.suggestion-item');
-            const studentId = item.getAttribute('data-id');
+            const itemId = item.getAttribute('data-id');
 
-            // Устанавливаем значение в поле ввода (для красоты)
             searchInput.value = item.textContent.trim();
             suggestionsBox.style.display = 'none';
 
-            // Применяем фильтрацию таблицы по найденному ID
-            fetch(`${apiUrl}?student_id=${studentId}`)
+            fetch(`${apiUrl}?id=${itemId}`)
                 .then(response => response.json())
                 .then(data => {
                     targetElement.innerHTML = '';
                     if (data.rows.length === 0) {
                         const colSpan = targetElement.getAttribute('data-empty-colspan') || 6;
-                        targetElement.innerHTML = `<tr><td colspan="${colSpan}" class="text-center">Ничего не найдено</td></tr>`;
+                        targetElement.innerHTML = `<tr><td colspan="${colSpan}" class="empty-state">Ничего не найдено</td></tr>`;
                     } else {
                         data.rows.forEach(row => {
                             targetElement.insertAdjacentHTML('beforeend', row);
@@ -8216,9 +8803,9 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // 4. Скрыть подсказки при клике вне их области
+    // 3. Скрыть подсказки при клике вне их области
     document.addEventListener('click', function(e) {
-        if (!e.target.closest('#search-suggestions') && !e.target.closest('#search-input')) {
+        if (!e.target.closest('#search-suggestions') && !e.target.closest('[data-live-search]')) {
             suggestionsBox.style.display = 'none';
         }
     });
@@ -46090,7 +46677,7 @@ class StudentAdmin(admin.ModelAdmin):
     @admin.display(description='📋 Журнал активности')
     def activity_log_display(self, obj):
         if not obj.activity_log:
-            return mark_safe('<span style="color:#94a3b8;">— Записей нет —</span>')
+            return mark_safe('<span style="color:#94a3b8;">— Записей нет —</span>')   # nosec B308
 
         log_items = []
         for entry in reversed(obj.activity_log[-20:]):
@@ -46415,6 +47002,7 @@ class StudentPublicAddForm(forms.ModelForm):
 from django.db import models
 from django.core.validators import RegexValidator
 
+
 # =============================================================================
 # 🔹 Валидатор телефона
 # =============================================================================
@@ -46478,7 +47066,7 @@ class Student(models.Model):
     )
 
     master = models.ForeignKey(
-        'masters.Master',
+        'masters.MasterPouts',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
@@ -46522,6 +47110,24 @@ class Student(models.Model):
     # =========================================================
     created_at = models.DateTimeField("Создан", auto_now_add=True)
     updated_at = models.DateTimeField("Обновлён", auto_now=True)
+
+    def save(self, *args, **kwargs):
+        """
+        Автоматически наследует преподавателя из группы
+        при смене группы (или при создании учащегося).
+        """
+        if self.group_id:
+            old_group_id = None
+            if self.pk:
+                old_group_id = (
+                    Student.objects.filter(pk=self.pk)
+                    .values_list('group_id', flat=True)
+                    .first()
+                )
+            # Группа изменилась (или студент создаётся) → наследуем преподавателя
+            if old_group_id != self.group_id and self.group.teacher_id:
+                self.teacher_id = self.group.teacher_id
+        super().save(*args, **kwargs)
 
     # =========================================================
     # Свойства
@@ -46661,10 +47267,11 @@ class StudentHistory(models.Model):
 
 # students/services.py
 import datetime
-from typing import Optional, Dict, List
+from typing import Optional, Dict
 from django.db import transaction
 from django.utils import timezone
 
+from groups.models import Group
 from .models import Student, StudentHistory
 
 
@@ -46697,7 +47304,7 @@ class StudentStatusService:
             event_type=event_type,
             event_date=event_date,
             comment=comment,
-            created_by=created_by  # <--- Записываем пользователя, который сделал действие
+            created_by=created_by
         )
 
         # 2. Обновление activity_log (в ISO-формате для правильной сортировки)
@@ -46707,7 +47314,7 @@ class StudentStatusService:
             'date': event_date.isoformat(),
             'title': self._get_title(event_type, details),
             'details': details,
-            'author': author_name  # <--- ДОБАВЛЕНО: записываем имя автора в JSON
+            'author': author_name
         }
         current_log = self.student.activity_log or []
         current_log.append(log_entry)
@@ -46722,19 +47329,31 @@ class StudentStatusService:
             update_fields=['group', 'teacher', 'transferred_date', 'graduated_date', 'activity_log', 'updated_at'])
 
         return history
+
     def _can_perform_event(self, _event_type: str) -> bool:
         """Проверка разрешенных переходов статусов."""
-        # Здесь можно реализовать строгую машину состояний
-        # Например: Нельзя активировать, если студент уже активен.
         return True
 
     def _update_student_fields(self, event_type: str, event_date: datetime.date, details: Dict):
         """Обновляет поля самого студента в зависимости от события."""
         if event_type == 'transfer':
-            self.student.group_id = details.get('to_group_id')
+            new_group_id = details.get('to_group_id')
+            self.student.group_id = new_group_id
             self.student.transferred_date = event_date
+
+            # 🔹 НАСЛЕДОВАНИЕ: преподаватель из новой группы
+            if new_group_id:
+                new_group = (
+                    Group.objects.select_related('teacher')
+                    .filter(pk=new_group_id)
+                    .first()
+                )
+                if new_group and new_group.teacher_id:
+                    self.student.teacher_id = new_group.teacher_id
+
         elif event_type == 'teacher_change':
             self.student.teacher_id = details.get('to_teacher_id')
+
         elif event_type == 'graduation':
             self.student.graduated_date = event_date
 
@@ -46754,8 +47373,6 @@ class StudentStatusService:
 
     def get_current_status(self):
         """Возвращает текущий статус студента и цвет для отображения."""
-
-        # ✅ КОНСТАНТЫ для статуса "Активен"
         DEFAULT_STATUS = 'Активен'
         DEFAULT_COLOR = '#16a34a'
 
@@ -46785,85 +47402,7 @@ class StudentStatusService:
             if etype in status_map:
                 return status_map[etype]
 
-        # Если ничего не найдено, возвращаем дефолт
         return {'status': DEFAULT_STATUS, 'color': DEFAULT_COLOR}
-
-    def test_add_suspension_event(self):
-        """Сервис: добавление события приостановки."""
-        self.service.add_event(
-            event_type='suspension',
-            details={'comment': 'По медицинским показаниям'}
-        )
-        self.student.refresh_from_db()
-
-        self.assertEqual(len(self.student.activity_log), 1)
-        self.assertEqual(self.student.activity_log[0]['type'], 'suspension')
-        self.assertEqual(self.student.activity_log[0]['details']['comment'], 'По медицинским показаниям')
-
-    def test_add_refusal_event(self):
-        """Сервис: добавление события отказа."""
-        self.service.add_event(
-            event_type='refusal',
-            details={'comment': 'Личные причины'}
-        )
-        self.student.refresh_from_db()
-
-        self.assertEqual(len(self.student.activity_log), 1)
-        self.assertEqual(self.student.activity_log[0]['type'], 'refusal')
-        self.assertEqual(self.student.activity_log[0]['details']['comment'], 'Личные причины')
-
-    def test_add_dismissal_event(self):
-        """Сервис: добавление события отчисления."""
-        self.service.add_event(
-            event_type='dismissal',
-            details={'order_number': '45-У', 'comment': 'За неуспеваемость'}
-        )
-        self.student.refresh_from_db()
-
-        self.assertEqual(len(self.student.activity_log), 1)
-        self.assertEqual(self.student.activity_log[0]['type'], 'dismissal')
-        self.assertEqual(self.student.activity_log[0]['details']['order_number'], '45-У')
-
-    def test_add_activation_event(self):
-        """Сервис: добавление события активации."""
-        # Сначала создаём приостановку
-        self.service.add_event(event_type='suspension')
-
-        # Затем активируем
-        self.service.add_event(event_type='activation')
-        self.student.refresh_from_db()
-
-        # В логе должно быть 2 события
-        self.assertEqual(len(self.student.activity_log), 2)
-        self.assertEqual(self.student.activity_log[-1]['type'], 'activation')
-
-    def test_add_teacher_change_event(self):
-        """Сервис: добавление события смены преподавателя."""
-        self.service.add_event(
-            event_type='teacher_change',
-            details={
-                'to_teacher_id': 999,
-                'to_teacher': 'Иванов И.И.'
-            }
-        )
-        self.student.refresh_from_db()
-
-        self.assertEqual(len(self.student.activity_log), 1)
-        self.assertEqual(self.student.activity_log[0]['type'], 'teacher_change')
-        self.assertEqual(self.student.activity_log[0]['details']['to_teacher'], 'Иванов И.И.')
-
-    def test_get_current_status_active(self):
-        """Сервис: метод get_current_status возвращает 'Активен' для нового студента."""
-        status = self.service.get_current_status()
-        self.assertEqual(status['status'], 'Активен')
-        self.assertEqual(status['color'], '#16a34a')
-
-    def test_get_current_status_suspended(self):
-        """Сервис: метод get_current_status возвращает 'Приостановлен' после suspension."""
-        self.service.add_event(event_type='suspension')
-        status = self.service.get_current_status()
-        self.assertEqual(status['status'], 'Приостановлен')
-        self.assertEqual(status['color'], '#7c3aed')
 
 
 #===========================================================
@@ -46936,6 +47475,7 @@ def _parse_date_from_request(request, field_name, default_date=None):
     except (ValueError, AttributeError):
         return default_date
 
+
 def _parse_int_or_none(request, field_name):
     """Парсит ID из запроса, возвращает int или None"""
     val = request.POST.get(field_name, '').strip()
@@ -46945,10 +47485,7 @@ def _parse_int_or_none(request, field_name):
 
 
 def _format_date_for_display(date_str):
-    """
-    Вспомогательная функция для форматирования даты.
-    Возвращает дату в формате дд.мм.гггг.
-    """
+    """Возвращает дату в формате дд.мм.гггг."""
     if len(date_str) == 10 and date_str[4] == '-':
         parts = date_str.split('-')
         return f"{parts[2]}.{parts[1]}.{parts[0]}"
@@ -46964,8 +47501,6 @@ def _prepare_credits_data(activity_log):
             if entry.get('type') == 'credit_result':
                 details = entry.get('details') or {}
                 date_str = entry.get('date', '')
-
-                # Теперь форматирование даты вынесено в отдельную функцию
                 display_date = _format_date_for_display(date_str)
 
                 attempts.append({
@@ -46992,6 +47527,7 @@ def _prepare_credits_data(activity_log):
             'display_status': display_status
         })
     return credits_data
+
 
 def _prepare_change_history(activity_log, author_name):
     """Генерирует историю изменений для выпадающего меню."""
@@ -47020,7 +47556,7 @@ def _prepare_change_history(activity_log, author_name):
 
 
 # =============================================================================
-# ✅ 0. Создание карточки учащегося (НОВАЯ ЛОГИКА С ФОРМОЙ)
+# ✅ 0. Создание карточки учащегося
 # =============================================================================
 @login_required
 @require_http_methods(["GET", "POST"])
@@ -47030,7 +47566,11 @@ def student_add(request):
         if form.is_valid():
             student = form.save()
 
-            # 👉 ИСПОЛЬЗУЕМ СЕРВИС ДЛЯ ПЕРВОГО СОБЫТИЯ
+            # 🔹 Наследуем преподавателя из группы при создании (если не задан вручную)
+            if student.group and student.group.teacher and not student.teacher_id:
+                student.teacher = student.group.teacher
+                student.save()
+
             service = StudentStatusService(student)
             service.add_event(
                 event_type='enrollment',
@@ -47044,18 +47584,16 @@ def student_add(request):
         else:
             for field, errors in form.errors.items():
                 messages.error(request, f"⚠️ Ошибка в поле '{field}': {', '.join(errors)}")
-            # Если ошибка — не редиректим, а показываем форму снова
     else:
         form = StudentPublicAddForm()
 
-    # GET-запрос: подготовка данных для формы
     groups = Group.objects.filter(status='active').order_by('group_number')
     teachers = Teacher.objects.filter(is_active=True).order_by('last_name', 'first_name')
     masters = Master.objects.all().order_by('last_name', 'first_name')
 
     context = {
         'title': '➕ Добавить учащегося',
-        'form': form,  # <--- Передаём форму в шаблон
+        'form': form,
         'groups': groups,
         'teachers': teachers,
         'masters': masters,
@@ -47091,10 +47629,13 @@ def student_list(request):
             Q(patronymic__icontains=search_query)
         )
 
-    group_filter = request.GET.get('group')
+    group_filter = request.GET.get('group', '').strip()
     if group_filter:
         if group_filter.isdigit():
-            students = students.filter(group_id=group_filter)
+            # 🔹 Значение может быть номерм группы ИЛИ её ID — проверяем оба варианта
+            students = students.filter(
+                Q(group__group_number=group_filter) | Q(group_id=group_filter)
+            )
         else:
             students = students.filter(group__group_number__icontains=group_filter)
 
@@ -47110,7 +47651,6 @@ def student_list(request):
     groups = Group.objects.filter(status='active').order_by('group_number')
     teachers = Teacher.objects.filter(is_active=True).order_by('last_name', 'first_name')
 
-    # Подготовка данных для шаблона
     students_data = []
     for s in students:
         service = StudentStatusService(s)
@@ -47154,18 +47694,14 @@ def student_detail(request, student_id):
     )
 
     activity_log = student.activity_log or []
-
-    # Подготовка данных (через вспомогательные функции)
     credits_data = _prepare_credits_data(activity_log)
 
-    # Последний перевод
     last_transfer = None
     for entry in reversed(activity_log):
         if entry.get('type') == 'transfer':
             last_transfer = entry
             break
 
-    # История изменений
     author_name = request.user.get_full_name() or request.user.username
     change_history = _prepare_change_history(activity_log, author_name)
 
@@ -47181,7 +47717,7 @@ def student_detail(request, student_id):
 
 
 # =============================================================================
-# ✅ 4. Перевод в другую группу
+# ✅ 4. Перевод в другую группу (с наследованием преподавателя)
 # =============================================================================
 @login_required
 @require_http_methods(["GET", "POST"])
@@ -47201,17 +47737,25 @@ def transfer_student(request, student_id):
             messages.warning(request, 'Учащийся уже находится в этой группе.')
             return render(request, TEMPLATE_TRANSFER_STUDENT, {'student': student, 'groups': groups})
 
+        old_group_number = student.group.group_number if student.group else '—'
+
         service = StudentStatusService(student)
         service.add_event(
             event_type='transfer',
             created_by=request.user,
             event_date=TODAY,
             details={
-                'from_group': student.group.group_number if student.group else '—',
+                'from_group': old_group_number,
                 'to_group_id': target_group.id,
                 'to_group': target_group.group_number
             }
         )
+
+        # 🔹 Назначаем новую группу и наследуем преподавателя
+        student.group = target_group
+        if target_group.teacher:
+            student.teacher = target_group.teacher
+        student.save()
 
         messages.success(request, f'✅ Учащийся успешно переведён в группу {target_group.group_number}.')
         return redirect(REDIRECT_STUDENT_DETAIL, student_id=student.pk)
@@ -47236,7 +47780,6 @@ def student_refusal(request, student_id):
 
         if form.is_valid():
             comment = form.cleaned_data.get('comment', '')
-
             parsed_date = _parse_date_from_request(request, 'refusal_date') or TODAY
 
             service = StudentStatusService(student)
@@ -47250,12 +47793,10 @@ def student_refusal(request, student_id):
 
             messages.success(request, f"✅ Зафиксирован отказ: {student.last_name} {student.first_name}")
             return redirect(REDIRECT_STUDENT_DETAIL, student_id=student.id)
-
         else:
             for field, errors in form.errors.items():
                 messages.error(request, f"⚠️ Ошибка в поле '{field}': {', '.join(errors)}")
                 break
-
     else:
         form = RefusalForm()
 
@@ -47320,7 +47861,6 @@ def student_dismissal(request, student_id):
         if form.is_valid():
             order_number = form.cleaned_data.get('order_number')
             comment = form.cleaned_data.get('comment', '')
-
             parsed_date = _parse_date_from_request(request, 'event_date') or TODAY
 
             service = StudentStatusService(student)
@@ -47340,12 +47880,10 @@ def student_dismissal(request, student_id):
                 f"✅ {student.last_name} {student.first_name} отчислен. Приказ №{order_number if order_number else '—'}"
             )
             return redirect(REDIRECT_STUDENT_DETAIL, student_id=student.id)
-
         else:
             for field, errors in form.errors.items():
                 messages.error(request, f"⚠️ Ошибка в поле '{field}': {', '.join(errors)}")
                 break
-
     else:
         form = DismissalForm()
 
@@ -47391,7 +47929,6 @@ def contract_extension(request, student_id):
 
             messages.success(request, f'✅ Договор продлён! Новый номер: {new_contract_number}')
             return redirect(REDIRECT_STUDENT_DETAIL, student_id=student.id)
-
         else:
             for field, errors in form.errors.items():
                 messages.error(request, f"⚠️ Ошибка в поле '{field}': {', '.join(errors)}")
@@ -47422,45 +47959,65 @@ def surname_suggestions(request):
 # 🔹 Вспомогательные функции для student_edit
 # =============================================================================
 def _handle_group_change(student, new_group_id, old_group_id, request):
-    """Обрабатывает смену группы и добавляет событие, если группа изменилась."""
+    """
+    Обрабатывает смену группы: назначает группу, наследует преподавателя,
+    записывает событие перевода. Возвращает True, если группа изменилась.
+    """
     if new_group_id and new_group_id.isdigit():
         new_group_id = int(new_group_id)
         if new_group_id != old_group_id:
             target_group = get_object_or_404(Group, pk=new_group_id, status='active')
+            old_group_number = student.group.group_number if student.group else '—'
+
+            # 🔹 Назначаем новую группу и наследуем преподавателя
+            student.group = target_group
+            if target_group.teacher:
+                student.teacher = target_group.teacher
+
             service = StudentStatusService(student)
             service.add_event(
                 event_type='transfer',
                 created_by=request.user,
                 details={
-                    'from_group': student.group.group_number if student.group else '—',
+                    'from_group': old_group_number,
                     'to_group_id': target_group.id,
                     'to_group': target_group.group_number
                 }
             )
+            return True
     elif new_group_id is None or new_group_id == '':
         student.group = None
+    return False
 
 
 def _handle_teacher_change(student, new_teacher_id, old_teacher_id, request):
-    """Обрабатывает смену преподавателя и добавляет событие, если преподаватель изменился."""
+    """
+    Обрабатывает РУЧНУЮ смену преподавателя.
+    Вызывается только если группа НЕ менялась (иначе преподаватель унаследован).
+    """
     if new_teacher_id and new_teacher_id.isdigit():
         new_teacher_id = int(new_teacher_id)
-        if new_teacher_id != old_teacher_id:
+        if new_teacher_id != student.teacher_id:
+            old_teacher = student.teacher
             target_teacher = get_object_or_404(Teacher, pk=new_teacher_id, is_active=True)
+            student.teacher = target_teacher
+
             service = StudentStatusService(student)
             service.add_event(
                 event_type='teacher_change',
                 created_by=request.user,
                 details={
+                    'from': str(old_teacher) if old_teacher else '—',
+                    'to': f"{target_teacher.last_name} {target_teacher.first_name[:1]}.",
                     'to_teacher_id': target_teacher.id,
-                    'to_teacher': f"{target_teacher.last_name} {target_teacher.first_name[:1]}."
                 }
             )
     elif new_teacher_id is None or new_teacher_id == '':
         student.teacher = None
 
 
-# ✅ 10. Редактирование учащегося (теперь когнитивная сложность ~5)
+# =============================================================================
+# ✅ 10. Редактирование учащегося
 # =============================================================================
 @login_required
 @require_http_methods(["GET", "POST"])
@@ -47489,13 +48046,17 @@ def student_edit(request, student_id):
         student.position = request.POST.get('position', '').strip()
         student.gearbox_type = request.POST.get('gearbox_type', '')
 
-        # 4. Обработка связей (вынесено в функции-помощники)
+        # 4. Обработка связей
         new_group_id = request.POST.get('group')
         new_teacher_id = request.POST.get('teacher')
         new_master_id = request.POST.get('master')
 
-        _handle_group_change(student, new_group_id, old_group_id, request)
-        _handle_teacher_change(student, new_teacher_id, old_teacher_id, request)
+        # 🔹 Смена группы → преподаватель наследуется автоматически
+        group_changed = _handle_group_change(student, new_group_id, old_group_id, request)
+
+        # 🔹 Ручная смена преподавателя — только если группа НЕ менялась
+        if not group_changed:
+            _handle_teacher_change(student, new_teacher_id, old_teacher_id, request)
 
         # Мастер
         if new_master_id and new_master_id.isdigit():
@@ -47508,7 +48069,6 @@ def student_edit(request, student_id):
         messages.success(request, f'✅ Данные учащегося {student.last_name} обновлены!')
         return redirect(REDIRECT_STUDENT_DETAIL, student_id=student.pk)
 
-    # GET-запрос: подготовка данных для формы
     groups = Group.objects.filter(status='active').order_by('group_number')
     teachers = Teacher.objects.filter(is_active=True).order_by('last_name', 'first_name')
     masters = Master.objects.all().order_by('last_name', 'first_name')
@@ -47522,6 +48082,7 @@ def student_edit(request, student_id):
     }
     return render(request, 'students/student_edit.html', context)
 
+
 # =============================================================================
 # ✅ 11. API для живого поиска (Live Search)
 # =============================================================================
@@ -47531,7 +48092,6 @@ def get_students_api(request):
     query = request.GET.get('q', '').strip()
     student_id = request.GET.get('student_id')
 
-    # 🔹 Основной queryset
     qs = Student.objects.select_related('group', 'teacher', 'master')
 
     if student_id:
@@ -47540,7 +48100,6 @@ def get_students_api(request):
         if len(query) == 0:
             students = qs.all()
         else:
-            # ✅ Регистронезависимый поиск (i__startswith)
             students = qs.filter(
                 Q(last_name__istartswith=query) |
                 Q(first_name__istartswith=query) |
@@ -47551,7 +48110,6 @@ def get_students_api(request):
     suggestions_list = []
 
     for s in students[:50]:
-        # Данные для таблицы
         service = StudentStatusService(s)
         status_data = service.get_current_status()
         row_html = render_to_string('students/includes/student_table_row.html', {
@@ -47560,19 +48118,12 @@ def get_students_api(request):
         })
         rows_html.append(row_html)
 
-        # 📌 Генерируем красивую строку для выпадающего списка
-        # Собираем ФИО
         full_name = f"{s.last_name} {s.first_name}"
         if s.patronymic:
             full_name += f" {s.patronymic}"
 
-        # Дата рождения (короткая)
         birth_str = s.birth_date.strftime('%d.%m.%Y') if s.birth_date else ''
-
-        # Группа
         group_str = f"(гр. {s.group.group_number})" if s.group else ''
-
-        # Итоговая строка для подсказки
         display_text = f"{full_name} {birth_str} {group_str}".strip()
 
         suggestions_list.append({
@@ -47681,23 +48232,48 @@ class TeachersConfig(AppConfig):
 # >>> Файл: forms.py | Путь: teachers\forms.py
 #===========================================================
 
-# teachers/forms.py  (если добавите даты в модель Teacher)
 from django import forms
 from .models import Teacher
-from core.widgets import RuDateWidget
 
 
-class TeacherAdminForm(forms.ModelForm):
+class TeacherForm(forms.ModelForm):
+    """Форма для создания и редактирования преподавателя"""
+
     class Meta:
         model = Teacher
-        fields = '__all__'
+        fields = [
+            'last_name', 'first_name', 'patronymic', 'phone',
+            'contract_main', 'contract_part_time',
+            'teaches_truck', 'teaches_car',
+            'schedule_morning', 'schedule_evening', 'schedule_weekend',
+        ]
         widgets = {
-            # Если добавите date-поля, укажите здесь:
-            # 'some_date': RuDateWidget(),
+            'last_name': forms.TextInput(attrs={
+                'class': 'form-input',
+                'placeholder': 'Иванов'
+            }),
+            'first_name': forms.TextInput(attrs={
+                'class': 'form-input',
+                'placeholder': 'Иван'
+            }),
+            'patronymic': forms.TextInput(attrs={
+                'class': 'form-input',
+                'placeholder': 'Иванович'
+            }),
+            'phone': forms.TextInput(attrs={
+                'class': 'form-input',
+                'data-phone-input': 'true',
+                'placeholder': '+375 (__) ___-__-__',
+                'autocomplete': 'off'
+            }),
+            'contract_main': forms.CheckboxInput(),
+            'contract_part_time': forms.CheckboxInput(),
+            'teaches_truck': forms.CheckboxInput(),
+            'teaches_car': forms.CheckboxInput(),
+            'schedule_morning': forms.CheckboxInput(),
+            'schedule_evening': forms.CheckboxInput(),
+            'schedule_weekend': forms.CheckboxInput(),
         }
-
-    class Media:
-        js = ('js/phone-mask.js', 'js/date-mask.js')
 
 
 #===========================================================
@@ -47796,6 +48372,10 @@ from . import views
 app_name = 'teachers'
 urlpatterns = [
     path('', views.teacher_list, name='teacher_list'),
+    path('add/', views.teacher_add, name='teacher_add'),
+    path('<int:pk>/edit/', views.teacher_edit, name='teacher_edit'),
+    path('<int:pk>/delete/', views.teacher_delete, name='teacher_delete'),
+    path('search-api/', views.teacher_search_api, name='teacher_search_api'),
 ]
 
 
@@ -47808,7 +48388,12 @@ from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q
 from .models import Teacher
-
+from django.contrib import messages
+from django.views.decorators.http import require_http_methods
+from django.shortcuts import get_object_or_404, redirect
+from django.http import JsonResponse
+from django.template.loader import render_to_string
+from .forms import TeacherForm
 
 @login_required
 def teacher_list(request):
@@ -47830,6 +48415,116 @@ def teacher_list(request):
         'search_query': search_query,
     }
     return render(request, 'teachers/teacher_list.html', context)
+
+
+@login_required
+def teacher_add(request):
+    """Добавление преподавателя"""
+    if request.method == 'POST':
+        form = TeacherForm(request.POST)
+        if form.is_valid():
+            teacher = form.save()
+            messages.success(request, f'✅ Преподаватель {teacher.full_name} добавлен!')
+            return redirect('teachers:teacher_list')
+    else:
+        form = TeacherForm()
+
+    return render(request, 'teachers/teacher_form.html', {
+        'form': form,
+        'title': 'Добавить преподавателя',
+        'is_edit': False
+    })
+
+
+@login_required
+def teacher_edit(request, pk):
+    """Редактирование преподавателя"""
+    teacher = get_object_or_404(Teacher, pk=pk)
+
+    if request.method == 'POST':
+        form = TeacherForm(request.POST, instance=teacher)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f'✅ Данные преподавателя {teacher.full_name} обновлены!')
+            return redirect('teachers:teacher_list')
+    else:
+        form = TeacherForm(instance=teacher)
+
+    return render(request, 'teachers/teacher_form.html', {
+        'form': form,
+        'title': 'Редактировать преподавателя',
+        'is_edit': True,
+        'teacher': teacher
+    })
+
+@login_required
+@require_http_methods(["POST"])
+def teacher_delete(request, pk):
+    """Удаление преподавателя через модальное окно"""
+    teacher = get_object_or_404(Teacher, pk=pk)
+    full_name = f"{teacher.last_name} {teacher.first_name} {teacher.patronymic}".strip()
+    teacher.delete()
+    messages.success(request, f'🗑️ Преподаватель {full_name} удалён')
+    return redirect('/teachers/')
+
+
+def teacher_search_api(request):
+    """API для живого поиска преподавателей с учётом фильтров"""
+    query = request.GET.get('q', '').strip()
+    item_id = request.GET.get('id', '').strip()
+
+    # Берём активные фильтры
+    vehicles = request.GET.getlist('vehicle')
+    schedules = request.GET.getlist('schedule')
+
+    teachers = Teacher.objects.all()
+
+    # Применяем фильтры
+    if 'truck' in vehicles:
+        teachers = teachers.filter(teaches_truck=True)
+    if 'car' in vehicles:
+        teachers = teachers.filter(teaches_car=True)
+    if 'morning' in schedules:
+        teachers = teachers.filter(schedule_morning=True)
+    if 'evening' in schedules:
+        teachers = teachers.filter(schedule_evening=True)
+    if 'weekend' in schedules:
+        teachers = teachers.filter(schedule_weekend=True)
+
+    # Поиск
+    if item_id:
+        teachers = teachers.filter(pk=int(item_id))
+    elif query:
+        teachers = teachers.filter(
+            Q(last_name__icontains=query) |
+            Q(first_name__icontains=query) |
+            Q(patronymic__icontains=query) |
+            Q(phone__icontains=query)
+        )[:10]
+
+    # Формируем подсказки
+    suggestions = []
+    for t in teachers:
+        full_name = f"{t.last_name} {t.first_name} {t.patronymic}".strip()
+        suggestions.append({
+            'id': t.pk,
+            'suggestion_text': f"👨‍🏫 {full_name} • 📞 {t.phone}"
+        })
+
+    # Формируем строки таблицы
+    rows = []
+    for idx, t in enumerate(teachers, start=1):
+        row_html = render_to_string(
+            'teachers/_teacher_row.html',
+            {'t': t, 'forloop': {'counter': idx}},
+            request=request
+        )
+        rows.append(row_html)
+
+    return JsonResponse({
+        'suggestions': suggestions,
+        'rows': rows
+    })
 
 
 #===========================================================
@@ -50751,7 +51446,7 @@ document.getElementById('credit_id').addEventListener('change', function() {
             <div>
                 <h3 class="card-title">Список групп</h3>
                 <p class="card-description">Просмотр, поиск и фильтры</p>
-                <span class="card-count">Всего групп: {{ groups_count|default:0 }}</span>
+                <span class="card-count">Всего групп: {{ total_groups|default:0 }}</span>
             </div>
         </a>
 
@@ -51446,9 +52141,9 @@ document.addEventListener('DOMContentLoaded', function() {
 </div>
 
 <!-- 🔹 Подключение скриптов масок -->
-{% if not debug %}
+
 <script src="{% static 'js/date-mask.js' %}" defer></script>
-{% endif %}
+
 {% endblock %}
 
 
@@ -52003,35 +52698,42 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     function initCalendar() {
-        console.log('🔄 Инициализация календаря...');
-        const start = document.getElementById('id_date_start')?.value;
-        const end = document.getElementById('id_date_end')?.value;
-        const type = document.getElementById('id_schedule_type')?.value;
-        const classDaysInput = document.getElementById('id_class_days')?.value;
+    console.log('🔄 Инициализация календаря...');
+    const start = document.getElementById('id_date_start')?.value;
+    const end = document.getElementById('id_date_end')?.value;
+    const type = document.getElementById('id_schedule_type')?.value;
+    const classDaysInput = document.getElementById('id_class_days')?.value;
 
-        if (start && end && window.scheduleCalendarInstance) {
-            let savedDays = {};
-            if (classDaysInput && classDaysInput !== '{}') {
-                try {
-                    savedDays = JSON.parse(classDaysInput);
-                    const defaultSlots = {{ calendar_time_slots|default:'[]'|safe }};
-                    Object.keys(savedDays).forEach(date => {
-                        if (!savedDays[date].slots || savedDays[date].slots.length === 0) {
-                            savedDays[date].slots = defaultSlots;
-                            savedDays[date]._useDefault = true;
-                        }
-                    });
-                } catch(e) {}
-            }
+    if (start && end && window.scheduleCalendarInstance) {
+        let savedDays = {};
+        if (classDaysInput && classDaysInput !== '{}') {
+            try {
+                savedDays = JSON.parse(classDaysInput);
+                const defaultSlots = {{ calendar_time_slots|default:'[]'|safe }};
+                Object.keys(savedDays).forEach(date => {
+                    // 🔥 НЕ трогаем удалённые/исключённые дни — сохраняем их состояние
+                    const day = savedDays[date];
+                    if (!day || typeof day !== 'object') return;
+                    if (day.manuallyRemoved === true) return;          // удалён пользователем
+                    if (day.scheduled === false) return;               // явно выключен
 
-            if (window.scheduleCalendarInstance) {
-                window.scheduleCalendarInstance.teacherScheduleData = { ...window.teacherScheduleData, ...window.medTeacherScheduleData };
-            }
-
-            window.scheduleCalendarInstance.generateCalendar(start, end, type || 'custom', Object.keys(savedDays).length > 0 ? savedDays : null);
-            console.log('✅ Календарь инициализирован');
+                    // Только активным дням без слотов добавляем дефолтные
+                    if (!day.slots || day.slots.length === 0) {
+                        day.slots = defaultSlots;
+                        day._useDefault = true;
+                    }
+                });
+            } catch(e) {}
         }
+
+        if (window.scheduleCalendarInstance) {
+            window.scheduleCalendarInstance.teacherScheduleData = { ...window.teacherScheduleData, ...window.medTeacherScheduleData };
+        }
+
+        window.scheduleCalendarInstance.generateCalendar(start, end, type || 'custom', Object.keys(savedDays).length > 0 ? savedDays : null);
+        console.log('✅ Календарь инициализирован');
     }
+}
 
     if (window.scheduleCalendarInstance) {
         setTimeout(initCalendar, 300);
@@ -53606,7 +54308,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 <a href="{% url 'teachers:teacher_list' %}" class="menu-item sub-item {% if request.resolver_match.app_name == 'teachers' %}active{% endif %}">
                     <span class="icon">📚</span> Преподаватели
                 </a>
-                <a href="{% url 'masters:master_list' %}" class="menu-item sub-item {% if request.resolver_match.app_name == 'masters' %}active{% endif %}">
+                <a href="{% url 'masters:master_pouts_list' %}" class="menu-item sub-item {% if request.resolver_match.app_name == 'masters' %}active{% endif %}">
                     <span class="icon">🚗</span> Мастера
                 </a>
                 <a href="{% url 'cars:car_list' %}" class="menu-item sub-item" style="menu-item sub-item {% if request.resolver_match.app_name == 'cars' %}cars{% endif %}">
@@ -53938,39 +54640,642 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
 #===========================================================
-# >>> Файл: master_list.html | Путь: templates\masters\master_list.html
+# >>> Файл: _master_row.html | Путь: templates\masters\_master_row.html
+#===========================================================
+
+<tr>
+    <td><strong>{{ master.full_name }}</strong></td>
+    <td>
+        {% if master.license_category %}
+            <div class="category-badges" title="{{ master.license_categories_display }}">
+                {% if master.license_category|length > 3 %}
+                    <span class="category-badge">{{ master.license_category|first }}</span>
+                    <span class="category-more">…</span>
+                    {% for cat in master.license_category|slice:"-2:" %}
+                    <span class="category-badge">{{ cat }}</span>
+                    {% endfor %}
+                {% else %}
+                    {% for cat in master.license_category %}
+                    <span class="category-badge">{{ cat }}</span>
+                    {% endfor %}
+                {% endif %}
+            </div>
+        {% else %}
+            <span class="category-badge-none">—</span>
+        {% endif %}
+    </td>
+    <td>
+        {% if master.is_license_valid %}
+            <span class="status-valid">{{ master.license_expiry|date:"d.m.Y" }}</span>
+        {% else %}
+            <span class="status-expired">{{ master.license_expiry|date:"d.m.Y" }}</span>
+        {% endif %}
+    </td>
+    <td>
+        {% if master.medical_cert_expiry %}
+            {% if master.is_medical_valid %}
+                <span class="status-valid">{{ master.medical_cert_expiry|date:"d.m.Y" }}</span>
+            {% else %}
+                <span class="status-expired">{{ master.medical_cert_expiry|date:"d.m.Y" }}</span>
+            {% endif %}
+        {% else %}
+            <span style="color: #94a3b8;">—</span>
+        {% endif %}
+    </td>
+    <td>{{ master.phone }}</td>
+    <td>
+        {% if master.car %}
+            {{ master.car.make }} {{ master.car.license_plate }}
+        {% else %}
+            <span style="color: #94a3b8;">—</span>
+        {% endif %}
+    </td>
+    <td style="text-align: center;">
+        <a href="{% url 'masters:master_pouts_edit' master.pk %}" class="action-btn" title="Редактировать">✏️</a>
+        <button type="button" class="action-btn" title="Удалить" onclick="showDeleteModal({{ master.pk }}, '{{ master.full_name|escapejs }}')">🗑️</button>
+    </td>
+</tr>
+
+
+#===========================================================
+# >>> Файл: master_pouts_confirm_delete.html | Путь: templates\masters\master_pouts_confirm_delete.html
 #===========================================================
 
 {% extends "base.html" %}
-{% block title %}🚗 Мастера — Автошкола{% endblock %}
+{% block title %}Удаление мастера — Автошкола{% endblock %}
+
 {% block content %}
+<div style="max-width: 500px; margin: 40px auto; background: white; border-radius: 12px; padding: 32px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+    <h2 style="color: #dc2626; margin-bottom: 16px;">⚠️ Подтверждение удаления</h2>
+    <p>Вы действительно хотите удалить мастера <strong>{{ master.full_name }}</strong>?</p>
+    <p style="color: #64748b; font-size: 14px;">Это действие нельзя отменить.</p>
+    <form method="POST" style="margin-top: 24px; display: flex; gap: 12px; justify-content: flex-end;">
+        {% csrf_token %}
+        <a href="{% url 'masters:master_pouts_list' %}" style="padding: 10px 20px; background: #e2e8f0; color: #475569; border-radius: 8px; text-decoration: none; font-weight: 600;">Отмена</a>
+        <button type="submit" style="padding: 10px 20px; background: #dc2626; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">🗑️ Удалить</button>
+    </form>
+</div>
+{% endblock %}
+
+
+#===========================================================
+# >>> Файл: master_pouts_form.html | Путь: templates\masters\master_pouts_form.html
+#===========================================================
+
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ title }} — Автошкола{% endblock %}
+
+{% block content %}
+<style>
+.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+.page-title { font-size: 32px; font-weight: 700; color: white; margin: 0; }
+.btn-back { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; background: white; color: #475569; text-decoration: none; border-radius: 8px; font-weight: 600; }
+.form-container { max-width: 900px; margin: 0 auto; }
+.form-section { background: white; border-radius: 12px; padding: 24px; margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+.section-title { font-size: 18px; font-weight: 700; color: #1e293b; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 2px solid #e2e8f0; display: flex; align-items: center; gap: 8px; }
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; }
+.form-group { display: flex; flex-direction: column; gap: 6px; }
+.form-label { font-size: 13px; font-weight: 600; color: #475569; }
+.form-input { padding: 10px 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; font-family: inherit; width: 100%; box-sizing: border-box; }
+.form-input:focus { outline: none; border-color: #3b82f6; }
+.form-hint { font-size: 11px; color: #94a3b8; }
+.form-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px; }
+.btn-save { padding: 12px 32px; background: #10b981; color: white; border: none; border-radius: 8px; font-weight: 600; font-size: 15px; cursor: pointer; }
+.btn-save:hover { background: #059669; }
+.btn-cancel { padding: 12px 32px; background: #e2e8f0; color: #475569; border: none; border-radius: 8px; font-weight: 600; font-size: 15px; cursor: pointer; text-decoration: none; }
+.errorlist { list-style: none; padding: 0; margin: 0; }
+.errorlist li { color: #dc2626; font-size: 12px; }
+    .category-checkboxes-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px;
+    padding: 12px;
+    background: #f8fafc;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+}
+
+.category-checkbox-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: white;
+    border: 2px solid #e2e8f0;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 13px;
+}
+
+.category-checkbox-item:hover {
+    border-color: #3b82f6;
+    background: #eff6ff;
+}
+
+.category-checkbox-item input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: #3b82f6;
+    cursor: pointer;
+}
+
+.category-checkbox-item input[type="checkbox"]:checked + span {
+    font-weight: 600;
+    color: #1e293b;
+}
+
+.category-checkbox-item:has(input:checked) {
+    border-color: #3b82f6;
+    background: #eff6ff;
+}
+</style>
+
 <div class="page-header">
-    <h1>🚗 Мастера</h1>
-    <div>
-        <a href="{% url 'vault:dashboard' %}" class="btn" style="margin-right: 10px; background:#e2e8f0; color:#334155;">← На главную</a>
-        <a href="{% url 'admin:masters_master_add' %}" class="btn btn-primary">+ Добавить мастера</a>
+    <h1 class="page-title">📋 {{ title }}</h1>
+    <a href="{% url 'masters:master_pouts_list' %}" class="btn-back">← Назад к списку</a>
+</div>
+
+<div class="form-container">
+    <form method="POST" novalidate>
+        {% csrf_token %}
+
+        <div class="form-section">
+            <div class="section-title"> Основные данные</div>
+            <div class="form-grid">
+                <div class="form-group">
+    <label class="form-label">Фамилия *</label>
+    {{ form.last_name }}
+    {% if form.last_name.errors %}<ul class="errorlist">{% for error in form.last_name.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+</div>
+<div class="form-group">
+    <label class="form-label">Имя *</label>
+    {{ form.first_name }}
+    {% if form.first_name.errors %}<ul class="errorlist">{% for error in form.first_name.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+</div>
+<div class="form-group">
+    <label class="form-label">Отчество</label>
+    {{ form.patronymic }}
+    {% if form.patronymic.errors %}<ul class="errorlist">{% for error in form.patronymic.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+</div>
+                <div class="form-group">
+                    <label class="form-label">№ паспорта *</label>
+                    {{ form.passport_number }}
+                    {% if form.passport_number.errors %}<ul class="errorlist">{% for error in form.passport_number.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Дата рождения *</label>
+                    {{ form.birth_date }}
+                    {% if form.birth_date.errors %}<ul class="errorlist">{% for error in form.birth_date.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <div class="section-title">🪪 Водительское удостоверение</div>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label class="form-label">№ водительского удостоверения *</label>
+                    {{ form.license_number }}
+                    {% if form.license_number.errors %}<ul class="errorlist">{% for error in form.license_number.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                </div>
+                <div class="form-group" style="grid-column: 1 / -1;">
+                    <label class="form-label">Категории *</label>
+                    <div class="category-checkboxes-grid">
+                        {% for choice in form.license_category %}
+                        <label class="category-checkbox-item">
+                            {{ choice.tag }}
+                            <span>{{ choice.choice_label }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                    {% if form.license_category.errors %}<ul class="errorlist">{% for error in form.license_category.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Срок действия ВУ *</label>
+                    {{ form.license_expiry }}
+                    {% if form.license_expiry.errors %}<ul class="errorlist">{% for error in form.license_expiry.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="form-section">
+            <div class="section-title">🏥 Медицинская справка</div>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label class="form-label">№ медицинской справки</label>
+                    {{ form.medical_cert_number }}
+                    {% if form.medical_cert_number.errors %}<ul class="errorlist">{% for error in form.medical_cert_number.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Срок действия до</label>
+                    {{ form.medical_cert_expiry }}
+                    {% if form.medical_cert_expiry.errors %}<ul class="errorlist">{% for error in form.medical_cert_expiry.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <div class="section-title">📜 Свидетельства о повышение квалификации</div>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label class="form-label">№ свидетельства</label>
+                    {{ form.qualification_cert_number }}
+                    {% if form.qualification_cert_number.errors %}<ul class="errorlist">{% for error in form.qualification_cert_number.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Срок действия до</label>
+                    {{ form.qualification_cert_expiry }}
+                    {% if form.qualification_cert_expiry.errors %}<ul class="errorlist">{% for error in form.qualification_cert_expiry.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <div class="section-title">📞 Контакты и автомобиль</div>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label class="form-label">Номер телефона *</label>
+                    {{ form.phone }}
+                    <span class="form-hint">Формат: +375 (XX) XXX-XX-XX</span>
+                    {% if form.phone.errors %}<ul class="errorlist">{% for error in form.phone.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                </div>
+                <div class="form-group">
+                    <label class="form-label">№ топливной карты *</label>
+                    {{ form.fuel_card_number }}
+                    <span class="form-hint">Ровно 9 цифр</span>
+                    {% if form.fuel_card_number.errors %}<ul class="errorlist">{% for error in form.fuel_card_number.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Закреплённый автомобиль</label>
+                    {{ form.car }}
+                    {% if form.car.errors %}<ul class="errorlist">{% for error in form.car.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <a href="{% url 'masters:master_pouts_list' %}" class="btn-cancel">Отмена</a>
+            <button type="submit" class="btn-save">💾 Сохранить</button>
+        </div>
+    </form>
+</div>
+
+<!-- 🔹 Скрипты масок -->
+<script src="{% static 'js/date-mask.js' %}"></script>
+<script src="{% static 'js/phone-mask.js' %}"></script>
+
+<!-- 🔹 Принудительная инициализация масок на этой странице -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 1. Маска дат — принудительно применяем ко всем полям с датами
+    const dateFieldNames = [
+        'birth_date',
+        'license_expiry',
+        'medical_cert_expiry',
+        'qualification_cert_expiry'
+    ];
+
+    dateFieldNames.forEach(function(fieldName) {
+        const input = document.querySelector('input[name="' + fieldName + '"]');
+        if (input) {
+            // Гарантированно добавляем атрибут
+            input.setAttribute('data-date-input', 'true');
+            input.type = 'text';
+            input.placeholder = 'дд.мм.гггг';
+            input.setAttribute('autocomplete', 'off');
+            input.setAttribute('inputmode', 'numeric');
+
+            // Если маска ещё не применена — применяем вручную
+            if (!input.dataset.maskApplied) {
+                input.dataset.maskApplied = '1';
+
+                // Преобразуем YYYY-MM-DD в DD.MM.YYYY при загрузке
+                let val = input.value.trim();
+                if (val && /^\d{4}-\d{2}-\d{2}$/.test(val)) {
+                    const [y, m, d] = val.split('-');
+                    input.value = d + '.' + m + '.' + y;
+                }
+
+                // Блокировка не-цифр
+                input.addEventListener('keydown', function(e) {
+                    const allowed = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab', 'Home', 'End'];
+                    if (allowed.includes(e.key)) return;
+                    if (!/^\d$/.test(e.key) && e.key !== '.' && e.key !== '/') {
+                        e.preventDefault();
+                    }
+                });
+
+                // Автомаска при вводе
+                input.addEventListener('input', function(e) {
+                    let raw = e.target.value.replace(/\D/g, '').slice(0, 8);
+                    let formatted = '';
+                    if (raw.length > 0) formatted += raw.slice(0, 2);
+                    if (raw.length > 2) formatted += '.' + raw.slice(2, 4);
+                    if (raw.length > 4) formatted += '.' + raw.slice(4, 8);
+                    if (e.target.value !== formatted) {
+                        e.target.value = formatted;
+                    }
+                });
+
+                // Нормализация года при потере фокуса
+                input.addEventListener('blur', function(e) {
+                    const parts = e.target.value.trim().split('.');
+                    if (parts.length === 3 && parts[2].length === 2) {
+                        let year = parseInt(parts[2], 10);
+                        year = (year >= 70 && year <= 99) ? year + 1900 : year + 2000;
+                        e.target.value = parts[0] + '.' + parts[1] + '.' + year;
+                    }
+                });
+            }
+        }
+    });
+
+    // 2. Маска телефона — принудительно
+    const phoneInput = document.querySelector('input[name="phone"]');
+    if (phoneInput) {
+        phoneInput.setAttribute('data-phone-input', 'true');
+        phoneInput.setAttribute('autocomplete', 'off');
+
+        if (!phoneInput.dataset.phoneMaskApplied) {
+            phoneInput.dataset.phoneMaskApplied = '1';
+
+            phoneInput.addEventListener('input', function(e) {
+                let value = e.target.value.replace(/\D/g, '');
+
+                // Если начинается с 375, оставляем
+                if (value.startsWith('375')) {
+                    value = value.slice(0, 12);
+                } else if (value.startsWith('8')) {
+                    value = '375' + value.slice(1, 10);
+                } else {
+                    value = '375' + value.slice(0, 9);
+                }
+
+                let formatted = '+375';
+                if (value.length > 3) formatted += ' (' + value.slice(3, 5);
+                if (value.length > 5) formatted += ') ' + value.slice(5, 8);
+                if (value.length > 8) formatted += '-' + value.slice(8, 10);
+                if (value.length > 10) formatted += '-' + value.slice(10, 12);
+
+                if (e.target.value !== formatted) {
+                    e.target.value = formatted;
+                }
+            });
+
+            phoneInput.addEventListener('focus', function(e) {
+                if (!e.target.value) e.target.value = '+375 (';
+            });
+
+            phoneInput.addEventListener('blur', function(e) {
+                if (e.target.value === '+375 (') e.target.value = '';
+            });
+        }
+    }
+
+    // 3. Маска для топливной карты (только 9 цифр)
+    const fuelInput = document.querySelector('input[name="fuel_card_number"]');
+    if (fuelInput) {
+        fuelInput.setAttribute('inputmode', 'numeric');
+        fuelInput.setAttribute('maxlength', '9');
+
+        fuelInput.addEventListener('input', function(e) {
+            e.target.value = e.target.value.replace(/\D/g, '').slice(0, 9);
+        });
+    }
+});
+</script>
+{% endblock %}
+
+
+#===========================================================
+# >>> Файл: master_pouts_list.html | Путь: templates\masters\master_pouts_list.html
+#===========================================================
+
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ title }} — Автошкола{% endblock %}
+
+{% block content %}
+<style>
+.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 16px; }
+.page-title { font-size: 32px; font-weight: 700; color: white; margin: 0; display: flex; align-items: center; gap: 12px; }
+.header-buttons { display: flex; gap: 12px; }
+.btn-home, .btn-add, .btn-back { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 8px; font-weight: 600; text-decoration: none; transition: all 0.2s; border: none; cursor: pointer; }
+.btn-home { background: white; color: #475569; }
+.btn-home:hover { background: #f1f5f9; }
+.btn-add { background: #3b82f6; color: white; }
+.btn-add:hover { background: #2563eb; }
+.btn-back { background: white; color: #475569; }
+.search-card, .table-card { background: white; border-radius: 12px; padding: 20px; margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+.search-form { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.search-input { flex: 1; min-width: 250px; padding: 10px 14px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; }
+.search-input:focus { outline: none; border-color: #3b82f6; }
+.btn-search { padding: 10px 20px; background: #3b82f6; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; }
+.btn-reset { padding: 10px 20px; background: #e2e8f0; color: #475569; border: none; border-radius: 8px; font-weight: 600; text-decoration: none; }
+.data-table { width: 100%; border-collapse: collapse; }
+.data-table th { background: #f8fafc; padding: 14px 16px; text-align: left; font-weight: 600; color: #475569; font-size: 13px; border-bottom: 2px solid #e2e8f0; }
+.data-table td { padding: 14px 16px; border-bottom: 1px solid #f1f5f9; font-size: 14px; vertical-align: middle; }
+.data-table tr:hover { background: #f8fafc; }
+.status-valid { color: #16a34a; font-weight: 500; }
+.status-expired { color: #dc2626; font-weight: 500; }
+.action-btn { background: none; border: none; cursor: pointer; padding: 6px 10px; border-radius: 6px; font-size: 16px; text-decoration: none; }
+.action-btn:hover { background: #f1f5f9; }
+.empty-state { text-align: center; padding: 40px; color: #94a3b8; }
+
+/* 🔹 Стили для бейджей категорий */
+.category-badges {
+    display: flex;
+    gap: 4px;
+    flex-wrap: nowrap;
+    align-items: center;
+    white-space: nowrap;
+}
+.category-badge {
+    background: #3b82f6;
+    color: white;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.category-more {
+    color: #64748b;
+    font-weight: 700;
+    font-size: 14px;
+    padding: 0 2px;
+    flex-shrink: 0;
+}
+.category-badge-none { color: #94a3b8; font-style: italic; }
+
+/* 🔹 Стили подсказок живого поиска */
+.suggestion-item:hover { background: #f1f5f9; }
+</style>
+
+<div class="page-header">
+    <h1 class="page-title">🚗 {{ title }}</h1>
+    <div class="header-buttons">
+        <a href="{% url 'vault:dashboard' %}" class="btn-home">← На главную</a>
+        <a href="{% url 'masters:master_pouts_add' %}" class="btn-add">+ Добавить мастера</a>
     </div>
 </div>
-<div class="data-table">
-    <table>
+
+<div class="search-card" style="position: relative;">
+    <div style="font-size: 14px; font-weight: 600; color: #475569; margin-bottom: 12px;">🔍 Живой поиск по ФИО или телефону</div>
+    <div style="display: flex; gap: 12px; align-items: center;">
+        <input type="text"
+               data-live-search="true"
+               data-target="masters-tbody"
+               data-api-url="{% url 'masters:master_pouts_search_api' %}"
+               class="search-input"
+               id="search-input"
+               placeholder="Начните вводить фамилию..."
+               autocomplete="off">
+        <a href="{% url 'masters:master_pouts_list' %}" class="btn-reset">✕ Сброс</a>
+    </div>
+    <div id="search-suggestions" style="
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 20px;
+        right: 20px;
+        background: white;
+        border: 2px solid #e2e8f0;
+        border-radius: 8px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+        z-index: 100;
+        max-height: 300px;
+        overflow-y: auto;
+        margin-top: 4px;
+    "></div>
+</div>
+
+<div class="table-card">
+    <table class="data-table">
         <thead>
-            <tr><th>ФИО</th><th>Телефон</th><th>ВУ (категории)</th><th>Действует до</th><th>Время работы</th></tr>
-        </thead>
-        <tbody>
-            {% for m in masters %}
             <tr>
-                <td><strong>{{ m.last_name }} {{ m.first_name }}</strong>{% if m.patronymic %}<br><small style="color:#94a3b8">{{ m.patronymic }}</small>{% endif %}</td>
-                <td>{{ m.phone|default:"—" }}</td>
-                <td>{{ m.license_number|default:"—" }} {% if m.license_categories.exists %}({{ m.license_categories.all|join:", " }}){% endif %}</td>
-                <td>{% if m.license_expiry %}{{ m.license_expiry|date:"d.m.Y" }}{% else %}—{% endif %}</td>
-                <td>{% if m.work_time_start and m.work_time_end %}{{ m.work_time_start|date:"H:i" }} - {{ m.work_time_end|date:"H:i" }}{% else %}—{% endif %}</td>
+                <th>ФИО</th>
+                <th>Категории</th>
+                <th>ВУ до</th>
+                <th>Мед. справка до</th>
+                <th>Телефон</th>
+                <th>Автомобиль</th>
+                <th style="width: 100px; text-align: center;">Действия</th>
+            </tr>
+        </thead>
+        <!-- ✅ Добавлен id="masters-tbody" и data-empty-colspan для живого поиска -->
+        <tbody id="masters-tbody" data-empty-colspan="7">
+            {% for master in masters %}
+            <tr>
+                <!-- ✅ Исправлено <<td> на <td> -->
+                <td>
+                    <strong>{{ master.last_name }} {{ master.first_name }}</strong>
+                    {% if master.patronymic %}<br><small style="color:#94a3b8">{{ master.patronymic }}</small>{% endif %}
+                </td>
+
+                <!-- 🔹 Категории (первая + … + две последние, в одну строку) -->
+                <td>
+                    {% if master.license_category %}
+                        <div class="category-badges" title="{{ master.license_categories_display }}">
+                            {% if master.license_category|length > 3 %}
+                                <span class="category-badge">{{ master.license_category|first }}</span>
+                                <span class="category-more">…</span>
+                                {% for cat in master.license_category|slice:"-2:" %}
+                                <span class="category-badge">{{ cat }}</span>
+                                {% endfor %}
+                            {% else %}
+                                {% for cat in master.license_category %}
+                                <span class="category-badge">{{ cat }}</span>
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+                    {% else %}
+                        <span class="category-badge-none">—</span>
+                    {% endif %}
+                </td>
+
+                <td>
+                    {% if master.is_license_valid %}
+                        <span class="status-valid">{{ master.license_expiry|date:"d.m.Y" }}</span>
+                    {% else %}
+                        <span class="status-expired">{{ master.license_expiry|date:"d.m.Y" }}</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if master.medical_cert_expiry %}
+                        {% if master.is_medical_valid %}
+                            <span class="status-valid">{{ master.medical_cert_expiry|date:"d.m.Y" }}</span>
+                        {% else %}
+                            <span class="status-expired">{{ master.medical_cert_expiry|date:"d.m.Y" }}</span>
+                        {% endif %}
+                    {% else %}
+                        <span style="color: #94a3b8;">—</span>
+                    {% endif %}
+                </td>
+                <td>{{ master.phone }}</td>
+                <td>
+                    {% if master.car %}
+                        {{ master.car.make }} {{ master.car.license_plate }}
+                    {% else %}
+                        <span style="color: #94a3b8;">—</span>
+                    {% endif %}
+                </td>
+                <td style="text-align: center;">
+                    <a href="{% url 'masters:master_pouts_edit' master.pk %}" class="action-btn" title="Редактировать">✏️</a>
+                    <button type="button" class="action-btn" title="Удалить" onclick="showDeleteModal({{ master.pk }}, '{{ master.full_name|escapejs }}')">🗑️</button>
+                </td>
             </tr>
             {% empty %}
-            <tr><td colspan="5" class="empty-state">📭 Мастера не найдены.</td></tr>
+            <tr>
+                <td colspan="7" class="empty-state">🚗 Мастера не добавлены</td>
+            </tr>
             {% endfor %}
         </tbody>
     </table>
 </div>
+
+<!-- 🔹 Модальное окно удаления -->
+<div id="deleteModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); z-index: 9999; justify-content: center; align-items: center;">
+    <div style="background: white; border-radius: 16px; max-width: 480px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); overflow: hidden;">
+        <div style="background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%); color: white; padding: 20px 24px; display: flex; justify-content: space-between; align-items: center;">
+            <h5 style="margin: 0; font-size: 18px;">⚠️ Подтверждение удаления</h5>
+            <button onclick="closeDeleteModal()" style="background: rgba(255,255,255,0.2); border: none; color: white; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 18px;">✕</button>
+        </div>
+        <div style="padding: 24px;">
+            <p style="margin: 0 0 16px 0;">Вы действительно хотите удалить мастера:</p>
+            <div style="background: #f8fafc; border-left: 4px solid #3b82f6; padding: 12px 16px; border-radius: 6px; margin-bottom: 16px;">
+                <p style="margin: 0; font-weight: 700; font-size: 16px;" id="deleteMasterName"></p>
+            </div>
+            <div style="background: #fef3c7; border: 1px solid #fbbf24; border-radius: 8px; padding: 12px 16px; font-size: 13px; color: #92400e;">
+                ⚠️ Это действие <strong>нельзя отменить</strong>.
+            </div>
+        </div>
+        <div style="padding: 16px 24px; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; gap: 12px; justify-content: flex-end;">
+            <button onclick="closeDeleteModal()" style="padding: 10px 20px; background: white; color: #475569; border: 2px solid #e2e8f0; border-radius: 8px; font-weight: 600; cursor: pointer;">Отмена</button>
+            <form id="deleteForm" method="POST" style="display: inline;">
+                {% csrf_token %}
+                <button type="submit" style="padding: 10px 20px; background: #dc2626; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">🗑️ Удалить</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ✅ Подключаем скрипт живого поиска -->
+<script src="{% static 'js/live_search.js' %}"></script>
+
+<script>
+function showDeleteModal(masterId, masterName) {
+    document.getElementById('deleteMasterName').textContent = masterName;
+    document.getElementById('deleteForm').action = '/masters/' + masterId + '/delete/';
+    const modal = document.getElementById('deleteModal');
+    modal.style.display = 'flex';
+    modal.onclick = function(event) { if (event.target === modal) closeDeleteModal(); };
+}
+function closeDeleteModal() { document.getElementById('deleteModal').style.display = 'none'; }
+document.addEventListener('keydown', function(event) { if (event.key === 'Escape') closeDeleteModal(); });
+</script>
 {% endblock %}
 
 
@@ -58437,9 +59742,9 @@ document.addEventListener('keydown', function(e) {
 </div>
 
 <!-- 🔹 Маска даты для поля приказа (если нужна) -->
-{% if not debug %}
+
 <script src="{% static 'js/date-mask.js' %}" defer></script>
-{% endif %}
+
 {% endblock %}
 
 
@@ -58604,11 +59909,11 @@ document.addEventListener('keydown', function(e) {
                 </div>
                 <div class="form-group">
                     <label>Телефон *</label>
-                    <input type="tel" name="phone" required value="{{ student.phone|default:'' }}" id="id_phone" data-phone-mask="true" placeholder="+375 (29) 123-45-67">
+                    <input type="tel" name="phone" required value="{{ student.phone|default:'' }}" id="id_phone" data-phone-input="true" placeholder="+375 (29) 123-45-67">
                 </div>
                 <div class="form-group">
                     <label>Дата рождения</label>
-                    <input type="text" name="birth_date" value="{% if student.birth_date %}{{ student.birth_date|date:'d.m.Y' }}{% endif %}" placeholder="дд.мм.гггг" class="ru-date-input">
+                    <input type="text" name="birth_date" value="{% if student.birth_date %}{{ student.birth_date|date:'d.m.Y' }}{% endif %}" placeholder="дд.мм.гггг" class="ru-date-input" data-date-input="true">
                 </div>
                 <div class="form-group full-width">
                     <label>Место рождения</label>
@@ -58695,8 +60000,8 @@ document.addEventListener('keydown', function(e) {
                 <div class="form-group">
                     <label>Дата зачисления</label>
                     <input type="text" name="enrolled_date"
-                           value="{% if student.enrolled_date %}{{ student.enrolled_date|date:'d.m.Y' }}{% else %}{{ today|date:'d.m.Y' }}{% endif %}"
-                           class="ru-date-input">
+                       value="{% if student.enrolled_date %}{{ student.enrolled_date|date:'d.m.Y' }}{% else %}{{ today|date:'d.m.Y' }}{% endif %}"
+                       class="ru-date-input" data-date-input="true">
                 </div>
             </div>
         </div>
@@ -58710,10 +60015,10 @@ document.addEventListener('keydown', function(e) {
 </div>
 
 <!-- 🔹 Подключение скриптов масок -->
-{% if not debug %}
+
 <script src="{% static 'js/date-mask.js' %}" defer></script>
 <script src="{% static 'js/phone-mask.js' %}" defer></script>
-{% endif %}
+
 {% endblock %}
 
 
@@ -59439,6 +60744,196 @@ document.querySelector('form').addEventListener('submit', function(e) {
 
 
 #===========================================================
+# >>> Файл: _teacher_row.html | Путь: templates\teachers\_teacher_row.html
+#===========================================================
+
+<tr>
+    <td><strong>{{ forloop.counter }}</strong></td>
+    <td>
+        <strong>{{ t.last_name }} {{ t.first_name }}</strong>
+        {% if t.patronymic %}<br><small style="color:#94a3b8">{{ t.patronymic }}</small>{% endif %}
+    </td>
+    <td>{{ t.phone }}</td>
+    <td>
+        {% if t.teaches_truck %}<span class="badge badge-truck">🚛 Грузовой</span>{% endif %}
+        {% if t.teaches_car %}<span class="badge badge-car">🚗 Легковой</span>{% endif %}
+        {% if not t.teaches_truck and not t.teaches_car %}<span class="none">—</span>{% endif %}
+    </td>
+    <td style="text-align: center;">
+        <span class="schedule-icons">
+            {% if t.schedule_morning %}🌅{% endif %}{% if t.schedule_evening %}🌆{% endif %}{% if t.schedule_weekend %}📅{% endif %}
+        </span>
+        {% if not t.schedule_morning and not t.schedule_evening and not t.schedule_weekend %}<span class="none">—</span>{% endif %}
+    </td>
+    <td style="text-align: center; white-space: nowrap;">
+        <div style="display: flex; gap: 4px; justify-content: center; align-items: center;">
+            <a href="{% url 'teachers:teacher_edit' t.pk %}" class="action-btn edit" title="Редактировать">✏️</a>
+            <button type="button" class="action-btn delete" title="Удалить" onclick="showDeleteModal({{ t.pk }}, '{{ t.last_name|escapejs }} {{ t.first_name|escapejs }}')">🗑️</button>
+        </div>
+    </td>
+</tr>
+
+
+#===========================================================
+# >>> Файл: teacher_form.html | Путь: templates\teachers\teacher_form.html
+#===========================================================
+
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ title }} — Автошкола{% endblock %}
+
+{% block content %}
+<style>
+.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+.page-title { font-size: 32px; font-weight: 700; color: white; margin: 0; }
+.btn-back { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; background: white; color: #475569; text-decoration: none; border-radius: 8px; font-weight: 600; }
+.btn-back:hover { background: #f1f5f9; }
+.form-container { max-width: 900px; margin: 0 auto; }
+.form-section { background: white; border-radius: 12px; padding: 24px; margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+.section-title { font-size: 18px; font-weight: 700; color: #1e293b; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 2px solid #e2e8f0; display: flex; align-items: center; gap: 8px; }
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; }
+.form-group { display: flex; flex-direction: column; gap: 6px; }
+.form-label { font-size: 13px; font-weight: 600; color: #475569; }
+.form-input { padding: 10px 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; font-family: inherit; width: 100%; box-sizing: border-box; }
+.form-input:focus { outline: none; border-color: #3b82f6; }
+.form-hint { font-size: 11px; color: #94a3b8; }
+.form-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px; }
+.btn-save { padding: 12px 32px; background: #10b981; color: white; border: none; border-radius: 8px; font-weight: 600; font-size: 15px; cursor: pointer; }
+.btn-save:hover { background: #059669; }
+.btn-cancel { padding: 12px 32px; background: #e2e8f0; color: #475569; border: none; border-radius: 8px; font-weight: 600; font-size: 15px; cursor: pointer; text-decoration: none; }
+.errorlist { list-style: none; padding: 0; margin: 0; }
+.errorlist li { color: #dc2626; font-size: 12px; }
+
+/* 🔹 Карточки-чекбоксы */
+.checkbox-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.checkbox-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: #f8fafc;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 14px;
+    font-weight: 500;
+}
+.checkbox-item:hover { border-color: #3b82f6; background: #eff6ff; }
+.checkbox-item input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: #3b82f6;
+    cursor: pointer;
+    margin: 0;
+    flex-shrink: 0;
+}
+.checkbox-item:has(input:checked) {
+    border-color: #3b82f6;
+    background: #eff6ff;
+    color: #1e293b;
+    font-weight: 600;
+}
+</style>
+
+<div class="page-header">
+    <h1 class="page-title">📚 {{ title }}</h1>
+    <a href="{% url 'teachers:teacher_list' %}" class="btn-back">← Назад к списку</a>
+</div>
+
+<div class="form-container">
+    <form method="POST" novalidate>
+        {% csrf_token %}
+
+        <!-- 🔹 Личные данные -->
+        <div class="form-section">
+            <div class="section-title">👤 Личные данные</div>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label class="form-label">Фамилия *</label>
+                    {{ form.last_name }}
+                    {% if form.last_name.errors %}<ul class="errorlist">{% for error in form.last_name.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Имя *</label>
+                    {{ form.first_name }}
+                    {% if form.first_name.errors %}<ul class="errorlist">{% for error in form.first_name.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Отчество</label>
+                    {{ form.patronymic }}
+                    {% if form.patronymic.errors %}<ul class="errorlist">{% for error in form.patronymic.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Телефон *</label>
+                    {{ form.phone }}
+                    <span class="form-hint">Формат: +375 (29) 123-45-67</span>
+                    {% if form.phone.errors %}<ul class="errorlist">{% for error in form.phone.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- 🔹 Тип договора -->
+        <div class="form-section">
+            <div class="section-title">📄 Тип договора</div>
+            <div class="checkbox-grid">
+                <label class="checkbox-item">
+                    {{ form.contract_main }}
+                    <span>💼 По основному договору</span>
+                </label>
+                <label class="checkbox-item">
+                    {{ form.contract_part_time }}
+                    <span>📋 По договору совмещения</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- 🔹 Тип транспорта -->
+        <div class="form-section">
+            <div class="section-title">🚗 Тип транспорта</div>
+            <div class="checkbox-grid">
+                <label class="checkbox-item">
+                    {{ form.teaches_truck }}
+                    <span>🚛 Грузовой</span>
+                </label>
+                <label class="checkbox-item">
+                    {{ form.teaches_car }}
+                    <span>🚗 Легковой</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- 🔹 График работы -->
+        <div class="form-section">
+            <div class="section-title">🕐 График работы</div>
+            <div class="checkbox-grid">
+                <label class="checkbox-item">
+                    {{ form.schedule_morning }}
+                    <span>🌅 Утро</span>
+                </label>
+                <label class="checkbox-item">
+                    {{ form.schedule_evening }}
+                    <span>🌆 Вечер</span>
+                </label>
+                <label class="checkbox-item">
+                    {{ form.schedule_weekend }}
+                    <span>📅 Выходной</span>
+                </label>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <a href="{% url 'teachers:teacher_list' %}" class="btn-cancel">Отмена</a>
+            <button type="submit" class="btn-save">💾 Сохранить</button>
+        </div>
+    </form>
+</div>
+
+<script src="{% static 'js/phone-mask.js' %}"></script>
+{% endblock %}
+
+
+#===========================================================
 # >>> Файл: teacher_list.html | Путь: templates\teachers\teacher_list.html
 #===========================================================
 
@@ -59448,46 +60943,140 @@ document.querySelector('form').addEventListener('submit', function(e) {
 
 {% block extra_js %}
 <script src="{% static 'js/phone-mask.js' %}" defer></script>
+<script src="{% static 'js/live_search.js' %}"></script>
 {% endblock %}
 
 {% block content %}
+<style>
+.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 16px; }
+.page-title { font-size: 32px; font-weight: 700; color: white; margin: 0; display: flex; align-items: center; gap: 12px; }
+.header-buttons { display: flex; gap: 12px; }
+.btn-home, .btn-add { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 8px; font-weight: 600; text-decoration: none; transition: all 0.2s; border: none; cursor: pointer; }
+.btn-home { background: white; color: #475569; }
+.btn-home:hover { background: #f1f5f9; }
+.btn-add { background: #3b82f6; color: white; }
+.btn-add:hover { background: #2563eb; }
+
+.search-card, .table-card { background: white; border-radius: 12px; padding: 20px; margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+.filter-title { font-size: 14px; font-weight: 600; color: #475569; margin-bottom: 12px; }
+.filter-form { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.search-input { flex: 1; min-width: 220px; padding: 10px 14px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; }
+.search-input:focus { outline: none; border-color: #3b82f6; }
+.filter-group { display: flex; gap: 12px; align-items: center; background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 8px; padding: 8px 14px; }
+.filter-group strong { font-size: 13px; color: #475569; }
+.filter-label { display: flex; gap: 6px; align-items: center; font-size: 14px; cursor: pointer; }
+.filter-label input { width: 16px; height: 16px; accent-color: #3b82f6; cursor: pointer; margin: 0; }
+.btn-search { padding: 10px 20px; background: #3b82f6; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; }
+.btn-search:hover { background: #2563eb; }
+.btn-reset { padding: 10px 20px; background: #e2e8f0; color: #475569; border: none; border-radius: 8px; font-weight: 600; text-decoration: none; }
+.btn-reset:hover { background: #cbd5e1; }
+
+.data-table { width: 100%; border-collapse: collapse; }
+.data-table th { background: #f8fafc; padding: 14px 16px; text-align: left; font-weight: 600; color: #475569; font-size: 13px; border-bottom: 2px solid #e2e8f0; }
+.data-table td { padding: 14px 16px; border-bottom: 1px solid #f1f5f9; font-size: 14px; vertical-align: middle; }
+.data-table tr:hover { background: #f8fafc; }
+.data-table tr:last-child td { border-bottom: none; }
+.empty-state { text-align: center; padding: 40px; color: #94a3b8; font-size: 15px; }
+
+.badge { display: inline-block; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; white-space: nowrap; margin-right: 4px; }
+.badge-truck { background: #fef3c7; color: #92400e; }
+.badge-car { background: #dbeafe; color: #1d4ed8; }
+.schedule-icons { font-size: 15px; letter-spacing: 2px; }
+.none { color: #94a3b8; }
+
+.action-btn { background: none; border: none; cursor: pointer; padding: 4px 6px; border-radius: 4px; font-size: 14px; transition: all 0.2s; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; }
+.action-btn:hover { background: #f1f5f9; }
+.action-btn.edit:hover { background: #fef3c7; }
+.action-btn.delete:hover { background: #fee2e2; }
+
+.suggestion-item:hover { background: #f1f5f9; }
+</style>
+
+<!-- 🔹 ЗАГОЛОВОК -->
 <div class="page-header">
-    <h1>📚 Преподаватели</h1>
-    <div>
-        <a href="{% url 'vault:dashboard' %}" class="btn" style="margin-right: 10px; background:#e2e8f0; color:#334155;">← На главную</a>
-        <a href="{% url 'admin:teachers_teacher_add' %}" class="btn btn-primary">+ Добавить</a>
+    <h1 class="page-title">📚 Преподаватели</h1>
+    <div class="header-buttons">
+        <a href="{% url 'vault:dashboard' %}" class="btn-home">← На главную</a>
+        <a href="{% url 'teachers:teacher_add' %}" class="btn-add">+ Добавить преподавателя</a>
     </div>
 </div>
 
-<!-- Фильтры -->
-<form method="get" style="display:flex;gap:15px;margin-bottom:20px;flex-wrap:wrap;align-items:center;">
-    <div style="display:flex;gap:8px;align-items:center;background:white;padding:8px 15px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.05);">
-        <strong>🚗 Тип:</strong>
-        <label><input type="checkbox" name="vehicle" value="truck" {% if active_vehicle == 'truck' %}checked{% endif %}> 🚛</label>
-        <label><input type="checkbox" name="vehicle" value="car" {% if active_vehicle == 'car' %}checked{% endif %}> 🚗</label>
+<!-- 🔹 ПОИСК -->
+<div class="search-card" style="position: relative;">
+    <div class="filter-title">🔍 Живой поиск по ФИО или телефону</div>
+    <div style="display: flex; gap: 12px; align-items: center;">
+        <input type="text"
+               data-live-search="true"
+               data-target="teachers-tbody"
+               data-api-url="{% url 'teachers:teacher_search_api' %}"
+               class="search-input"
+               id="search-input"
+               placeholder="Начните вводить фамилию..."
+               autocomplete="off">
+        <a href="{% url 'teachers:teacher_list' %}" class="btn-reset">✕ Сброс</a>
     </div>
-    <div style="display:flex;gap:8px;align-items:center;background:white;padding:8px 15px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.05);">
-        <strong>🕐 График:</strong>
-        <label><input type="checkbox" name="schedule" value="morning" {% if active_schedule == 'morning' %}checked{% endif %}> 🌅</label>
-        <label><input type="checkbox" name="schedule" value="evening" {% if active_schedule == 'evening' %}checked{% endif %}> 🌆</label>
-        <label><input type="checkbox" name="schedule" value="weekend" {% if active_schedule == 'weekend' %}checked{% endif %}> 📅</label>
-    </div>
-    <button type="submit" class="btn btn-primary" style="padding:6px 12px;font-size:13px;">Применить</button>
-    <a href="?" class="btn" style="padding:6px 12px;font-size:13px;background:#94a3b8;color:white;">Сбросить</a>
-</form>
+    <div id="search-suggestions" style="
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 20px;
+        right: 20px;
+        background: white;
+        border: 2px solid #e2e8f0;
+        border-radius: 8px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+        z-index: 100;
+        max-height: 300px;
+        overflow-y: auto;
+        margin-top: 4px;
+    "></div>
+</div>
 
-<div class="data-table">
-    <table>
+<!-- 🔹 ФИЛЬТРЫ (отдельная карточка) -->
+<div class="search-card">
+    <div class="filter-title">🎛️ Фильтры по типу и графику</div>
+    <form method="get" class="filter-form" id="teacherFilterForm">
+        <div class="filter-group">
+            <strong>🚗 Тип:</strong>
+            <label class="filter-label">
+                <input type="checkbox" name="vehicle" value="truck" {% if active_vehicle == 'truck' %}checked{% endif %}> 🚛
+            </label>
+            <label class="filter-label">
+                <input type="checkbox" name="vehicle" value="car" {% if active_vehicle == 'car' %}checked{% endif %}> 🚗
+            </label>
+        </div>
+        <div class="filter-group">
+            <strong>🕐 График:</strong>
+            <label class="filter-label">
+                <input type="checkbox" name="schedule" value="morning" {% if active_schedule == 'morning' %}checked{% endif %}> 🌅
+            </label>
+            <label class="filter-label">
+                <input type="checkbox" name="schedule" value="evening" {% if active_schedule == 'evening' %}checked{% endif %}> 🌆
+            </label>
+            <label class="filter-label">
+                <input type="checkbox" name="schedule" value="weekend" {% if active_schedule == 'weekend' %}checked{% endif %}> 📅
+            </label>
+        </div>
+        <button type="submit" class="btn-search">🔍 Применить</button>
+        <a href="?" class="btn-reset">✕ Сбросить</a>
+    </form>
+</div>
+
+<!-- 🔹 ТАБЛИЦА -->
+<div class="table-card">
+    <table class="data-table">
         <thead>
             <tr>
-                <th>№</th>
+                <th style="width: 40px;">№</th>
                 <th>ФИО</th>
                 <th>Телефон</th>
                 <th>Тип</th>
-                <th>График</th>
+                <th style="text-align: center;">График</th>
+                <th style="width: 100px; text-align: center;">Действия</th>
             </tr>
         </thead>
-        <tbody>
+        <!-- ✅ Добавлен id и data-empty-colspan для живого поиска -->
+        <tbody id="teachers-tbody" data-empty-colspan="6">
             {% for t in teachers %}
             <tr>
                 <td><strong>{{ forloop.counter }}</strong></td>
@@ -59497,28 +61086,68 @@ document.querySelector('form').addEventListener('submit', function(e) {
                 </td>
                 <td>{{ t.phone }}</td>
                 <td>
-                    {% if t.teaches_truck %}<span style="display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:500;background:#e0f2fe;color:#0369a1;margin-right:4px;">🚛 Грузовой</span>{% endif %}
-                    {% if t.teaches_car %}<span style="display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:500;background:#e0f2fe;color:#0369a1;margin-right:4px;">🚗 Легковой</span>{% endif %}
-                    {% if not t.teaches_truck and not t.teaches_car %}—{% endif %}
+                    {% if t.teaches_truck %}<span class="badge badge-truck">🚛 Грузовой</span>{% endif %}
+                    {% if t.teaches_car %}<span class="badge badge-car">🚗 Легковой</span>{% endif %}
+                    {% if not t.teaches_truck and not t.teaches_car %}<span class="none">—</span>{% endif %}
                 </td>
-                <td style="text-align:center;font-size:14px;">
-                    {% if t.schedule_morning %}🌅{% endif %}{% if t.schedule_evening %}🌆{% endif %}{% if t.schedule_weekend %}📅{% endif %}
-                    {% if not t.schedule_morning and not t.schedule_evening and not t.schedule_weekend %}—{% endif %}
+                <td style="text-align: center;">
+                    <span class="schedule-icons">
+                        {% if t.schedule_morning %}🌅{% endif %}{% if t.schedule_evening %}🌆{% endif %}{% if t.schedule_weekend %}📅{% endif %}
+                    </span>
+                    {% if not t.schedule_morning and not t.schedule_evening and not t.schedule_weekend %}<span class="none">—</span>{% endif %}
+                </td>
+                <td style="text-align: center; white-space: nowrap;">
+                    <div style="display: flex; gap: 4px; justify-content: center; align-items: center;">
+                        <a href="{% url 'teachers:teacher_edit' t.pk %}" class="action-btn edit" title="Редактировать">✏️</a>
+                        <button type="button" class="action-btn delete" title="Удалить" onclick="showDeleteModal({{ t.pk }}, '{{ t.last_name|escapejs }} {{ t.first_name|escapejs }}')">🗑️</button>
+                    </div>
                 </td>
             </tr>
             {% empty %}
-            <tr><td colspan="5" class="empty-state">📭 Преподаватели не найдены.</td></tr>
+            <tr>
+                <td colspan="6" class="empty-state">📭 Преподаватели не найдены.</td>
+            </tr>
             {% endfor %}
         </tbody>
     </table>
 </div>
 
+<!-- 🔹 Модальное окно удаления -->
+<div id="deleteModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); z-index: 9999; justify-content: center; align-items: center;">
+    <div style="background: white; border-radius: 16px; max-width: 480px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); overflow: hidden;">
+        <div style="background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%); color: white; padding: 20px 24px; display: flex; justify-content: space-between; align-items: center;">
+            <h5 style="margin: 0; font-size: 18px;">⚠️ Подтверждение удаления</h5>
+            <button onclick="closeDeleteModal()" style="background: rgba(255,255,255,0.2); border: none; color: white; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 18px;">✕</button>
+        </div>
+        <div style="padding: 24px;">
+            <p style="margin: 0 0 16px 0;">Вы действительно хотите удалить преподавателя:</p>
+            <div style="background: #f8fafc; border-left: 4px solid #3b82f6; padding: 12px 16px; border-radius: 6px; margin-bottom: 16px;">
+                <p style="margin: 0; font-weight: 700; font-size: 16px;" id="deleteTeacherName"></p>
+            </div>
+            <div style="background: #fef3c7; border: 1px solid #fbbf24; border-radius: 8px; padding: 12px 16px; font-size: 13px; color: #92400e;">
+                ⚠️ Это действие <strong>нельзя отменить</strong>.
+            </div>
+        </div>
+        <div style="padding: 16px 24px; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; gap: 12px; justify-content: flex-end;">
+            <button onclick="closeDeleteModal()" style="padding: 10px 20px; background: white; color: #475569; border: 2px solid #e2e8f0; border-radius: 8px; font-weight: 600; cursor: pointer;">Отмена</button>
+            <form id="deleteForm" method="POST" style="display: inline;">
+                {% csrf_token %}
+                <button type="submit" style="padding: 10px 20px; background: #dc2626; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">🗑️ Удалить</button>
+            </form>
+        </div>
+    </div>
+</div>
+
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    document.querySelectorAll('[id^="id_phone_"]').forEach(input => {
-        input.id = 'id_phone';
-    });
-});
+function showDeleteModal(teacherId, teacherName) {
+    document.getElementById('deleteTeacherName').textContent = teacherName;
+    document.getElementById('deleteForm').action = '/teachers/' + teacherId + '/delete/';
+    const modal = document.getElementById('deleteModal');
+    modal.style.display = 'flex';
+    modal.onclick = function(event) { if (event.target === modal) closeDeleteModal(); };
+}
+function closeDeleteModal() { document.getElementById('deleteModal').style.display = 'none'; }
+document.addEventListener('keydown', function(event) { if (event.key === 'Escape') closeDeleteModal(); });
 </script>
 {% endblock %}
 
@@ -59859,7 +61488,7 @@ document.addEventListener('DOMContentLoaded', function() {
             </a>
 
             <!-- Мастера -->
-            <a href="{% url 'masters:master_list' %}" class="card reference">
+            <a href="{% url 'masters:master_pouts_list' %}" class="card reference">
                 <span class="icon">🚗</span>
                 <span class="title">Мастера</span>
                 <span class="count">{{ masters_count|default:0 }}</span>
@@ -60645,6 +62274,204 @@ document.addEventListener('DOMContentLoaded', function() {
 #===========================================================
 
 
+
+
+#===========================================================
+# >>> Файл: __init__.py | Путь: tests\cars\__init__.py
+#===========================================================
+
+
+
+
+#===========================================================
+# >>> Файл: test_forms.py | Путь: tests\cars\test_forms.py
+#===========================================================
+
+from django.test import TestCase
+from cars.models import Car
+from cars.forms import CarForm, CarDocumentForm, TireChangeForm
+
+class CarFormTest(TestCase):
+    def test_valid_car_form(self):
+        form_data = {
+            'make': 'Ford Focus',
+            'license_plate': '1111 AA-1',
+            'vin': '12345678901234567',
+            'transmission': 'MT',
+            'fuel': 'GASOLINE_92',
+            'pts_number': '9999999999',
+            'initial_odometer': 10000
+        }
+        form = CarForm(data=form_data)
+        self.assertTrue(form.is_valid())
+
+    def test_invalid_vin_form(self):
+        form_data = {
+            'make': 'Ford', 'license_plate': '1111 AA-1', 'vin': '123', # Короткий VIN
+            'transmission': 'MT', 'fuel': 'GASOLINE_92', 'pts_number': '1', 'initial_odometer': 100
+        }
+        form = CarForm(data=form_data)
+        self.assertFalse(form.is_valid())
+        self.assertIn('vin', form.errors)
+
+
+class TireChangeFormTest(TestCase):
+    def test_valid_tire_form(self):
+        form_data = {
+            'date': '24.08.2026',
+            'odometer': 50000,
+            'wheels': ['1', '3'],
+            'comment': 'Зимняя резина'
+        }
+        form = TireChangeForm(data=form_data)
+        self.assertTrue(form.is_valid())
+
+    def test_tire_form_without_wheels(self):
+        form_data = {'date': '24.08.2026', 'odometer': 50000, 'wheels': []}
+        form = TireChangeForm(data=form_data)
+        self.assertFalse(form.is_valid())
+        self.assertIn('wheels', form.errors)
+
+
+#===========================================================
+# >>> Файл: test_models.py | Путь: tests\cars\test_models.py
+#===========================================================
+
+from django.test import TestCase
+from django.core.exceptions import ValidationError
+from cars.models import Car, CarDocument, TireChangeLog
+
+class CarModelTest(TestCase):
+    def setUp(self):
+        self.car = Car.objects.create(
+            make="Hyundai Solaris",
+            license_plate="1234 AA-1",
+            vin="1HGCM82633A123456",
+            transmission="AT",
+            fuel="GASOLINE_95",
+            pts_number="7777777777",
+            initial_odometer=15000
+        )
+
+    def test_car_creation(self):
+        self.assertEqual(self.car.make, "Hyundai Solaris")
+        self.assertEqual(str(self.car), "Hyundai Solaris (1234 AA-1)")
+
+    def test_invalid_license_plate(self):
+        self.car.license_plate = "НЕВЕРНЫЙ_НОМЕР"
+        with self.assertRaises(ValidationError):
+            self.car.full_clean()  # Запускает валидацию модели
+
+    def test_invalid_vin_length(self):
+        self.car.vin = "SHORT"
+        with self.assertRaises(ValidationError):
+            self.car.full_clean()
+
+
+class CarDocumentModelTest(TestCase):
+    def setUp(self):
+        self.car = Car.objects.create(
+            make="Kia Rio", license_plate="5678 BB-12", vin="12345678901234567",
+            transmission="MT", fuel="DIESEL", pts_number="1111111111", initial_odometer=0
+        )
+
+    def test_document_creation(self):
+        doc = CarDocument.objects.create(
+            car=self.car,
+            tech_inspection_date="2027-01-01",
+            insurance_active=True
+        )
+        self.assertEqual(doc.car, self.car)
+        self.assertTrue(doc.insurance_active)
+
+
+class TireChangeLogModelTest(TestCase):
+    def setUp(self):
+        self.car = Car.objects.create(
+            make="Toyota", license_plate="9999 CC-1", vin="12345678901234567",
+            transmission="AT", fuel="GAS", pts_number="2222222222", initial_odometer=0
+        )
+
+    def test_tire_change_creation(self):
+        change = TireChangeLog.objects.create(
+            car=self.car,
+            date="2026-08-24",
+            odometer=50000,
+            wheels=[1, 3]  # JSONField
+        )
+        self.assertEqual(change.odometer, 50000)
+        self.assertIn(1, change.wheels)
+
+
+#===========================================================
+# >>> Файл: test_views.py | Путь: tests\cars\test_views.py
+#===========================================================
+
+from django.test import TestCase
+from django.urls import reverse
+from django.contrib.auth.models import User
+from cars.models import Car, CarDocument, TireChangeLog
+
+
+class CarViewsTest(TestCase):
+    def setUp(self):
+        # Создаем тестового пользователя
+        self.user = User.objects.create_user(username='testuser', password='testpass123')
+        self.client.login(username='testuser', password='testpass123')
+
+        # Создаем тестовый автомобиль
+        self.car = Car.objects.create(
+            make="Lada Vesta", license_plate="7777 AA-7", vin="12345678901234567",
+            transmission="MT", fuel="GASOLINE_95", pts_number="3333333333", initial_odometer=5000
+        )
+
+    def test_car_list_view_status_code(self):
+        response = self.client.get(reverse('cars:car_list'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Lada Vesta")
+
+    def test_car_add_view_post(self):
+        data = {
+            'make': 'Skoda Octavia', 'license_plate': '8888 BB-8', 'vin': '12345678901234568',
+            'transmission': 'AT', 'fuel': 'DIESEL', 'pts_number': '4444444444', 'initial_odometer': 0
+        }
+        response = self.client.post(reverse('cars:car_add'), data)
+        # После добавления должен быть редирект на страницу документов
+        self.assertRedirects(response, reverse('cars:car_documents', kwargs={'pk': Car.objects.count()}))
+        self.assertEqual(Car.objects.count(), 2)
+
+    def test_car_documents_tire_change_post(self):
+        """Тестируем добавление записи о замене колес через форму документов"""
+        data = {
+            'tire_date': '24.08.2026',
+            'tire_odometer': '15000',
+            'wheels': ['2', '4']
+        }
+        response = self.client.post(reverse('cars:car_documents', kwargs={'pk': self.car.pk}), data)
+
+        self.assertRedirects(response, reverse('cars:car_documents', kwargs={'pk': self.car.pk}))
+
+        # Проверяем, что запись создалась
+        self.assertEqual(TireChangeLog.objects.count(), 1)
+        change = TireChangeLog.objects.first()
+        self.assertEqual(change.odometer, 15000)
+        self.assertEqual(change.wheels, [2, 4])
+
+        # Проверяем, что обновился текущий одометр автомобиля
+        self.car.refresh_from_db()
+        self.assertEqual(self.car.current_odometer, 15000)
+
+    def test_car_delete_view(self):
+        response = self.client.post(reverse('cars:car_delete', kwargs={'pk': self.car.pk}))
+        self.assertRedirects(response, reverse('cars:car_list'))
+        self.assertEqual(Car.objects.count(), 0)
+
+    def test_unauthorized_access(self):
+        self.client.logout()
+        response = self.client.get(reverse('cars:car_list'))
+        # Должен редиректить на страницу входа (LOGIN_URL)
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response.url.startswith('/admin/login/') or response.url.startswith('/login/'))
 
 
 #===========================================================

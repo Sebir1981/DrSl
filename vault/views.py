@@ -2,11 +2,11 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.contrib.auth.models import User  # ✅ ДОБАВЛЕНО: Импорт модели User
+from django.http import JsonResponse
 from django.conf import settings
 from cryptography.fernet import Fernet, InvalidToken
 
-from .models import VaultEntry, VaultPermission  # ✅ ДОБАВЛЕНО: Импорт VaultPermission
+from .models import VaultEntry, VaultPermission
 from .forms import AddVaultEntryForm
 
 # Импорт моделей для дашборда
@@ -256,7 +256,7 @@ def manage_permissions(request, entry_id):
 
 
 # =========================================================
-#  API: ПРОВЕРКА ДОСТУПА
+# 🔐 API: ПРОВЕРКА ДОСТУПА
 # =========================================================
 @login_required
 def check_access(request, entry_id):
@@ -274,20 +274,58 @@ def check_access(request, entry_id):
         return JsonResponse({
             'access': 'partial',
             'permissions': {
-                'main': perm.can_view_main,
+                # 🔹 Основные разделы
                 'groups': perm.can_view_groups,
                 'students': perm.can_view_students,
                 'credits': perm.can_view_credits,
                 'reports': perm.can_view_reports,
                 'references': perm.can_view_references,
-                'classrooms': perm.can_view_classrooms,
-                'teachers': perm.can_view_teachers,
-                'masters': perm.can_view_masters,
-                'cars': perm.can_view_cars,
-                'topics': perm.can_view_topics,
-                'categories': perm.can_view_categories,
                 'vault': perm.can_view_vault,
                 'admin': perm.can_view_admin,
+
+                # 🔹 Группы (подробные права)
+                'perm_grp_create': perm.perm_grp_create,
+                'perm_grp_list': perm.perm_grp_list,
+                'perm_grp_schedule1': perm.perm_grp_schedule1,
+                'perm_grp_schedule2': perm.perm_grp_schedule2,
+                'perm_grp_timetable': perm.perm_grp_timetable,
+                'perm_grp_close': perm.perm_grp_close,
+
+                # 🔹 Учащиеся
+                'perm_stu_add': perm.perm_stu_add,
+                'perm_stu_info': perm.perm_stu_info,
+                'perm_stu_transfer': perm.perm_stu_transfer,
+                'perm_stu_suspend': perm.perm_stu_suspend,
+                'perm_stu_refusal': perm.perm_stu_refusal,
+                'perm_stu_dismiss': perm.perm_stu_dismiss,
+                'perm_stu_contract_renew': perm.perm_stu_contract_renew,
+                'perm_stu_payments': perm.perm_stu_payments,
+                'perm_stu_notifications': perm.perm_stu_notifications,
+
+                # 🔹 Зачёты
+                'perm_cred_dashboard': perm.perm_cred_dashboard,
+                'perm_cred_add': perm.perm_cred_add,
+                'perm_cred_reports': perm.perm_cred_reports,
+
+                # 🔹 Отчёты
+                'perm_rep_dashboard': perm.perm_rep_dashboard,
+                'perm_rep_generate': perm.perm_rep_generate,
+                'perm_rep_export': perm.perm_rep_export,
+
+                #  Справочники
+                'perm_ref_classrooms': perm.perm_ref_classrooms,
+                'perm_ref_teachers': perm.perm_ref_teachers,
+                'perm_ref_masters': perm.perm_ref_masters,
+                'perm_ref_topics': perm.perm_ref_topics,
+                'perm_ref_categories': perm.perm_ref_categories,
+
+                # 🔹 Хранилище
+                'perm_vault_list': perm.perm_vault_list,
+                'perm_vault_add': perm.perm_vault_add,
+                'perm_vault_manage': perm.perm_vault_manage,
+
+                # 🔹 Админка
+                'perm_admin_access': perm.perm_admin_access,
             }
         })
     except VaultPermission.DoesNotExist:

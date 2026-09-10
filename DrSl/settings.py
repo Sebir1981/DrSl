@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'reference',
     'reports',
     'cars',
+    'master_plan',  # 🗺️ Генеральный план
     'DrSl',
 ]
 
@@ -221,3 +222,5 @@ import logging
 logging.getLogger('django.request').addFilter(
     lambda r: not r.getMessage().endswith('favicon.ico')
 )
+# 📁 Папка для экспортируемых файлов
+EXPORT_DIR = BASE_DIR / 'Saves'

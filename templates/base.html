@@ -17,11 +17,45 @@
             font-family: Arial, sans-serif;
             background: linear-gradient(135deg, #4facfe, #00f2fe);
         }
+
+        /* 🔹 Кнопка переключения сайдбара */
+        .sidebar-toggle-btn {
+            position: fixed;
+            top: 15px;
+            right: 290px; /* Позиция у правого края сайдбара */
+            z-index: 1001;
+            width: 36px;
+            height: 36px;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            color: #475569;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+
+        .sidebar-toggle-btn:hover {
+            background: #f1f5f9;
+            transform: scale(1.05);
+        }
+
+        /* Когда сайдбар свёрнут — кнопка смещается */
+        body.sidebar-collapsed .sidebar-toggle-btn {
+            right: 75px;
+        }
+
         .main-content {
             flex: 1;
             padding: 40px;
             overflow-y: auto;
+            transition: margin-right 0.3s ease;
         }
+
         .page-header {
             display: flex;
             justify-content: space-between;
@@ -79,14 +113,19 @@
             padding: 40px;
             color: #64748b;
         }
+
         /* Адаптив */
         @media (max-width: 768px) {
             body { flex-direction: column; }
             .page-header { flex-direction: column; align-items: flex-start; }
+            .sidebar-toggle-btn { display: none; }
         }
     </style>
 </head>
-<body>
+<body class="sidebar-collapsed">
+    <!-- Кнопка переключения сайдбара -->
+    <button class="sidebar-toggle-btn" onclick="toggleSidebar()" title="Развернуть меню">☰</button>
+
     {% include 'includes/sidebar.html' %}
 
     <main class="main-content">
@@ -94,5 +133,39 @@
     </main>
 
     {% block extra_js %}{% endblock %}
+
+    <script>
+    // 🔹 Функция переключения сайдбара
+    function toggleSidebar() {
+        const body = document.body;
+        const btn = document.querySelector('.sidebar-toggle-btn');
+        body.classList.toggle('sidebar-collapsed');
+
+        const isCollapsed = body.classList.contains('sidebar-collapsed');
+        btn.title = isCollapsed ? 'Развернуть меню' : 'Свернуть меню';
+        btn.textContent = isCollapsed ? '☰' : '✕';
+
+        // Сохраняем состояние
+        localStorage.setItem('sidebarCollapsed', isCollapsed);
+    }
+
+    // 🔹 Восстановление состояния при загрузке
+    document.addEventListener('DOMContentLoaded', function() {
+        const saved = localStorage.getItem('sidebarCollapsed');
+        const body = document.body;
+        const btn = document.querySelector('.sidebar-toggle-btn');
+
+        // По умолчанию свёрнут (если ничего не сохранено)
+        if (saved === null || saved === 'true') {
+            body.classList.add('sidebar-collapsed');
+            btn.textContent = '☰';
+            btn.title = 'Развернуть меню';
+        } else {
+            body.classList.remove('sidebar-collapsed');
+            btn.textContent = '✕';
+            btn.title = 'Свернуть меню';
+        }
+    });
+    </script>
 </body>
 </html>

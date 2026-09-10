@@ -417,35 +417,42 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     function initCalendar() {
-        console.log('🔄 Инициализация календаря...');
-        const start = document.getElementById('id_date_start')?.value;
-        const end = document.getElementById('id_date_end')?.value;
-        const type = document.getElementById('id_schedule_type')?.value;
-        const classDaysInput = document.getElementById('id_class_days')?.value;
+    console.log('🔄 Инициализация календаря...');
+    const start = document.getElementById('id_date_start')?.value;
+    const end = document.getElementById('id_date_end')?.value;
+    const type = document.getElementById('id_schedule_type')?.value;
+    const classDaysInput = document.getElementById('id_class_days')?.value;
 
-        if (start && end && window.scheduleCalendarInstance) {
-            let savedDays = {};
-            if (classDaysInput && classDaysInput !== '{}') {
-                try {
-                    savedDays = JSON.parse(classDaysInput);
-                    const defaultSlots = {{ calendar_time_slots|default:'[]'|safe }};
-                    Object.keys(savedDays).forEach(date => {
-                        if (!savedDays[date].slots || savedDays[date].slots.length === 0) {
-                            savedDays[date].slots = defaultSlots;
-                            savedDays[date]._useDefault = true;
-                        }
-                    });
-                } catch(e) {}
-            }
+    if (start && end && window.scheduleCalendarInstance) {
+        let savedDays = {};
+        if (classDaysInput && classDaysInput !== '{}') {
+            try {
+                savedDays = JSON.parse(classDaysInput);
+                const defaultSlots = {{ calendar_time_slots|default:'[]'|safe }};
+                Object.keys(savedDays).forEach(date => {
+                    // 🔥 НЕ трогаем удалённые/исключённые дни — сохраняем их состояние
+                    const day = savedDays[date];
+                    if (!day || typeof day !== 'object') return;
+                    if (day.manuallyRemoved === true) return;          // удалён пользователем
+                    if (day.scheduled === false) return;               // явно выключен
 
-            if (window.scheduleCalendarInstance) {
-                window.scheduleCalendarInstance.teacherScheduleData = { ...window.teacherScheduleData, ...window.medTeacherScheduleData };
-            }
-
-            window.scheduleCalendarInstance.generateCalendar(start, end, type || 'custom', Object.keys(savedDays).length > 0 ? savedDays : null);
-            console.log('✅ Календарь инициализирован');
+                    // Только активным дням без слотов добавляем дефолтные
+                    if (!day.slots || day.slots.length === 0) {
+                        day.slots = defaultSlots;
+                        day._useDefault = true;
+                    }
+                });
+            } catch(e) {}
         }
+
+        if (window.scheduleCalendarInstance) {
+            window.scheduleCalendarInstance.teacherScheduleData = { ...window.teacherScheduleData, ...window.medTeacherScheduleData };
+        }
+
+        window.scheduleCalendarInstance.generateCalendar(start, end, type || 'custom', Object.keys(savedDays).length > 0 ? savedDays : null);
+        console.log('✅ Календарь инициализирован');
     }
+}
 
     if (window.scheduleCalendarInstance) {
         setTimeout(initCalendar, 300);

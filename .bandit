@@ -1,0 +1,1 @@
+exclude_dirs: ['.venv', 'migrations', '__pycache__', 'static', 'media', 'node_modules', 'tests']

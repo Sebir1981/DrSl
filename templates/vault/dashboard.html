@@ -265,6 +265,12 @@
                 <span class="title">Зачёты и экзамены</span>
                 <span class="count">📊</span>
             </a>
+
+            <!-- Генеральный план -->
+            <a href="{% url 'master_plan:dashboard' %}" class="card primary">
+                <span class="icon">🗺️</span>
+                <span class="title">Генеральный план</span>
+            </a>
         </div>
 
         <!-- 🔹 СПРАВОЧНИКИ (Сворачиваемый раздел) -->
@@ -359,6 +365,11 @@
             header.classList.add('collapsed');
             content.classList.add('collapsed');
         });
+        // 🔹 На главной странице сайдбар всегда развёрнут
+document.addEventListener('DOMContentLoaded', function() {
+    document.body.classList.remove('sidebar-collapsed');
+    localStorage.setItem('sidebarCollapsed', 'false');
+});
     </script>
 </body>
 </html>

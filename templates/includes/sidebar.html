@@ -1,6 +1,7 @@
 {% load static %}
 {% load user_extras %}
-<aside class="sidebar">
+
+<aside class="sidebar" id="main-sidebar">
     <!-- 🔹 Заголовок — всегда виден при скролле -->
     <div class="sidebar-header">
         <h3>📋 Разделы</h3>
@@ -9,28 +10,33 @@
     <!-- 🔹 Прокручиваемая область меню -->
     <nav class="sidebar-menu">
         <!-- Главная -->
-        <a href="{% url 'vault:dashboard' %}" class="menu-item {% if request.resolver_match.app_name == 'vault' or request.resolver_match.url_name == 'home' %}active{% endif %}">
-            <span class="icon">🏠</span> Главная
+        <a href="{% url 'vault:dashboard' %}" class="menu-item {% if request.resolver_match.app_name == 'vault' or request.resolver_match.url_name == 'home' %}active{% endif %}" title="Главная">
+            <span class="icon">🏠</span> <span class="title">Главная</span>
         </a>
 
         <!-- Группы -->
-        <a href="{% url 'groups:dashboard' %}" class="menu-item {% if request.resolver_match.app_name == 'groups' %}active{% endif %}">
-            <span class="icon">👥</span> Группы
+        <a href="{% url 'groups:dashboard' %}" class="menu-item {% if request.resolver_match.app_name == 'groups' %}active{% endif %}" title="Группы">
+            <span class="icon">👥</span> <span class="title">Группы</span>
         </a>
 
         <!-- Учащиеся -->
-        <a href="{% url 'students:dashboard' %}" class="menu-item {% if request.resolver_match.app_name == 'students' %}active{% endif %}">
-            <span class="icon">🎓</span> Учащиеся
+        <a href="{% url 'students:dashboard' %}" class="menu-item {% if request.resolver_match.app_name == 'students' %}active{% endif %}" title="Учащиеся">
+            <span class="icon">🎓</span> <span class="title">Учащиеся</span>
         </a>
 
         <!-- Зачёты и экзамены -->
-        <a href="{% url 'groups:credits_exams' %}" class="menu-item {% if request.resolver_match.url_name == 'credits_exams' or request.resolver_match.url_name == 'credits_exams_add' %}active{% endif %}">
-            <span class="icon">✅</span> Зачёты и экзамены
+        <a href="{% url 'groups:credits_exams' %}" class="menu-item {% if request.resolver_match.url_name == 'credits_exams' or request.resolver_match.url_name == 'credits_exams_add' %}active{% endif %}" title="Зачёты и экзамены">
+            <span class="icon">✅</span> <span class="title">Зачёты и экзамены</span>
+        </a>
+
+        <!-- Генеральный план -->
+        <a href="{% url 'master_plan:dashboard' %}" class="menu-item {% if request.resolver_match.app_name == 'master_plan' %}active{% endif %}" title="Генеральный план">
+            <span class="icon">🗺️</span> <span class="title">Генеральный план</span>
         </a>
 
         <!-- Отчёты -->
-        <a href="{% url 'reports:dashboard' %}" class="menu-item {% if request.resolver_match.app_name == 'reports' %}active{% endif %}">
-            <span class="icon">📊</span> Отчёты
+        <a href="{% url 'reports:dashboard' %}" class="menu-item {% if request.resolver_match.app_name == 'reports' %}active{% endif %}" title="Отчёты">
+            <span class="icon">📊</span> <span class="title">Отчёты</span>
         </a>
 
         <!-- 🔹 РАЗДЕЛИТЕЛЬ -->
@@ -39,42 +45,43 @@
         <!-- 🔹 ПАПКА: 📁 Справочники (раскрывающаяся) -->
         <div class="menu-folder">
             <div class="menu-folder-header" onclick="toggleFolder('references-folder')">
-                <span class="icon">📁</span> Справочники
+                <span class="icon">📁</span> <span class="title">Справочники</span>
                 <span class="folder-arrow" id="arrow-references-folder">▼</span>
             </div>
             <div class="menu-folder-content" id="references-folder" style="display: block;">
-                <a href="{% url 'classrooms:classroom_list' %}" class="menu-item sub-item {% if request.resolver_match.app_name == 'classrooms' %}active{% endif %}">
-                    <span class="icon">🏫</span> Аудитории
+                <a href="{% url 'classrooms:classroom_list' %}" class="menu-item sub-item {% if request.resolver_match.app_name == 'classrooms' %}active{% endif %}" title="Аудитории">
+                    <span class="icon">🏫</span> <span class="title">Аудитории</span>
                 </a>
-                <a href="{% url 'teachers:teacher_list' %}" class="menu-item sub-item {% if request.resolver_match.app_name == 'teachers' %}active{% endif %}">
-                    <span class="icon">📚</span> Преподаватели
+                <a href="{% url 'teachers:teacher_list' %}" class="menu-item sub-item {% if request.resolver_match.app_name == 'teachers' %}active{% endif %}" title="Преподаватели">
+                    <span class="icon">📚</span> <span class="title">Преподаватели</span>
                 </a>
-                <a href="{% url 'masters:master_pouts_list' %}" class="menu-item sub-item {% if request.resolver_match.app_name == 'masters' %}active{% endif %}">
-                    <span class="icon">🚗</span> Мастера
+                <a href="{% url 'masters:master_pouts_list' %}" class="menu-item sub-item {% if request.resolver_match.app_name == 'masters' %}active{% endif %}" title="Мастера">
+                    <span class="icon">🚗</span> <span class="title">Мастера</span>
                 </a>
-                <a href="{% url 'cars:car_list' %}" class="menu-item sub-item" style="menu-item sub-item {% if request.resolver_match.app_name == 'cars' %}cars{% endif %}">
-                    <span class="icon">🚙</span> Автопарк
+                <!-- ✅ ИСПРАВЛЕНО: убрана сломанная inline-стилизация, добавлен правильный класс active -->
+                <a href="{% url 'cars:car_list' %}" class="menu-item sub-item {% if request.resolver_match.app_name == 'cars' %}active{% endif %}" title="Автопарк">
+                    <span class="icon">🚙</span> <span class="title">Автопарк</span>
                 </a>
-                <a href="{% url 'reference:topic_list' %}" class="menu-item sub-item {% if request.resolver_match.app_name == 'reference' %}active{% endif %}">
-                    <span class="icon">📖</span> Темы занятий
+                <a href="{% url 'reference:topic_list' %}" class="menu-item sub-item {% if request.resolver_match.app_name == 'reference' %}active{% endif %}" title="Темы занятий">
+                    <span class="icon">📖</span> <span class="title">Темы занятий</span>
                 </a>
-                <a href="{% url 'admin:reference_groupcategory_changelist' %}" class="menu-item sub-item">
-                    <span class="icon">📁</span> Категории
+                <a href="{% url 'admin:reference_groupcategory_changelist' %}" class="menu-item sub-item" title="Категории">
+                    <span class="icon">📁</span> <span class="title">Категории</span>
                 </a>
             </div>
         </div>
 
         <!-- 🔹 Хранилище — ТОЛЬКО ДЛЯ АДМИНОВ -->
         {% if user|is_in_group:"admin" or user.is_superuser %}
-        <a href="{% url 'vault:vault_list' %}" class="menu-item {% if request.resolver_match.app_name == 'vault' %}active{% endif %}">
-            <span class="icon">🔐</span> Хранилище
+        <a href="{% url 'vault:vault_list' %}" class="menu-item {% if request.resolver_match.app_name == 'vault' %}active{% endif %}" title="Хранилище">
+            <span class="icon">🔐</span> <span class="title">Хранилище</span>
         </a>
         {% endif %}
 
         <!-- 🔹 Админка — ТОЛЬКО ДЛЯ АДМИНОВ -->
         {% if user|is_in_group:"admin" or user.is_superuser %}
-        <a href="{% url 'admin:index' %}" class="menu-item">
-            <span class="icon">⚙️</span> Админка
+        <a href="{% url 'admin:index' %}" class="menu-item" title="Админка">
+            <span class="icon">⚙️</span> <span class="title">Админка</span>
         </a>
         {% endif %}
     </nav>
@@ -103,6 +110,8 @@
     position: sticky;
     top: 0;
     z-index: 1000;
+    transition: width 0.3s ease;
+    overflow: hidden;
 }
 
 /* 🔹 Заголовок — фиксирован сверху */
@@ -111,12 +120,14 @@
     border-bottom: 2px solid #4facfe;
     background: white;
     z-index: 10;
+    flex-shrink: 0;
 }
 .sidebar-header h3 {
     margin: 0;
     color: #333;
     text-align: center;
     font-size: 18px;
+    white-space: nowrap;
 }
 
 /* 🔹 Прокручиваемое меню */
@@ -150,6 +161,7 @@
     margin: 0 10px;
     border-left: 4px solid transparent;
     font-size: 14px;
+    white-space: nowrap;
 }
 .menu-item:hover {
     background: #e3f2fd;
@@ -166,6 +178,10 @@
     font-size: 18px;
     width: 24px;
     text-align: center;
+    flex-shrink: 0;
+}
+.menu-item .title {
+    flex: 1;
 }
 
 /* 🔹 Подпункты внутри папки */
@@ -204,6 +220,7 @@
     color: #334155;
     transition: background 0.2s;
     font-size: 14px;
+    white-space: nowrap;
 }
 .menu-folder-header:hover {
     background: #e2e8f0;
@@ -212,6 +229,7 @@
     font-size: 18px;
     width: 24px;
     text-align: center;
+    flex-shrink: 0;
 }
 .folder-arrow {
     margin-left: auto;
@@ -245,6 +263,7 @@
     padding: 15px 20px;
     border-top: 1px solid #e2e8f0;
     background: white;
+    flex-shrink: 0;
 }
 .user-info {
     display: flex;
@@ -259,6 +278,58 @@
     font-weight: 600;
 }
 .logout-link:hover { text-decoration: underline; }
+
+/* =================================================================== */
+/* 🔹 СВЁРНУТОЕ СОСТОЯНИЕ САЙДБАРА */
+/* =================================================================== */
+body.sidebar-collapsed .sidebar {
+    width: 70px;
+}
+
+body.sidebar-collapsed .sidebar-header h3,
+body.sidebar-collapsed .menu-item .title,
+body.sidebar-collapsed .menu-folder-header .title,
+body.sidebar-collapsed .folder-arrow,
+body.sidebar-collapsed .menu-divider,
+body.sidebar-collapsed .sidebar-footer .user-info {
+    display: none;
+}
+
+body.sidebar-collapsed .menu-item,
+body.sidebar-collapsed .menu-folder-header {
+    padding: 12px 10px;
+    margin: 0 5px;
+    justify-content: center;
+    border-radius: 10px;
+    border-left: none;
+}
+
+body.sidebar-collapsed .menu-item:hover,
+body.sidebar-collapsed .menu-item.active,
+body.sidebar-collapsed .menu-folder-header:hover {
+    transform: none;
+}
+
+body.sidebar-collapsed .menu-item .icon,
+body.sidebar-collapsed .menu-folder-header .icon {
+    font-size: 22px;
+    margin: 0;
+}
+
+body.sidebar-collapsed .menu-item.sub-item {
+    padding: 10px;
+    margin: 2px 5px;
+}
+
+/* Скрываем содержимое папки в свёрнутом состоянии */
+body.sidebar-collapsed .menu-folder-content {
+    display: none !important;
+}
+
+body.sidebar-collapsed .sidebar-footer {
+    padding: 15px 10px;
+    justify-content: center;
+}
 
 /* 🔹 Адаптив для мобильных */
 @media (max-width: 768px) {
@@ -296,6 +367,15 @@
     }
     .menu-item.sub-item { display: none; }
     .menu-folder-content { display: none !important; }
+
+    /* На мобильных сворачивание отключается */
+    body.sidebar-collapsed .sidebar {
+        width: 100%;
+    }
+    body.sidebar-collapsed .menu-item .title,
+    body.sidebar-collapsed .menu-folder-header .title {
+        display: inline;
+    }
 }
 </style>
 
@@ -313,10 +393,14 @@ function toggleFolder(folderId) {
         folder.style.display = 'none';
         header.classList.add('collapsed');
     }
+
+    // Сохраняем состояние
+    localStorage.setItem('folder_' + folderId, folder.style.display === 'none' ? 'closed' : 'open');
 }
 
-// 🔹 Сохранение состояния папок в localStorage
+// 🔹 Сохранение состояния папок и сайдбара при загрузке
 document.addEventListener('DOMContentLoaded', function() {
+    // 1. Папки
     const folders = document.querySelectorAll('.menu-folder-content');
     folders.forEach(folder => {
         const folderId = folder.id;
@@ -326,14 +410,12 @@ document.addEventListener('DOMContentLoaded', function() {
             const arrow = document.getElementById('arrow-' + folderId);
             if (arrow) arrow.closest('.menu-folder-header').classList.add('collapsed');
         }
-
-        // Сохраняем состояние при клике
-        folder.previousElementSibling?.addEventListener('click', function() {
-            setTimeout(() => {
-                localStorage.setItem('folder_' + folderId, folder.style.display === 'none' ? 'closed' : 'open');
-            }, 100);
-        });
     });
+
+    // 2. Сайдбар (по умолчанию свёрнут, если не указано иное)
+    const isCollapsed = localStorage.getItem('sidebarCollapsed') !== 'false'; // По умолчанию true
+    if (isCollapsed) {
+        document.body.classList.add('sidebar-collapsed');
+    }
 });
-</script>
 </script>

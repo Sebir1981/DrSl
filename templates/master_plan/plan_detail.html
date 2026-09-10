@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ plan.name }} — Генеральный план{% endblock %}
+
+{% block content %}
+<div style="max-width: 1200px; margin: 0 auto; padding: 20px;">
+    <div class="page-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; flex-wrap: wrap; gap: 16px;">
+        <h1 style="margin: 0; color: white; font-size: 28px;"> {{ plan.name }}</h1>
+        <div>
+            <a href="{% url 'master_plan:dashboard' %}" class="btn" style="background:#e2e8f0;color:#334155;padding:10px 20px;border-radius:8px;text-decoration:none;">← Назад</a>
+        </div>
+    </div>
+
+    <div style="background: white; border-radius: 16px; padding: 32px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); margin-bottom: 24px;">
+        <h2 style="margin-top: 0; color: #1e293b;">Описание</h2>
+        <p style="color: #64748b; line-height: 1.6;">{{ plan.description|default:"Описание не добавлено" }}</p>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-top: 24px; padding-top: 24px; border-top: 1px solid #e2e8f0;">
+            <div>
+                <div style="font-size: 12px; color: #64748b; text-transform: uppercase; font-weight: 600;">Создан</div>
+                <div style="font-size: 16px; color: #1e293b; font-weight: 600;">{{ plan.created_at|date:"d.m.Y H:i" }}</div>
+            </div>
+            <div>
+                <div style="font-size: 12px; color: #64748b; text-transform: uppercase; font-weight: 600;">Обновлён</div>
+                <div style="font-size: 16px; color: #1e293b; font-weight: 600;">{{ plan.updated_at|date:"d.m.Y H:i" }}</div>
+            </div>
+            <div>
+                <div style="font-size: 12px; color: #64748b; text-transform: uppercase; font-weight: 600;">Статус</div>
+                <div style="font-size: 16px; color: #1e293b; font-weight: 600;">
+                    {% if plan.is_active %}✅ Активен{% else %}⏸️ Неактивен{% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Этапы -->
+    <h2 style="color: white; margin-bottom: 16px;"> Этапы плана</h2>
+    <div style="display: flex; flex-direction: column; gap: 16px;">
+        {% for stage in stages %}
+        <div style="background: white; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h3 style="margin: 0; color: #1e293b;">{{ stage.name }}</h3>
+                <span style="padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600;
+                    {% if stage.status == 'completed' %}background: #dcfce7; color: #166534;
+                    {% elif stage.status == 'in_progress' %}background: #fef3c7; color: #92400e;
+                    {% elif stage.status == 'cancelled' %}background: #fee2e2; color: #991b1b;
+                    {% else %}background: #e2e8f0; color: #475569;{% endif %}">
+                    {{ stage.get_status_display }}
+                </span>
+            </div>
+
+            {% if stage.description %}
+            <p style="color: #64748b; margin: 0 0 16px 0;">{{ stage.description }}</p>
+            {% endif %}
+
+            <!-- Задачи этапа -->
+            {% if stage.tasks.all %}
+            <div style="margin-top: 16px;">
+                <h4 style="margin: 0 0 12px 0; color: #475569; font-size: 14px;">Задачи ({{ stage.tasks.count }})</h4>
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    {% for task in stage.tasks.all %}
+                    <div style="display: flex; align-items: center; gap: 12px; padding: 12px; background: #f8fafc; border-radius: 8px;">
+                        <span style="font-size: 16px;">
+                            {% if task.status == 'done' %}✅
+                            {% elif task.status == 'in_progress' %}🔄
+                            {% elif task.status == 'blocked' %}🚫
+                            {% else %}{% endif %}
+                        </span>
+                        <div style="flex: 1;">
+                            <div style="font-weight: 600; color: #1e293b;">{{ task.title }}</div>
+                            {% if task.assigned_to %}
+                            <div style="font-size: 12px; color: #64748b;">👤 {{ task.assigned_to.get_full_name|default:task.assigned_to.username }}</div>
+                            {% endif %}
+                        </div>
+                        {% if task.deadline %}
+                        <div style="font-size: 12px; color: #64748b;">📅 {{ task.deadline|date:"d.m.Y" }}</div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        {% empty %}
+        <div style="background: white; border-radius: 12px; padding: 40px; text-align: center; color: #64748b;">
+            Этапы плана не добавлены
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

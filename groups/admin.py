@@ -116,7 +116,7 @@ class GroupAdmin(BaseAdmin):
 
     @admin.display(description="")
     def contract_section_header(self, obj):
-        return mark_safe(
+        return mark_safe( # nosec B308
             '<div style="font-weight:600; color:#475569; margin-bottom:8px; '
             'padding-bottom:4px; border-bottom:2px solid #e2e8f0;">Действие договора</div>')
 

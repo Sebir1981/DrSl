@@ -1,13 +1,15 @@
 # 📦 export_plan_graphic.py
-# ️ Версия: b_0.0.4.11 (Auto-Height Header & Title)
+# ️ Версия: b_0.0.4.14 (Versioned filenames + PermissionError handling)
 # ✅ Статус: PRODUCTION-READY
-# 📅 Последнее обновление: 2026-08-19
+# 📅 Последнее обновление: 2026-08-25
 
 import openpyxl
 from openpyxl.utils import get_column_letter
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+from django.conf import settings
+from django.contrib import messages
 from django.http import HttpResponse
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, redirect
 from groups.models import SchedulePlan
 from reference.models import TrainingProgram, ProgramSubject
 from datetime import datetime, timedelta
@@ -15,7 +17,10 @@ from pathlib import Path
 from collections import defaultdict
 import json
 import re
+import logging
 from urllib.parse import quote
+
+logger = logging.getLogger(__name__)
 
 #  Принудительно русские месяца
 RU_MONTHS = {
@@ -38,7 +43,8 @@ def export_plan_graphic_to_excel(request, plan_id):
     if isinstance(class_days, str):
         try:
             class_days = json.loads(class_days)
-        except Exception:
+        except (json.JSONDecodeError, ValueError) as e:
+            logger.warning("План-график pk=%s: некорректный JSON в class_days: %s", plan.pk, e)
             class_days = {}
 
     excluded_dates = plan.excluded_dates or []
@@ -50,7 +56,7 @@ def export_plan_graphic_to_excel(request, plan_id):
         try:
             program = TrainingProgram.objects.get(pk=selected_program_id)
         except TrainingProgram.DoesNotExist:
-            pass
+            logger.warning("План-график pk=%s: учебная программа id=%s не найдена", plan.pk, selected_program_id)
 
     if not program:
         if hasattr(plan, 'training_program') and plan.training_program:
@@ -71,6 +77,18 @@ def export_plan_graphic_to_excel(request, plan_id):
                 other_subjects.append(item)
         program_subjects = other_subjects + ([exam_item] if exam_item else [])
 
+    # 🔹 Коды предметов, которые реально выводятся в таблице
+    subject_codes = {item['code'] for item in program_subjects}
+
+    def _day_hours(day_data):
+        """Сумма часов за день ТОЛЬКО по предметам программы (без служебных ключей)."""
+        return sum(
+            v for k, v in day_data.items()
+            if (k in subject_codes if subject_codes else
+                (not k.startswith('_') and not k.endswith('_topics') and k != 'scheduled'))
+            and isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0
+        )
+
     # Диапазон дат
     days_in_schedule = []
     current_date = plan.date_start
@@ -88,9 +106,7 @@ def export_plan_graphic_to_excel(request, plan_id):
         if date_key not in class_days: continue
 
         day_data = class_days[date_key]
-        day_sum = sum(v for k, v in day_data.items()
-                      if not k.startswith('_') and not k.endswith('_topics') and k != 'scheduled'
-                      and isinstance(v, (int, float)) and v > 0)
+        day_sum = _day_hours(day_data)
 
         if day_sum > 0:
             days_with_classes.append(d)
@@ -192,15 +208,15 @@ def export_plan_graphic_to_excel(request, plan_id):
 
     # Информация (Преподаватель и т.д.) - ограничена шириной таблицы
     def format_dates_list(dates_list):
-        if not dates_list: return "—"
+        if not dates_list:
+            return "—"
         formatted = []
         for d in dates_list:
             try:
-                val = datetime.strptime(d, '%Y-%m-%d').strftime('%d.%m.%Y') if isinstance(d, str) else d.strftime(
-                    '%d.%m.%Y')
+                val = datetime.strptime(d, '%Y-%m-%d').strftime('%d.%m.%Y') if isinstance(d, str) else d.strftime('%d.%m.%Y')
                 formatted.append(val)
-            except Exception:
-                pass
+            except (ValueError, TypeError) as e:
+                logger.warning("План-график pk=%s: пропущена некорректная дата %r: %s", plan.pk, d, e)
         return ', '.join(formatted) if formatted else "—"
 
     info_data = [
@@ -259,7 +275,7 @@ def export_plan_graphic_to_excel(request, plan_id):
     ws.cell(row=row, column=total_col_idx, value='').border = thin_border
     row += 1
 
-    # Всего часов
+    # Всего часов (считается ТОЛЬКО по предметам программы — сходится с суммой строк)
     ws.cell(row=row, column=start_col, value='Всего').font = font_bold
     ws.cell(row=row, column=start_col).border = thin_border
     ws.cell(row=row, column=start_col).fill = header_fill
@@ -267,9 +283,7 @@ def export_plan_graphic_to_excel(request, plan_id):
     for d in days_with_classes:
         if d in col_map:
             c_idx = col_map[d]
-            day_sum = sum(v for k, v in class_days.get(d.strftime('%Y-%m-%d'), {}).items()
-                          if not k.startswith('_') and not k.endswith('_topics') and k != 'scheduled'
-                          and isinstance(v, (int, float)))
+            day_sum = _day_hours(class_days.get(d.strftime('%Y-%m-%d'), {}))
             cell = ws.cell(row=row, column=c_idx, value=int(day_sum) if day_sum == int(day_sum) else day_sum)
             cell.font = font_small
             cell.alignment = align_center
@@ -289,7 +303,8 @@ def export_plan_graphic_to_excel(request, plan_id):
             if d in col_map:
                 c_idx = col_map[d]
                 h = class_days.get(d.strftime('%Y-%m-%d'), {}).get(code, 0)
-                if not isinstance(h, (int, float)): h = 0
+                if not isinstance(h, (int, float)) or isinstance(h, bool):
+                    h = 0
 
                 cell = ws.cell(row=row, column=c_idx, value=int(h) if h > 0 and h == int(h) else (h if h > 0 else ''))
                 cell.font = font_small
@@ -328,14 +343,40 @@ def export_plan_graphic_to_excel(request, plan_id):
 
     filename = f"План-график_гр{_sanitize(group_num)}_{t_name}_{sched_name}_{location_clean}.xlsx"
 
-    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    response['Content-Disposition'] = f'attachment; filename*=UTF-8\'\'{quote(filename)}'
-
-    group_folder = Path(r"C:\django\DrSl\Saves") / str(group_num)
+    # 🔹 Путь к папке экспорта берём из settings.py
+    group_folder = Path(settings.EXPORT_DIR) / str(group_num)
     group_folder.mkdir(parents=True, exist_ok=True)
-    file_path = group_folder / filename
+    base_path = group_folder / filename
 
-    wb.save(file_path)
-    with open(file_path, "rb") as f:
+    # 🔹 Сохранение: файл свободен — пишем как обычно;
+    #    файл занят (открыт в Excel) — создаём копию с суффиксом (1), (2), ...
+    saved_path = None
+    try:
+        wb.save(base_path)
+        saved_path = base_path
+    except PermissionError:
+        logger.warning("Файл %s занят (открыт в Excel) — сохраняем копию с суффиксом", base_path)
+        for i in range(1, 50):
+            candidate = group_folder / f"{base_path.stem} ({i}){base_path.suffix}"
+            try:
+                wb.save(candidate)
+                saved_path = candidate
+                break
+            except PermissionError:
+                continue
+
+    if saved_path is None:
+        logger.error("План-график pk=%s: не удалось сохранить — все копии файла заняты", plan.pk)
+        messages.error(request, '❌ Не удалось сохранить файл: все копии заняты. Закройте Excel и попробуйте снова.')
+        return redirect(request.META.get('HTTP_REFERER', f'/groups/schedules/{plan.pk}/step2/'))
+
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = f'attachment; filename*=UTF-8\'\'{quote(saved_path.name)}'
+    with open(saved_path, "rb") as f:
         response.write(f.read())
+
+    if saved_path != base_path:
+        messages.warning(request, f'⚠️ Исходный файл занят, сохранена копия: {saved_path.name}')
+    else:
+        messages.success(request, f'✅ План-график экспортирован: {saved_path.name}')
     return response

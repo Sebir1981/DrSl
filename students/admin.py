@@ -157,7 +157,7 @@ class StudentAdmin(admin.ModelAdmin):
     @admin.display(description='📋 Журнал активности')
     def activity_log_display(self, obj):
         if not obj.activity_log:
-            return mark_safe('<span style="color:#94a3b8;">— Записей нет —</span>')
+            return mark_safe('<span style="color:#94a3b8;">— Записей нет —</span>')   # nosec B308
 
         log_items = []
         for entry in reversed(obj.activity_log[-20:]):

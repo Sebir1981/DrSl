@@ -1,9 +1,12 @@
-# groups/views/api.py
 import json
+import logging
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from groups.models import Group, SchedulePlan
+
+logger = logging.getLogger(__name__)
+
 
 @login_required
 def group_api_data(request, group_id):
@@ -18,8 +21,8 @@ def group_api_data(request, group_id):
         'schedule_type': getattr(group, 'schedule_type', 'custom'),
         'location': group.classroom.address if group.classroom else '',
         'classroom_id': group.classroom_id if group.classroom else None,
-        'category': str(group.category) if group.category else None,  # ✅ Категория (название)
-        'category_id': group.category_id if group.category else None,  # ✅ ID категории
+        'category': str(group.category) if group.category else None,
+        'category_id': group.category_id if group.category else None,
         'duration': group.get_duration_display() if group.duration else '—',
     }
     return JsonResponse(data)
@@ -67,13 +70,6 @@ def check_instructor_availability(request):
     return JsonResponse({'available': True})
 
 
-# groups/views/api.py
-import json
-from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse
-from groups.models import SchedulePlan
-
-
 @login_required
 def get_teacher_schedules(request):
     """Возвращает индикаторы занятости преподавателей (У/Д/В)"""
@@ -94,31 +90,40 @@ def get_teacher_schedules(request):
             if isinstance(class_days, str):
                 try:
                     class_days = json.loads(class_days)
-                except:
+                except (json.JSONDecodeError, ValueError) as e:
+                    # ✅ Логируем проблему и пропускаем битый план
+                    logger.warning(
+                        "План-график pk=%s содержит некорректный JSON в class_days: %s",
+                        plan.pk, e
+                    )
                     continue
 
             plan_time_slots = class_days.get('_time_slots', [])
             plan_indicators = []
-            if 'morning' in plan_time_slots: plan_indicators.append('У')
-            if 'day' in plan_time_slots: plan_indicators.append('Д')
-            if 'evening' in plan_time_slots: plan_indicators.append('В')
+            if 'morning' in plan_time_slots:
+                plan_indicators.append('У')
+            if 'day' in plan_time_slots:
+                plan_indicators.append('Д')
+            if 'evening' in plan_time_slots:
+                plan_indicators.append('В')
             if not plan_indicators:
                 plan_indicators = ['Д']
 
             for date_str, day_data in class_days.items():
-                if date_str.startswith('_'): continue
+                if date_str.startswith('_'):
+                    continue
                 if not (date_start <= date_str <= date_end):
                     continue
 
                 # 🔹 Для мед. преподавателя: учитываем ТОЛЬКО дни с флагом med=true
                 if is_med_teacher:
                     if not (isinstance(day_data, dict) and day_data.get('med')):
-                        continue  # Пропускаем дни без флага "Медицина"
+                        continue
 
                 # 🔹 Для основного преподавателя: исключаем дни с флагом med=true
                 if exclude_med_days:
                     if isinstance(day_data, dict) and day_data.get('med'):
-                        continue  # Пропускаем дни с флагом "Медицина"
+                        continue
 
                 final_indicators = []
                 start_time = day_data.get('start', '') if isinstance(day_data, dict) else ''
@@ -133,7 +138,12 @@ def get_teacher_schedules(request):
                             final_indicators = ['Д']
                         else:
                             final_indicators = ['В']
-                    except:
+                    except (ValueError, AttributeError) as e:
+                        # ✅ Логируем битое время и используем значение по умолчанию
+                        logger.warning(
+                            "Некорректное время '%s' в плане pk=%s на дату %s: %s. Используем 'Д'.",
+                            start_time, plan.pk, date_str, e
+                        )
                         final_indicators = ['Д']
                 else:
                     final_indicators = plan_indicators
@@ -142,15 +152,16 @@ def get_teacher_schedules(request):
                     schedule_map[date_str] = []
 
                 for ind in final_indicators:
-                    # 🔹 Проверяем, нет ли уже такого индикатора
-                    existing = [x for x in schedule_map.get(date_str, []) if isinstance(x, dict) and x.get('ind') == ind]
+                    existing = [
+                        x for x in schedule_map.get(date_str, [])
+                        if isinstance(x, dict) and x.get('ind') == ind
+                    ]
                     if not existing:
-                        # 🔹 Добавляем объект с полной информацией
                         schedule_map[date_str].append({
                             'ind': ind,
                             'group': str(plan.group) if plan.group else 'Не указано',
                             'location': plan.location or 'Не указано',
-                            'is_med': is_med_teacher  # 🔹 Помечаем, что это медицина
+                            'is_med': is_med_teacher
                         })
 
     # 🔹 Ищем планы основного преподавателя (исключаем дни с мед. флагом)
