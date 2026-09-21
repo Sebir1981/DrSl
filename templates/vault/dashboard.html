@@ -1,5 +1,5 @@
 {% load static %}
-{% load user_extras %}  {# ✅ Загружаем кастомный фильтр для проверки групп #}
+{% load user_extras %}
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -9,10 +9,10 @@
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
 
     <style>
-        /*  Общий сброс */
+        /* 🔹 Общий сброс */
         * { box-sizing: border-box; margin: 0; padding: 0; }
 
-        /* Layout: сайдбар справа, контент слева */
+        /* 🔹 Layout: сайдбар справа, контент слева */
         body {
             display: flex;
             flex-direction: row-reverse;
@@ -22,7 +22,7 @@
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         }
 
-        /*  Верхняя панель */
+        /* 🔹 Верхняя панель */
         .top-bar {
             position: fixed;
             top: 0;
@@ -37,6 +37,7 @@
             padding: 0 30px;
             box-shadow: 0 2px 20px rgba(0,0,0,0.1);
             z-index: 1000;
+            transition: right 0.3s ease;
         }
         .top-bar .brand {
             font-size: 24px;
@@ -65,7 +66,7 @@
         }
         .top-bar .logout-btn:hover { background: #dc2626; }
 
-        /* Основной контент */
+        /* 🔹 Основной контент */
         .main-content {
             flex: 1;
             padding: 100px 30px 30px;
@@ -75,7 +76,7 @@
             overflow-y: auto;
         }
 
-        /* Заголовки секций */
+        /* 🔹 Заголовки секций */
         .section-title {
             width: 100%;
             max-width: 1000px;
@@ -125,7 +126,7 @@
             pointer-events: none;
         }
 
-        /* Сетка карточек */
+        /* 🔹 Сетка карточек */
         .cards-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -164,7 +165,7 @@
             font-weight: bold;
         }
 
-        /* Стили для разных типов карточек */
+        /* 🔹 Стили для разных типов карточек */
         .card.primary {
             background: linear-gradient(135deg, #667eea, #764ba2);
             color: white;
@@ -181,18 +182,7 @@
             border-left: 4px solid #8b5cf6;
         }
 
-        .card.coming-soon {
-            background: #f8fafc;
-            opacity: 0.85;
-            border-left: 4px solid #94a3b8;
-        }
-        .card.coming-soon .icon { filter: grayscale(0.5); }
-        .card.coming-soon .count {
-            background: #94a3b8;
-            color: white;
-        }
-
-        /* Адаптив */
+        /* 🔹 Адаптив */
         @media (max-width: 900px) {
             .top-bar { right: 0; }
             body { flex-direction: column; }
@@ -204,18 +194,6 @@
                 overflow-x: auto;
                 padding: 10px;
                 box-shadow: 0 -5px 25px rgba(0,0,0,0.1);
-            }
-            .menu-item {
-                flex-shrink: 0;
-                border-left: none;
-                border-bottom: 4px solid transparent;
-                margin: 0;
-                border-radius: 10px;
-            }
-            .menu-item:hover, .menu-item.active {
-                border-left: none;
-                border-bottom-color: #667eea;
-                transform: none;
             }
             .main-content { padding-top: 90px; }
             .section-title { border-bottom-color: rgba(255,255,255,0.5); }
@@ -245,28 +223,24 @@
         <!-- 🔹 ОСНОВНЫЕ РАЗДЕЛЫ -->
         <div class="section-title">📋 Основные разделы</div>
         <div class="cards-grid">
-            <!-- Группы -->
             <a href="{% url 'groups:dashboard' %}" class="card primary">
                 <span class="icon">👥</span>
                 <span class="title">Группы</span>
                 <span class="count">{{ groups_count|default:0 }}</span>
             </a>
 
-            <!-- Учащиеся -->
             <a href="{% url 'students:dashboard' %}" class="card primary">
                 <span class="icon">🎓</span>
                 <span class="title">Учащиеся</span>
                 <span class="count">{{ students_count|default:0 }}</span>
             </a>
 
-            <!-- Зачёты и экзамены -->
             <a href="{% url 'groups:credits_exams' %}" class="card primary">
                 <span class="icon">✅</span>
                 <span class="title">Зачёты и экзамены</span>
                 <span class="count">📊</span>
             </a>
 
-            <!-- Генеральный план -->
             <a href="{% url 'master_plan:dashboard' %}" class="card primary">
                 <span class="icon">🗺️</span>
                 <span class="title">Генеральный план</span>
@@ -279,44 +253,51 @@
             <span class="collapse-icon">▼</span>
         </div>
 
-        <!-- Карточки справочников (по умолчанию скрыты) -->
+        <!-- Карточки справочников -->
         <div class="cards-grid collapsible-content" id="ref-content">
-            <!-- Аудитории -->
             <a href="{% url 'classrooms:classroom_list' %}" class="card reference">
                 <span class="icon">🏫</span>
                 <span class="title">Аудитории</span>
                 <span class="count">{{ classrooms_count|default:0 }}</span>
             </a>
 
-            <!-- Преподаватели -->
             <a href="{% url 'teachers:teacher_list' %}" class="card reference">
                 <span class="icon">📚</span>
                 <span class="title">Преподаватели</span>
                 <span class="count">{{ teachers_count|default:0 }}</span>
             </a>
 
-            <!-- Мастера -->
             <a href="{% url 'masters:master_pouts_list' %}" class="card reference">
                 <span class="icon">🚗</span>
                 <span class="title">Мастера</span>
                 <span class="count">{{ masters_count|default:0 }}</span>
             </a>
 
-            <!-- Темы занятий -->
+            <!-- ✅ ИСПРАВЛЕНО: Две отдельные карточки вместо выпадающего списка -->
             <a href="{% url 'reference:topic_list' %}" class="card reference">
                 <span class="icon">📖</span>
-                <span class="title">Темы занятий</span>
+                <span class="title">Теоретические занятия</span>
                 <span class="count">📝</span>
             </a>
 
-            <!-- Категории -->
+            <a href="{% url 'reference:practice_exercise_list' %}" class="card reference">
+                <span class="icon">🛣️</span>
+                <span class="title">Практические занятия</span>
+                <span class="count">🚗</span>
+            </a>
+
+            <a href="{% url 'reference:paid_service_list' %}" class="card reference">
+                <span class="icon">💰</span>
+                <span class="title">Платные услуги</span>
+                <span class="count">{{ paid_services_count|default:0 }}</span>
+            </a>
+
             <a href="{% url 'admin:reference_groupcategory_changelist' %}" class="card reference">
                 <span class="icon">📁</span>
                 <span class="title">Категории</span>
                 <span class="count">⚙️</span>
             </a>
 
-            <!-- Автопарк -->
             <a href="{% url 'cars:car_list' %}" class="card reference">
                 <span class="icon">🚙</span>
                 <span class="title">Автопарк</span>
@@ -328,14 +309,12 @@
         {% if user|is_in_group:"admin" or user.is_superuser %}
         <div class="section-title">⚙️ Системные</div>
         <div class="cards-grid">
-            <!-- Хранилище -->
             <a href="{% url 'vault:vault_list' %}" class="card admin">
                 <span class="icon">🔐</span>
                 <span class="title">Хранилище</span>
                 <span class="count">🗝️</span>
             </a>
 
-            <!-- Админка -->
             <a href="{% url 'admin:index' %}" class="card admin">
                 <span class="icon">⚙️</span>
                 <span class="title">Админ-панель</span>
@@ -352,24 +331,21 @@
             const header = document.getElementById('ref-toggle');
             const content = document.getElementById('ref-content');
 
-            // Функция сворачивания/разворачивания
             function toggleRef() {
                 header.classList.toggle('collapsed');
                 content.classList.toggle('collapsed');
             }
 
-            // Обработчик клика
             header.addEventListener('click', toggleRef);
 
-            // 🔹 ПО УМОЛЧАНИЮ СВЕРНУТО
+            // 🔹 ПО УМОЛЧАНИЮ СВЕРНУТО (можно убрать следующие 2 строки, если хотите, чтобы было развернуто)
             header.classList.add('collapsed');
             content.classList.add('collapsed');
+            
+            // 🔹 На главной странице сайдбар всегда развёрнут
+            document.body.classList.remove('sidebar-collapsed');
+            localStorage.setItem('sidebarCollapsed', 'false');
         });
-        // 🔹 На главной странице сайдбар всегда развёрнут
-document.addEventListener('DOMContentLoaded', function() {
-    document.body.classList.remove('sidebar-collapsed');
-    localStorage.setItem('sidebarCollapsed', 'false');
-});
     </script>
 </body>
 </html>

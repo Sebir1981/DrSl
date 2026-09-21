@@ -1,4 +1,7 @@
 # students/views.py
+import json
+import random
+from datetime import datetime
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -7,13 +10,17 @@ from django.db.models import Q
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST, require_http_methods
 from django.template.loader import render_to_string
+from django.conf import settings
 
 from .forms import DismissalForm, RefusalForm, SuspensionForm, ContractExtensionForm, StudentPublicAddForm
-from groups.models import Group
 from teachers.models import Teacher
 from masters.models import Master
 from .services import StudentStatusService
 from .models import Student
+from collections import defaultdict
+from groups.models import Group, SchedulePlan
+from master_plan.models import MasterPlanGroup
+from cars.models import Car
 
 
 # =============================================================================
@@ -268,6 +275,190 @@ def student_detail(request, student_id):
     author_name = request.user.get_full_name() or request.user.username
     change_history = _prepare_change_history(activity_log, author_name)
 
+    # 🔹 Получаем результаты зачётов и экзаменов
+    from groups.models import CreditResult, ExamResult
+    from reference.models import Credit
+
+    # Все зачёты студента
+    credit_results = CreditResult.objects.filter(
+        student=student
+    ).select_related('credit').order_by('credit__number', '-credit_date')
+
+    # Группируем по номерам зачётов
+    # Все зачёты студента
+    credit_results = CreditResult.objects.filter(
+        student=student
+    ).select_related('credit').order_by('credit__number', '-credit_date')
+
+    # Группируем по номерам зачётов с распарсенными данными
+    credits_by_number = defaultdict(list)
+    for cr in credit_results:
+        # Парсим комментарий для получения типа попытки
+        attempt_type = 'Бесплатная'
+        attempt_num = 0
+        if cr.comment:
+            # Ищем в комментарии маркеры типа попытки
+            if 'платная' in cr.comment.lower() or 'paid' in cr.comment.lower():
+                attempt_type = 'Платная'
+            elif 'бесплатная' in cr.comment.lower() or 'free' in cr.comment.lower():
+                attempt_type = 'Бесплатная'
+
+            # Ищем номер попытки
+            import re
+            match = re.search(r'попытка\s*#?(\d+)', cr.comment.lower())
+            if match:
+                attempt_num = int(match.group(1))
+
+        credits_by_number[cr.credit.number].append({
+            'credit_date': cr.credit_date,
+            'status': cr.status,
+            'attempt_type': attempt_type,
+            'attempt_num': attempt_num,
+        })
+    # Все экзамены студента
+    exam_results = ExamResult.objects.filter(
+        student=student
+    ).order_by('exam_type', '-exam_date')
+
+    theory_exams = exam_results.filter(exam_type='theory')
+    driving_exams = exam_results.filter(exam_type='driving')
+
+    # 🔹 Получаем все платные услуги и выбранные для студента
+    from reference.models import PaidService
+    all_services = PaidService.objects.all()
+
+    # Получаем значения услуг для студента (из activity_log или отдельного поля)
+    student_services = {}
+    if student.activity_log:
+        for entry in student.activity_log:
+            if entry.get('type') == 'service_added':
+                service_id = entry.get('details', {}).get('service_id')
+                if service_id:
+                    student_services[service_id] = True
+
+    # 🔹 Получаем уникальные марки автомобилей из автопарка
+    car_brands = Car.objects.values_list('make', flat=True).distinct().order_by('make')
+    today = timezone.now().date()
+
+    # 🔹 1. Расчёт часов ТЕОРИИ из план-графика
+    theory_total = 0.0
+    theory_distributed = 0.0
+
+    if student.group:
+        schedule_plan = SchedulePlan.objects.filter(group=student.group).order_by('-created_at').first()
+
+        if schedule_plan:
+            # 🔹 БЕРЁМ готовое значение "Итого" из план-графика
+            theory_total = float(schedule_plan.required_hours or 0)
+
+            # 🔹 Считаем только распределённые часы (прошедшие дни)
+            if schedule_plan.class_days:
+                class_days = schedule_plan.class_days
+                if isinstance(class_days, str):
+                    try:
+                        class_days = json.loads(class_days)
+                    except json.JSONDecodeError:
+                        class_days = {}
+
+                if isinstance(class_days, dict):
+                    # Получаем список исключённых и дополнительных дней
+                    excluded_dates = set(schedule_plan.excluded_dates or [])
+                    additional_dates = set(schedule_plan.additional_dates or [])
+
+                    for date_str, day_data in class_days.items():
+                        # Пропускаем служебные ключи
+                        if date_str.startswith('_') or not isinstance(day_data, dict):
+                            continue
+
+                        #  СТРОГАЯ ПРОВЕРКА: день должен быть активен
+                        # Проверяем excluded_dates
+                        if date_str in excluded_dates:
+                            if settings.DEBUG:
+                                print(f"SKIP (excluded): {date_str}")
+                            continue
+
+                        # Проверяем флаг scheduled
+                        is_scheduled = day_data.get('scheduled', None)
+                        if is_scheduled is False:
+                            if settings.DEBUG:
+                                print(f"SKIP (scheduled=False): {date_str}")
+                            continue
+
+                        # Если scheduled не установлен (None), проверяем по алгоритму
+                        if is_scheduled is None:
+                            try:
+                                date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+                                weekday = date_obj.weekday()
+                                schedule_type = schedule_plan.schedule_type
+
+                                should_be_scheduled = False
+                                if schedule_type == 'even' and date_obj.day % 2 == 0 and weekday < 5:
+                                    should_be_scheduled = True
+                                elif schedule_type == 'odd' and date_obj.day % 2 == 1 and weekday < 5:
+                                    should_be_scheduled = True
+                                elif schedule_type == 'weekend' and weekday >= 5:
+                                    should_be_scheduled = True
+                                elif schedule_type == 'everyday':
+                                    should_be_scheduled = True
+
+                                # Если день не должен быть по алгоритму и не в additional_dates
+                                if not should_be_scheduled and date_str not in additional_dates:
+                                    if settings.DEBUG:
+                                        print(f"SKIP (not scheduled by algo): {date_str}")
+                                    continue
+                            except (ValueError, TypeError):
+                                pass
+
+                        try:
+                            date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
+                            # Суммируем только прошедшие дни (включая сегодня)
+                            if date_obj <= today:
+                                day_hours = 0.0
+                                for k, v in day_data.items():
+                                    # Пропускаем служебные ключи
+                                    if k.startswith('_') or k.endswith('_topics'):
+                                        continue
+                                    if k in ['scheduled', 'manuallyRemoved', 'is_med', 'med', 'med_hours',
+                                             'location', 'time_start', 'time_end', 'category']:
+                                        continue
+                                    # Суммируем только числа
+                                    if isinstance(v, (int, float)):
+                                        day_hours += float(v)
+                                    elif isinstance(v, str):
+                                        try:
+                                            day_hours += float(v)
+                                        except (ValueError, TypeError):
+                                            pass
+
+                                if day_hours > 0:
+                                    theory_distributed += day_hours
+
+                                    # Отладка
+                                    if settings.DEBUG:
+                                        print(f"✓ COUNT: {date_str} = {day_hours} ч. (всего: {theory_distributed})")
+                        except (ValueError, TypeError) as e:
+                            continue
+
+    # Ограничиваем распределённые часы общим количеством
+    theory_distributed = min(theory_distributed, theory_total)
+    theory_remaining = max(0.0, theory_total - theory_distributed)
+    theory_percent = round((theory_distributed / theory_total * 100), 1) if theory_total > 0 else 0.0
+
+    # 🔹 2. Расчёт часов ПРАКТИКИ из генерального плана (с заглушкой)
+    practice_total = 0.0
+    practice_driven = 0.0
+
+    if student.group:
+        master_plan = MasterPlanGroup.objects.filter(group=student.group, is_archived=False).first()
+        if master_plan:
+            practice_total = float(master_plan.hours_per_student)
+            # 🚧 ЗАГЛУШКА: рандомное число до 50, пока не реализован учёт из путевых листов
+            practice_driven = min(random.randint(0, 50), practice_total)
+
+    practice_remaining = max(0.0, practice_total - practice_driven)
+    practice_percent = round((practice_driven / practice_total * 100), 1) if practice_total > 0 else 0.0
+
+    # ✅ ИСПРАВЛЕННЫЙ ОТСТУП ЗДЕСЬ:
     context = {
         'student': student,
         'activity_log': activity_log,
@@ -275,6 +466,22 @@ def student_detail(request, student_id):
         'last_transfer': last_transfer,
         'change_history': change_history,
         'title': f'🎓 {student.full_name}',
+        'credits_by_number': credits_by_number,
+        'theory_exams': theory_exams,
+        'driving_exams': driving_exams,
+        'all_services': all_services,
+        'student_services': student_services,
+        'masters': Master.objects.all().order_by('last_name', 'first_name'),
+        'teachers': Teacher.objects.filter(is_active=True).order_by('last_name', 'first_name'),
+        'car_brands': car_brands,
+        'theory_total': round(theory_total, 1),
+        'theory_distributed': round(theory_distributed, 1),
+        'theory_remaining': round(theory_remaining, 1),
+        'theory_percent': theory_percent,
+        'practice_total': round(practice_total, 1),
+        'practice_driven': round(practice_driven, 1),
+        'practice_remaining': round(practice_remaining, 1),
+        'practice_percent': practice_percent,
     }
     return render(request, 'students/student_detail.html', context)
 
@@ -695,3 +902,135 @@ def get_students_api(request):
         })
 
     return JsonResponse({'rows': rows_html, 'suggestions': suggestions_list})
+
+# =============================================================================
+# ✅ 12. Выбор платных услуг
+# =============================================================================
+
+@login_required
+@require_http_methods(["POST"])
+def update_service_value(request, student_id):
+    """Обновление значения выбранной услуги для студента"""
+    student = get_object_or_404(Student, pk=student_id)
+
+    try:
+        data = json.loads(request.body)
+        service_id = data.get('service_id')
+        field_type = data.get('field_type')
+        value = data.get('value')
+
+        from reference.models import PaidService
+        service = get_object_or_404(PaidService, pk=service_id)
+
+        # Добавляем запись в activity_log
+        log_entry = {
+            'type': 'service_value_updated',
+            'date': timezone.now().date().isoformat(),
+            'title': f"Обновлено значение услуги: {service.name}",
+            'details': {
+                'service_id': service.id,
+                'service_name': service.name,
+                'field_type': field_type,
+                'value': value
+            }
+        }
+
+        current_log = student.activity_log or []
+        current_log.append(log_entry)
+        student.activity_log = current_log
+        student.save(update_fields=['activity_log', 'updated_at'])
+
+        return JsonResponse({'success': True})
+
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+# =============================================================================
+# ✅ 13. Включение/выключение платной услуги
+# =============================================================================
+
+@login_required
+@require_http_methods(["POST"])
+def toggle_service(request, student_id):
+    """Включение/выключение платной услуги для студента"""
+    student = get_object_or_404(Student, pk=student_id)
+
+    try:
+        data = json.loads(request.body)
+        service_id = data.get('service_id')
+        enabled = data.get('enabled', False)
+
+        from reference.models import PaidService
+        service = get_object_or_404(PaidService, pk=service_id)
+
+        # Добавляем запись в activity_log
+        log_entry = {
+            'type': 'service_added' if enabled else 'service_removed',
+            'date': timezone.now().date().isoformat(),
+            'title': f"{'Добавлена' if enabled else 'Удалена'} услуга: {service.name}",
+            'details': {
+                'service_id': service.id,
+                'service_name': service.name,
+                'enabled': enabled
+            }
+        }
+
+        current_log = student.activity_log or []
+        current_log.append(log_entry)
+        student.activity_log = current_log
+        student.save(update_fields=['activity_log'])
+
+        return JsonResponse({'success': True})
+
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+
+# =============================================================================
+# ✅ 14. Сохранение всех платных услуг для студента
+# =============================================================================
+
+@login_required
+@require_http_methods(["POST"])
+def save_services(request, student_id):
+    """Сохранение всех выбранных платных услуг для студента"""
+    student = get_object_or_404(Student, pk=student_id)
+
+    try:
+        data = json.loads(request.body)
+        services = data.get('services', [])
+
+        from reference.models import PaidService
+
+        # Получаем текущий activity_log
+        current_log = student.activity_log or []
+
+        # Удаляем старые записи о услугах
+        current_log = [entry for entry in current_log if entry.get('type') not in ['service_added', 'service_removed']]
+
+        # Добавляем новые записи
+        for service_data in services:
+            service_id = service_data.get('service_id')
+            service_name = service_data.get('service_name')
+            values = service_data.get('values', {})
+
+            log_entry = {
+                'type': 'service_added',
+                'date': timezone.now().date().isoformat(),
+                'title': f"Добавлена услуга: {service_name}",
+                'details': {
+                    'service_id': service_id,
+                    'service_name': service_name,
+                    'enabled': True,
+                    'values': values
+                }
+            }
+            current_log.append(log_entry)
+
+        student.activity_log = current_log
+        student.save(update_fields=['activity_log'])
+
+        return JsonResponse({'success': True, 'count': len(services)})
+
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)

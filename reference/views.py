@@ -1,5 +1,6 @@
 # reference/views.py
 import json
+import re
 import traceback
 from django.http import JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
@@ -7,18 +8,46 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.urls import reverse
 
-# ✅ ЧИСТЫЕ ИМПОРТЫ (убран дублирующий Topic, используем только LessonTopic)
-from .models import (
-    LessonTopic, SubjectDictionary, GroupCategory,
-    SubjectSet, TrainingProgram, ProgramSubject, ProgramTopic
-)
 from classrooms.models import Classroom
 from teachers.models import Teacher
 from masters.models import Master
+from cars.models import Car
+
+from .models import (
+    LessonTopic, SubjectDictionary, GroupCategory,
+    SubjectSet, TrainingProgram, ProgramSubject, ProgramTopic,
+    PracticeCategory, PracticeExercise, PaidService, Credit
+)
 
 
 # ==========================================
-# Views: Темы занятий
+# 🔹 Натуральная сортировка номеров упражнений
+# ==========================================
+
+def natural_sort_key(exercise_number):
+    """
+    Ключ для натуральной сортировки номеров упражнений.
+    "1" → (1, 0, ''), "1.1" → (1, 1, ''), "2.3а" → (2, 3, 'а')
+    """
+    parts = exercise_number.split('.', 1)
+    try:
+        main = int(parts[0])
+    except (ValueError, IndexError):
+        main = 0
+
+    if len(parts) == 2:
+        sub_part = parts[1]
+        match = re.match(r'(\d+)([а-яА-Яa-zA-Z]?)', sub_part)
+        if match:
+            sub = int(match.group(1))
+            letter = match.group(2).lower() if match.group(2) else ''
+            return (main, sub, letter)
+
+    return (main, 0, '')
+
+
+# ==========================================
+# Views: Темы занятий (теория)
 # ==========================================
 
 @login_required
@@ -133,7 +162,7 @@ def subject_edit(request, pk):
                     messages.success(request, f'✅ Предмет "{name}" обновлён!')
                     return redirect('reference:subject_list')
             except Exception as e:
-                messages.error(request, f' Ошибка: {e}')
+                messages.error(request, f'❌ Ошибка: {e}')
 
     return render(request, 'reference/subject_list.html', {
         'subjects': SubjectDictionary.objects.all().order_by('name'),
@@ -159,14 +188,8 @@ def subject_delete(request, pk):
 
 @login_required
 def category_subjects_list(request):
-    """
-    Список программ обучения (вместо удалённой /reference/programs/)
-    """
-    # 🔹 Получаем plan_id из URL параметра (например, ?plan_id=19)
     plan_id = request.GET.get('plan_id')
-
     programs = TrainingProgram.objects.all().order_by('-created_at')
-
     return render(request, 'reference/category_subjects_list.html', {
         'programs': programs,
         'title': 'Программы обучения',
@@ -195,7 +218,7 @@ def category_subjects_manage(request, category_code):
 
 
 # ==========================================
-#  Управление наборами предметов (SubjectSet)
+# 🔹 Управление наборами предметов (SubjectSet)
 # ==========================================
 
 @login_required
@@ -224,7 +247,7 @@ def subject_set_create(request):
                 messages.success(request, f'✅ Набор "{name}" создан!')
                 return redirect('reference:subject_sets_list')
             except Exception as e:
-                messages.error(request, f' Ошибка: {e}')
+                messages.error(request, f'❌ Ошибка: {e}')
 
     return render(request, 'reference/subject_set_form.html', {
         'title': 'Создать набор',
@@ -254,7 +277,7 @@ def subject_set_edit(request, pk):
                 messages.success(request, f'✅ Набор "{name}" обновлён!')
                 return redirect('reference:subject_sets_list')
             except Exception as e:
-                messages.error(request, f' Ошибка: {e}')
+                messages.error(request, f'❌ Ошибка: {e}')
 
     return render(request, 'reference/subject_set_form.html', {
         'title': 'Редактировать набор',
@@ -280,37 +303,30 @@ def subject_set_delete(request, pk):
 
 
 # =========================================================
-#  API Эндпоинты
+# 🔹 API Эндпоинты
 # =========================================================
 
 @login_required
 def api_get_topics(request):
-    """API: получение тем с часами из конкретного учебного плана"""
     try:
         subject_code = request.GET.get('subject')
-        program_id = request.GET.get('program_id')  # 🔹 Новый параметр
+        program_id = request.GET.get('program_id')
 
         if not subject_code:
             return JsonResponse({'success': False, 'error': 'subject required'}, status=400)
 
-        # Получаем предмет
         subject = SubjectDictionary.objects.get(short_name=subject_code)
-
         topics_data = []
 
-        # 🔹 1. Если известен ID программы (мы находимся в режиме редактирования плана)
         if program_id:
             try:
                 program = TrainingProgram.objects.get(id=program_id)
-
-                # Ищем этот предмет ВНУТРИ этой программы
                 program_subject = ProgramSubject.objects.filter(
                     program=program,
                     subject=subject
                 ).first()
 
                 if program_subject:
-                    # Берем темы И ИХ ЧАСЫ из связей программы
                     program_topics = ProgramTopic.objects.filter(
                         program_subject=program_subject
                     ).select_related('topic')
@@ -319,14 +335,13 @@ def api_get_topics(request):
                         'id': pt.topic.id,
                         'number': pt.topic.topic_number,
                         'name': pt.topic.content,
-                        'hours': float(pt.hours),  # ✅ БЕРЕМ ЧАСЫ ИЗ УЧЕБНОГО ПЛАНА!
+                        'hours': float(pt.hours),
                         'is_pz': 'пз' in pt.topic.content.lower(),
                     } for pt in program_topics.order_by('topic__topic_number')]
 
             except TrainingProgram.DoesNotExist:
                 pass
 
-        # 🔹 2. Если программа не указана или не найдена — берем из справочника (fallback)
         if not topics_data:
             topics = LessonTopic.objects.filter(subject=subject).order_by('topic_number')
             topics_data = [{
@@ -342,13 +357,12 @@ def api_get_topics(request):
     except SubjectDictionary.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Subject not found'}, status=404)
     except Exception as e:
-        import traceback
         traceback.print_exc()
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
+
 @login_required
 def api_get_subject_topics(request):
-    """API: Получить темы для конкретного предмета (альтернативный эндпоинт)"""
     subject_code = request.GET.get('subject_code')
     if not subject_code:
         return JsonResponse({'success': False, 'error': 'subject_code required'}, status=400)
@@ -375,7 +389,6 @@ def api_get_subject_topics(request):
 
 @login_required
 def api_save_topics(request):
-    """API: Сохранение распределения тем (заглушка/вспомогательный)"""
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
@@ -389,7 +402,6 @@ def api_save_topics(request):
 
 @login_required
 def api_get_subjects_by_category(request):
-    """API: Получить предметы для категории (используется в план-графике)"""
     category_code = request.GET.get('category')
     if not category_code:
         return JsonResponse({'success': False, 'error': 'Category not specified'})
@@ -411,43 +423,31 @@ def api_get_subjects_by_category(request):
 # 🔹 Конструктор программ обучения
 # ==========================================
 
-import json  # ← Убедитесь, что импортирован
-
-
 @login_required
 def training_program_builder(request, pk=None):
-    """Конструктор программы обучения: создание или редактирование"""
-
-    # 1. Сначала определяем переменную program (или None)
     program = None
     if pk:
         program = get_object_or_404(TrainingProgram, pk=pk)
 
-    # 2. Формируем заголовок
     title = f"Редактирование: {program.name}" if program else "Создание новой программы"
 
-    # 3. Получаем справочники
     all_categories = GroupCategory.objects.all().order_by('code')
     all_subjects = SubjectDictionary.objects.all().order_by('short_name')
 
-    # 4. 🔹 БЕЗОПАСНО: готовим данные только если программа существует
     program_subjects = {}
     if program:
         for ps in program.subjects.select_related('subject').prefetch_related('topics'):
             program_subjects[ps.subject.short_name] = {
                 'is_enabled': ps.is_enabled,
                 'hours': float(ps.hours),
-                # 🔹 Ключи словаря должны быть строками для JSON
                 'topics': {str(t.topic.id): float(t.hours) for t in ps.topics.all()}
             }
 
-    # 5. Контекст для шаблона
     context = {
         'program': program,
         'title': title,
         'all_categories': all_categories,
         'all_subjects': all_subjects,
-        # 🔹 Сериализуем в JSON с поддержкой кириллицы
         'program_subjects_json': json.dumps(program_subjects, ensure_ascii=False),
         'preselected_category': request.GET.get('category'),
     }
@@ -457,25 +457,22 @@ def training_program_builder(request, pk=None):
 
 @login_required
 def category_subjects_manage_redirect(request, category_code):
-    """Перенаправляет на конструктор программ с предвыбранной категорией"""
     return redirect(f'{reverse("reference:program_create")}?category={category_code}')
 
 
 @login_required
 def training_program_delete(request, pk):
-    """Удаление программы обучения"""
     program = get_object_or_404(TrainingProgram, pk=pk)
     if request.method == 'POST':
         program_name = program.name
         program.delete()
-        messages.success(request, f'️ Программа "{program_name}" удалена')
+        messages.success(request, f'🗑️ Программа "{program_name}" удалена')
         return JsonResponse({'success': True})
     return JsonResponse({'success': False, 'error': 'Invalid method'})
 
 
 @login_required
 def training_program_save(request):
-    """Сохранение программы обучения"""
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'Invalid method'})
 
@@ -488,7 +485,6 @@ def training_program_save(request):
         category_codes = data.get('categories', [])
         subjects_data = data.get('subjects', [])
 
-
         if program_id:
             program = TrainingProgram.objects.get(pk=program_id)
             program.name = name
@@ -497,13 +493,13 @@ def training_program_save(request):
             program.save()
             program.categories.set(GroupCategory.objects.filter(code__in=category_codes))
         else:
-            program = TrainingProgram.objects.create(name=name, total_hours=total_hours, plan_graphic_title=plan_graphic_title)
+            program = TrainingProgram.objects.create(
+                name=name, total_hours=total_hours, plan_graphic_title=plan_graphic_title
+            )
             program.categories.set(GroupCategory.objects.filter(code__in=category_codes))
 
-        # Очищаем старые связи
         program.subjects.all().delete()
 
-        # Добавляем новые предметы и темы
         for subj_data in subjects_data:
             if not subj_data.get('is_enabled'):
                 continue
@@ -534,3 +530,273 @@ def training_program_save(request):
     except Exception as e:
         traceback.print_exc()
         return JsonResponse({'success': False, 'error': str(e)})
+
+
+# ==========================================
+# 🔹 Практические занятия
+# ==========================================
+
+@login_required
+def practice_exercise_list(request):
+    """Список практических упражнений с натуральной сортировкой"""
+    current_category_code = request.GET.get('category', 'B')
+
+    try:
+        current_category = PracticeCategory.objects.get(code=current_category_code)
+    except PracticeCategory.DoesNotExist:
+        current_category = PracticeCategory.objects.first()
+        if not current_category:
+            current_category = PracticeCategory.objects.create(code='B', name='Категория B')
+        current_category_code = current_category.code
+
+    all_categories = PracticeCategory.objects.all().order_by('code')
+    exercises_qs = PracticeExercise.objects.filter(category=current_category)
+    exercises = sorted(exercises_qs, key=lambda ex: natural_sort_key(ex.exercise_number))
+
+    if request.method == 'POST' and 'exercise_number' in request.POST:
+        try:
+            exercise_number = request.POST['exercise_number'].strip()
+            name = request.POST['name'].strip()
+            hours = request.POST.get('hours', '0').strip() or '0'
+
+            PracticeExercise.objects.create(
+                category=current_category,
+                exercise_number=exercise_number,
+                name=name,
+                hours=hours,
+                order=exercises_qs.count()
+            )
+            messages.success(request, '✅ Упражнение добавлено')
+        except Exception as e:
+            messages.error(request, f'❌ Ошибка: {str(e)}')
+        return redirect(f'{reverse("reference:practice_exercise_list")}?category={current_category.code}')
+
+    return render(request, 'reference/practice_exercise_list.html', {
+        'exercises': exercises,
+        'current_category': current_category,
+        'current_category_code': current_category_code,
+        'all_categories': all_categories,
+        'title': 'Практические занятия'
+    })
+
+
+@login_required
+def practice_exercise_delete(request, exercise_id):
+    exercise = get_object_or_404(PracticeExercise, pk=exercise_id)
+    category_code = exercise.category.code
+    exercise.delete()
+    messages.success(request, '🗑️ Упражнение удалено')
+    return redirect(f'{reverse("reference:practice_exercise_list")}?category={category_code}')
+
+
+@login_required
+def practice_category_add(request):
+    if request.method == 'POST':
+        code = request.POST.get('code', '').upper().strip()
+        name = request.POST.get('name', '').strip()
+
+        if code and name:
+            if PracticeCategory.objects.filter(code=code).exists():
+                messages.error(request, f'⚠️ Категория "{code}" уже существует')
+            else:
+                PracticeCategory.objects.create(code=code, name=name)
+                messages.success(request, f'✅ Категория "{code}" создана')
+
+    return redirect('reference:practice_exercise_list')
+
+
+@login_required
+def practice_category_delete(request, category_id):
+    category = get_object_or_404(PracticeCategory, pk=category_id)
+    category.delete()
+    messages.success(request, f'🗑️ Категория удалена')
+    return redirect('reference:practice_exercise_list')
+
+
+@login_required
+def training_plan_create(request):
+    if request.method == 'POST':
+        program_name = request.POST.get('program_name')
+        selected_categories = request.POST.get('selected_categories', '').split(',')
+
+        if program_name and selected_categories:
+            program = TrainingProgram.objects.create(
+                name=program_name,
+                total_hours=0
+            )
+
+            for code in selected_categories:
+                if code.strip():
+                    category = get_object_or_404(GroupCategory, code=code.strip())
+                    program.categories.add(category)
+
+            messages.success(request, f'✅ Программа "{program_name}" создана')
+            return redirect('reference:category_subjects_list')
+
+    categories = GroupCategory.objects.all().order_by('code')
+    subjects = SubjectDictionary.objects.all().order_by('name')
+
+    return render(request, 'reference/training_plan_create.html', {
+        'categories': categories,
+        'subjects': subjects,
+        'title': 'Добавить новый план занятий'
+    })
+
+
+# ==========================================
+# 🔹 Платные услуги
+# ==========================================
+
+@login_required
+def paid_service_list(request):
+    if request.method == 'POST' and 'name' in request.POST:
+        try:
+            PaidService.objects.create(
+                name=request.POST['name'].strip()
+            )
+            messages.success(request, '✅ Услуга добавлена')
+        except Exception as e:
+            messages.error(request, f'❌ Ошибка: {str(e)}')
+        return redirect('reference:paid_service_list')
+
+    services = PaidService.objects.all()
+    cars = Car.objects.all().order_by('make', 'license_plate')
+    masters = Master.objects.all().order_by('last_name', 'first_name')
+    teachers = Teacher.objects.all().order_by('last_name', 'first_name')
+
+    return render(request, 'reference/paid_service_list.html', {
+        'services': services,
+        'cars': cars,
+        'masters': masters,
+        'teachers': teachers,
+        'title': 'Платные услуги'
+    })
+
+
+@login_required
+def paid_service_update(request, pk):
+    if request.method == 'POST':
+        service = get_object_or_404(PaidService, pk=pk)
+        service.value = request.POST.get('value', '')
+        service.save()
+        messages.success(request, '✅ Обновлено')
+    return redirect('reference:paid_service_list')
+
+
+@login_required
+def paid_service_delete(request, pk):
+    service = get_object_or_404(PaidService, pk=pk)
+    service.delete()
+    messages.success(request, '🗑️ Услуга удалена')
+    return redirect('reference:paid_service_list')
+
+
+# ==========================================
+# 🔹 Темы зачётов (CRUD)
+# ==========================================
+
+@login_required
+def credit_list(request):
+    """Список тем зачётов с формой добавления"""
+    if request.method == 'POST':
+        category_id = request.POST.get('category')
+        topic = request.POST.get('topic', '').strip()
+        number_str = request.POST.get('number', '').strip()
+        is_exam_str = request.POST.get('is_exam', 'False')
+        is_exam = is_exam_str == 'True'
+
+        if not category_id:
+            messages.error(request, '⚠️ Выберите категорию')
+        elif not topic:
+            messages.error(request, '⚠️ Введите тему')
+        elif not number_str:
+            messages.error(request, '⚠️ Введите номер')
+        else:
+            try:
+                number = int(number_str)
+                category = GroupCategory.objects.get(pk=category_id)
+
+                if Credit.objects.filter(category=category, number=number).exists():
+                    messages.error(request, f'⚠️ Запись №{number} уже существует для категории {category.code}!')
+                else:
+                    Credit.objects.create(
+                        category=category,
+                        number=number,
+                        topic=topic,
+                        is_exam=is_exam
+                    )
+                    item_type = 'Экзамен' if is_exam else 'Зачёт'
+                    messages.success(request, f'✅ {item_type} №{number} добавлен для категории {category.code}!')
+            except GroupCategory.DoesNotExist:
+                messages.error(request, '⚠️ Категория не найдена')
+            except ValueError:
+                messages.error(request, '⚠️ Номер должен быть числом')
+
+        return redirect('reference:credit_list')
+
+    credits = Credit.objects.select_related('category').all().order_by('category__code', 'number')
+    categories = GroupCategory.objects.all().order_by('code')
+
+    context = {
+        'credits': credits,
+        'categories': categories,
+        'title': '📚 Темы зачётов'
+    }
+    return render(request, 'reference/credit_list.html', context)
+
+
+@login_required
+def credit_edit(request, credit_id):
+    """Редактирование темы зачёта (через модальное окно)"""
+    credit = get_object_or_404(Credit, pk=credit_id)
+
+    if request.method == 'POST':
+        category_id = request.POST.get('category')
+        number_str = request.POST.get('number', '').strip()
+        topic = request.POST.get('topic', '').strip()
+        is_exam_str = request.POST.get('is_exam', 'False')
+        is_exam = is_exam_str == 'True'
+
+        if not category_id or not number_str or not topic:
+            messages.error(request, '⚠️ Заполните все обязательные поля')
+        else:
+            try:
+                number = int(number_str)
+                category = GroupCategory.objects.get(pk=category_id)
+
+                if Credit.objects.filter(category=category, number=number).exclude(pk=credit_id).exists():
+                    messages.error(request, f'⚠️ Запись №{number} уже существует для категории {category.code}!')
+                else:
+                    credit.category = category
+                    credit.number = number
+                    credit.topic = topic
+                    credit.is_exam = is_exam
+                    credit.save()
+                    messages.success(request, f'✅ Запись №{number} обновлена!')
+            except GroupCategory.DoesNotExist:
+                messages.error(request, '⚠️ Категория не найдена')
+            except ValueError:
+                messages.error(request, '⚠️ Номер должен быть числом')
+
+        return redirect('reference:credit_list')
+
+    # GET — возвращаем JSON для заполнения модального окна
+    return JsonResponse({
+        'id': credit.id,
+        'category_id': credit.category_id,
+        'number': credit.number,
+        'topic': credit.topic,
+        'is_exam': credit.is_exam  # Django автоматически превратит это в JS true/false
+    })
+
+@login_required
+def credit_delete(request, credit_id):
+    """Удаление темы зачёта"""
+    credit = get_object_or_404(Credit, pk=credit_id)
+
+    if request.method == 'POST':
+        credit.delete()
+        messages.success(request, f'🗑️ Зачёт №{credit.number} удалён!')
+        return redirect('reference:credit_list')
+
+    return redirect('reference:credit_list')

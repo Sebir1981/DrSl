@@ -79,7 +79,7 @@ class Student(models.Model):
     ]
     gearbox_type = models.CharField(
         "Тип КПП",
-        max_length=10,
+        max_length=50,
         choices=GEARBOX_CHOICES,
         default='',
         blank=True,

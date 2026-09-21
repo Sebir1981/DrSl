@@ -11,7 +11,7 @@ from django.db import transaction
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, get_object_or_404, redirect
 
-from groups.models import Group, CreditResult
+from groups.models import Group, CreditResult, ExamResult
 from reference.models import Credit
 from students.models import Student
 from teachers.models import Teacher
@@ -39,7 +39,7 @@ def _parse_credit_comment(comment):
 
 @login_required
 def credits_exams_dashboard(request):
-    """Матрица прогресса: студенты × зачёты"""
+    """Матрица прогресса: студенты × зачёты + экзамены"""
     groups = Group.objects.filter(status='active').order_by('group_number')
 
     # 🔹 Фильтры
@@ -54,36 +54,108 @@ def credits_exams_dashboard(request):
             Q(last_name__icontains=search) | Q(first_name__icontains=search)
         )
 
-    # 🔹 Оптимизация: одна выборка всех попыток
+    # 🔹 ДИНАМИЧЕСКИ получаем все зачёты из базы
+    all_credits = Credit.objects.all().order_by('number')
+
+    # 🔹 РАЗДЕЛЯЕМ зачёты и экзамены
+    regular_credits = all_credits.filter(is_exam=False)
+    exam_credits = all_credits.filter(is_exam=True)
+
+    credit_numbers = [c.number for c in regular_credits]
+    credit_topics = {c.number: c.topic for c in regular_credits}
+
+    exam_numbers = [c.number for c in exam_credits]
+    exam_topics = {c.number: c.topic for c in exam_credits}
+
     student_ids = list(students_qs.values_list('id', flat=True))
     if not student_ids:
         return render(request, 'groups/credits_exams.html', {
-            'groups': groups, 'students': [], 'selected_group': group_id, 'search': search
+            'groups': groups,
+            'students': [],
+            'selected_group': group_id,
+            'search': search,
+            'credit_numbers': credit_numbers,
+            'credit_topics': credit_topics,
+            'exam_numbers': exam_numbers,
+            'exam_topics': exam_topics,
         })
 
+    # 🔹 Оптимизация: одна выборка всех попыток (только зачёты)
     all_attempts = CreditResult.objects.filter(
         student_id__in=student_ids,
-        credit__number__in=range(1, 7)
+        credit__number__in=credit_numbers
     ).select_related('credit').order_by('student_id', 'credit__number', 'credit_date', 'id')
 
-    # 🔹 Группировка в Python
+    # Группировка в Python
     attempts_by_key = defaultdict(list)
     for att in all_attempts:
         attempts_by_key[(att.student_id, att.credit.number)].append(att)
 
+    # 🔹 Получаем результаты экзаменов
+    exam_results = {}
+    all_exam_attempts = CreditResult.objects.filter(
+        student_id__in=student_ids,
+        credit__number__in=exam_numbers
+    ).select_related('credit').order_by('student_id', 'credit__number', 'credit_date', 'id')
+
+    for att in all_exam_attempts:
+        key = (att.student_id, att.credit.number)
+        if key not in exam_results:
+            exam_results[key] = []
+        exam_results[key].append(att)
+
     # 🔹 Формирование данных для шаблона
     students_data = []
     for s in students_qs:
+        # 🔹 Зачёты
         credits_status = []
-        for num in range(1, 7):
+        for num in credit_numbers:
             key = (s.id, num)
             attempts_list = attempts_by_key.get(key, [])
+            topic = credit_topics.get(num, f'Зачёт №{num}')
 
             if attempts_list:
                 last = attempts_list[-1]
                 icon = '✅' if last.status == 'passed' else '❌'
 
-                # 🔹 История попыток для подсказки
+                attempts_for_tooltip = []
+                for att in attempts_list:
+                    parsed = _parse_credit_comment(att.comment)
+                    attempts_for_tooltip.append({
+                        'num': parsed['attempt_num'],
+                        'icon': '✅' if att.status == 'passed' else '',
+                        'type': 'Платная' if parsed['attempt_type'] == 'paid' else 'Бесплатная',
+                        'date': att.credit_date.strftime('%d.%m.%Y') if att.credit_date else '—'
+                    })
+                attempts_for_tooltip.sort(key=lambda x: x['num'])
+
+                credits_status.append({
+                    'num': num,
+                    'status': last.status,
+                    'icon': icon,
+                    'topic': topic,
+                    'attempts': attempts_for_tooltip
+                })
+            else:
+                credits_status.append({
+                    'num': num,
+                    'status': 'none',
+                    'icon': '—',
+                    'topic': topic,
+                    'attempts': []
+                })
+
+        # 🔹 Экзамены
+        exams_status = []
+        for num in exam_numbers:
+            key = (s.id, num)
+            attempts_list = exam_results.get(key, [])
+            topic = exam_topics.get(num, f'Экзамен №{num}')
+
+            if attempts_list:
+                last = attempts_list[-1]
+                icon = '✅' if last.status == 'passed' else '❌'
+
                 attempts_for_tooltip = []
                 for att in attempts_list:
                     parsed = _parse_credit_comment(att.comment)
@@ -95,14 +167,21 @@ def credits_exams_dashboard(request):
                     })
                 attempts_for_tooltip.sort(key=lambda x: x['num'])
 
-                credits_status.append({
+                exams_status.append({
                     'num': num,
                     'status': last.status,
                     'icon': icon,
+                    'topic': topic,
                     'attempts': attempts_for_tooltip
                 })
             else:
-                credits_status.append({'num': num, 'status': 'none', 'icon': '—', 'attempts': []})
+                exams_status.append({
+                    'num': num,
+                    'status': 'none',
+                    'icon': '—',
+                    'topic': topic,
+                    'attempts': []
+                })
 
         students_data.append({
             'id': s.id,
@@ -110,6 +189,7 @@ def credits_exams_dashboard(request):
             'group_number': str(s.group) if s.group else '—',
             'group_id': s.group_id,
             'credits': credits_status,
+            'exams': exams_status,
         })
 
     context = {
@@ -117,6 +197,10 @@ def credits_exams_dashboard(request):
         'students': students_data,
         'selected_group': group_id,
         'search': search,
+        'credit_numbers': credit_numbers,
+        'credit_topics': credit_topics,
+        'exam_numbers': exam_numbers,
+        'exam_topics': exam_topics,
     }
     return render(request, 'groups/credits_exams.html', context)
 
@@ -127,9 +211,9 @@ def credits_exams_add(request):
     teachers = Teacher.objects.filter(is_active=True).order_by('last_name', 'first_name')
     groups = Group.objects.filter(status='active').order_by('group_number')
     students = Student.objects.select_related('group').order_by('last_name', 'first_name')
-    credits = Credit.objects.order_by('number')
+    credits = Credit.objects.select_related('category').order_by('number')
 
-    # 🔹 Предзагрузка количества попыток
+    # Предзагрузка количества попыток
     attempts_counts = CreditResult.objects.filter(
         student_id__in=[s.id for s in students],
         credit_id__in=[c.id for c in credits]
@@ -142,6 +226,12 @@ def credits_exams_add(request):
     students_json = json.dumps([
         {'id': s.id, 'name': s.full_name, 'group_id': s.group_id, 'attempts': attempts_data.get(s.id, {})}
         for s in students
+    ])
+
+    # JSON с информацией о категориях тем зачётов (для фильтрации на клиенте)
+    credits_categories_json = json.dumps([
+        {'id': c.id, 'number': c.number, 'topic': c.topic, 'category_code': c.category.code if c.category else ''}
+        for c in credits
     ])
 
     if request.method == 'POST':
@@ -192,7 +282,7 @@ def credits_exams_add(request):
                                 (f" | {global_comment}" if global_comment else "")
                     )
 
-                    # 🔹 Лог в activity_log
+                    # Лог в activity_log
                     student = Student.objects.select_for_update().get(id=sid)
                     log_entry = {
                         'type': 'credit_result',
@@ -226,6 +316,7 @@ def credits_exams_add(request):
         'students': students,
         'credits': credits,
         'students_json': students_json,
+        'credits_categories_json': credits_categories_json,
         'title': 'Добавить результаты зачётов',
     }
     return render(request, 'groups/credits_exams_add.html', context)
@@ -237,7 +328,7 @@ def credits_report(request):
     groups = Group.objects.filter(status='active').order_by('group_number')
     credits = Credit.objects.order_by('number')
 
-    # 🔹 Фильтры
+    # Фильтры
     group_id = request.GET.get('group')
     credit_id = request.GET.get('credit')
     status = request.GET.get('status')
@@ -259,7 +350,7 @@ def credits_report(request):
     if date_to:
         results = results.filter(credit_date__lte=date_to)
 
-    # 🔹 Экспорт в CSV
+    # Экспорт в CSV
     if request.GET.get('export') == 'csv':
         response = HttpResponse(content_type='text/csv; charset=utf-8')
         response['Content-Disposition'] = 'attachment; filename="zachety_report.csv"'
@@ -289,7 +380,7 @@ def credits_report(request):
             ])
         return response
 
-    # 🔹 Данные для HTML-таблицы
+    # Данные для HTML-таблицы
     report_data = []
     for r in results:
         parsed = _parse_credit_comment(r.comment)
@@ -300,7 +391,7 @@ def credits_report(request):
             'user_comment': parsed['user_comment']
         })
 
-    # 🔹 Статистика
+    # Статистика
     total = len(report_data)
     passed = sum(1 for d in report_data if d['result'].status == 'passed')
     failed = sum(1 for d in report_data if d['result'].status == 'failed')

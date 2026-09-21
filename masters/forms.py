@@ -39,8 +39,8 @@ class MasterPoutsForm(forms.ModelForm):
             }),
 
             # === Документы ===
-            'passport_number': forms.TextInput(attrs={
-                'class': 'form-input',
+            'passport_number': forms.TextInput(attrs={                
+                'class': 'form-input input-uppercase-en',
                 'placeholder': 'Например: HB 1234567'
             }),
             'birth_date': forms.TextInput(attrs={
@@ -50,7 +50,7 @@ class MasterPoutsForm(forms.ModelForm):
                 'autocomplete': 'off'
             }),
             'license_number': forms.TextInput(attrs={
-                'class': 'form-input',
+                'class': 'form-input input-uppercase-en',
                 'placeholder': 'Например: AAA 123456'
             }),
             'license_expiry': forms.TextInput(attrs={
@@ -70,7 +70,7 @@ class MasterPoutsForm(forms.ModelForm):
                 'autocomplete': 'off'
             }),
             'qualification_cert_number': forms.TextInput(attrs={
-                'class': 'form-input',
+                'class': 'form-input input-uppercase-en',
                 'placeholder': 'Номер свидетельства'
             }),
             'qualification_cert_expiry': forms.TextInput(attrs={

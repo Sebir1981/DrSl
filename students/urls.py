@@ -17,4 +17,7 @@ urlpatterns = [
     path('students/<int:student_id>/contract_extension/', views.contract_extension, name='contract_extension'),
     path('edit/<int:student_id>/', views.student_edit, name='student_edit'),
     path('api/get-students/', views.get_students_api, name='get_students_api'),
+    path('<int:student_id>/toggle-service/', views.toggle_service, name='toggle_service'),
+    path('<int:student_id>/update-service-value/', views.update_service_value, name='update_service_value'),
+    path('<int:student_id>/save-services/', views.save_services, name='save_services'),
 ]

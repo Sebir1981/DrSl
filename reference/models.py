@@ -22,16 +22,33 @@ class GroupCategory(models.Model):
 
 
 class Credit(models.Model):
-    number = models.PositiveSmallIntegerField("Номер", unique=True)
+    """Тема зачёта (привязана к категории)"""
+    category = models.ForeignKey(
+        'GroupCategory',
+        on_delete=models.CASCADE,
+        verbose_name="Категория",
+        related_name='credits'
+    )
+    number = models.PositiveSmallIntegerField(
+        "Номер",
+        help_text="1-9 для зачётов, 10+ для экзаменов"
+    )
     topic = models.CharField("Тема", max_length=255)
 
+    is_exam = models.BooleanField(
+        "Это экзамен",
+        default=False,
+        help_text="Отметьте, если это экзамен (теоретический или практический)"
+    )
+
     class Meta:
-        verbose_name = "Зачёт"
-        verbose_name_plural = "✅ Зачёты"
-        ordering = ['number']
+        verbose_name = "Тема зачёта"
+        verbose_name_plural = "📚 Темы зачётов"
+        ordering = ['category__code', 'number']
+        unique_together = ['category', 'number']
 
     def __str__(self):
-        return f"{self.number}. {self.topic}"
+        return f"{self.category.code} — Зачёт №{self.number}: {self.topic}"
 
 
 class SubjectDictionary(models.Model):
@@ -238,3 +255,68 @@ class ProgramTopic(models.Model):
 
     def __str__(self):
         return f"{self.topic.content} ({self.hours} ч.)"
+
+class PracticeCategory(models.Model):
+    """Категория вождения для практических занятий"""
+    code = models.CharField(
+        "Код категории",
+        max_length=10,
+        unique=True,
+        help_text="Например: B, C, BE, A"
+    )
+    name = models.CharField("Название", max_length=200)
+    
+    class Meta:
+        verbose_name = "Категория вождения"
+        verbose_name_plural = "🚗 Категории вождения"
+        ordering = ['code']
+    
+    def __str__(self):
+        return f"{self.code} — {self.name}"
+
+
+class PracticeExercise(models.Model):
+    """Упражнение для практического занятия"""
+    category = models.ForeignKey(
+        PracticeCategory,
+        on_delete=models.CASCADE,
+        verbose_name="Категория",
+        related_name='exercises'
+    )
+    exercise_number = models.CharField(
+        "Номер упражнения",
+        max_length=20,
+        help_text="Например: 1, 1.1, 2.3а"
+    )
+    name = models.CharField("Название упражнения", max_length=300)
+    description = models.TextField("Описание", blank=True)
+    hours = models.DecimalField(
+        "Часов", max_digits=4, decimal_places=1, default=0, blank=True
+    )
+    order = models.PositiveIntegerField("Порядок", default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Упражнение"
+        verbose_name_plural = "🚗 Упражнения"
+        ordering = ['category', 'order', 'exercise_number']
+        unique_together = ['category', 'exercise_number']
+
+    def __str__(self):
+        return f"Упр. {self.exercise_number}: {self.name}"
+
+
+class PaidService(models.Model):
+    """Справочник платных услуг"""
+    name = models.CharField("Название услуги", max_length=300)
+    value = models.CharField("Значение (ID выбранного элемента)", max_length=50, blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Платная услуга"
+        verbose_name_plural = "💰 Платные услуги"
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name

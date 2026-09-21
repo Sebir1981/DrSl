@@ -4,6 +4,11 @@ from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from groups.models import Group, SchedulePlan
+from django.db.models import Q
+from collections import defaultdict
+from reference.models import Credit
+from students.models import Student
+from groups.models import CreditResult, ExamResult
 
 logger = logging.getLogger(__name__)
 
@@ -187,3 +192,158 @@ def get_teacher_schedules(request):
         process_plans(qs, is_med_teacher=True, exclude_med_days=False)
 
     return JsonResponse(schedule_map)
+
+
+@login_required
+def live_search_students(request):
+    """API для живого поиска учащихся с автоподсказками"""
+    query = request.GET.get('q', '').strip()
+    student_id = request.GET.get('id')
+    group_id = request.GET.get('group', '')
+
+    # Базовый queryset
+    students_qs = Student.objects.select_related('group').order_by('last_name', 'first_name')
+
+    # Фильтр по группе (если выбран)
+    if group_id and group_id.isdigit():
+        students_qs = students_qs.filter(group_id=group_id)
+
+    # 🔹 Если передан ID — возвращаем отфильтрованные строки таблицы
+    if student_id and student_id.isdigit():
+        students_qs = students_qs.filter(pk=student_id)
+
+        rows = []
+        for s in students_qs:
+            # Формируем HTML строки таблицы (упрощённо)
+            row_html = f"""
+            <tr>
+                <td class="col-fio">
+                    <div style="font-weight:600;color:#1e293b;">{s.full_name}</div>
+                    <div style="font-size:11px;color:#64748b;margin-top:2px;">{s.group or '—'}</div>
+                </td>
+                <td colspan="{request.GET.get('colspan', 8)}" style="text-align:center;color:#64748b;">
+                    Данные загружаются...
+                </td>
+            </tr>
+            """
+            rows.append(row_html)
+
+        return JsonResponse({'rows': rows})
+
+    # 🔹 Если передан запрос — возвращаем подсказки
+    if query:
+        students = students_qs.filter(
+            Q(last_name__icontains=query) | Q(first_name__icontains=query)
+        )[:10]  # Ограничение до 10 результатов
+
+        suggestions = [
+            {
+                'id': s.id,
+                'suggestion_text': f"{s.last_name} {s.first_name} {s.patronymic or ''} ({s.group or '—'})"
+            }
+            for s in students
+        ]
+
+        return JsonResponse({'suggestions': suggestions})
+
+    return JsonResponse({'suggestions': []})
+
+@login_required
+def live_search_students(request):
+    """API для живого поиска учащихся (совместимо с live_search.js)"""
+    query = request.GET.get('q', '').strip()
+    student_id = request.GET.get('id')
+    group_id = request.GET.get('group', '')
+
+    students_qs = Student.objects.select_related('group').order_by('last_name', 'first_name')
+    if group_id and group_id.isdigit():
+        students_qs = students_qs.filter(group_id=group_id)
+
+    # 🔹 Если передан ID — возвращаем HTML строки таблицы
+    if student_id and student_id.isdigit():
+        students = list(students_qs.filter(pk=student_id))
+        rows = []
+
+        all_credits = Credit.objects.all().order_by('number')
+        credit_numbers = [c.number for c in all_credits]
+        credit_topics = {c.number: c.topic for c in all_credits}
+
+        student_ids = [s.id for s in students]
+        all_attempts = CreditResult.objects.filter(
+            student_id__in=student_ids,
+            credit__number__in=credit_numbers
+        ).select_related('credit').order_by('student_id', 'credit__number', 'credit_date', 'id')
+
+        attempts_by_key = defaultdict(list)
+        for att in all_attempts:
+            attempts_by_key[(att.student_id, att.credit.number)].append(att)
+
+        for s in students:
+            credits_status = []
+            for num in credit_numbers:
+                key = (s.id, num)
+                attempts_list = attempts_by_key.get(key, [])
+                topic = credit_topics.get(num, f'Зачёт №{num}')
+
+                if attempts_list:
+                    last = attempts_list[-1]
+                    icon = '✅' if last.status == 'passed' else '❌'
+                    credits_status.append({'num': num, 'status': last.status, 'icon': icon, 'topic': topic})
+                else:
+                    credits_status.append({'num': num, 'status': 'none', 'icon': '—', 'topic': topic})
+
+            # Генерируем HTML строки
+            html = f'<tr>'
+            html += f'<td class="col-fio">'
+            html += f'<div style="font-weight:600;color:#1e293b;">{s.full_name}</div>'
+            html += f'<div style="font-size:11px;color:#64748b;margin-top:2px;">{s.group.group_number if s.group else "—"}</div>'
+            html += f'</td>'
+
+            for c in credits_status:
+                html += f'<td>'
+                if c['icon'] != '—':
+                    html += f'<span class="indicator {c["status"]}" title="{c["topic"]}">{c["icon"]}</span>'
+                else:
+                    html += f'<span class="indicator none">—</span>'
+                html += f'</td>'
+
+            theory_exam = ExamResult.objects.filter(student=s, exam_type='theory').order_by('-exam_date').first()
+            driving_exam = ExamResult.objects.filter(student=s, exam_type='driving').order_by('-exam_date').first()
+
+            html += f'<td class="cell-exam">'
+            if theory_exam:
+                icon = '✅' if theory_exam.status == 'passed' else '❌'
+                html += f'<span class="indicator {theory_exam.status}" title="Теория: {theory_exam.exam_date}">{icon}</span>'
+            else:
+                html += f'<span class="indicator none">—</span>'
+            html += f'</td>'
+
+            html += f'<td class="cell-exam">'
+            if driving_exam:
+                icon = '✅' if driving_exam.status == 'passed' else '❌'
+                html += f'<span class="indicator {driving_exam.status}" title="Вождение: {driving_exam.exam_date}">{icon}</span>'
+            else:
+                html += f'<span class="indicator none">—</span>'
+            html += f'</td>'
+
+            html += f'</tr>'
+            rows.append(html)
+
+        return JsonResponse({'rows': rows})
+
+    # 🔹 Если передан запрос q — возвращаем подсказки
+    if query:
+        students = students_qs.filter(
+            Q(last_name__icontains=query) | Q(first_name__icontains=query)
+        )[:10]
+
+        suggestions = [
+            {
+                'id': s.id,
+                'suggestion_text': f"{s.last_name} {s.first_name} {s.patronymic or ''} ({s.birth_date.year if s.birth_date else '—'}) ({s.group.group_number if s.group else '—'})"
+            }
+            for s in students
+        ]
+        return JsonResponse({'suggestions': suggestions})
+
+    return JsonResponse({'suggestions': []})

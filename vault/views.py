@@ -15,6 +15,7 @@ from students.models import Student
 from classrooms.models import Classroom
 from teachers.models import Teacher
 from masters.models import Master
+from reference.models import PaidService
 
 # =========================================================
 #  НАСТРОЙКИ ДОСТУПА
@@ -35,6 +36,7 @@ def dashboard(request):
         'classrooms_count': Classroom.objects.count(),
         'teachers_count': Teacher.objects.count(),
         'masters_count': Master.objects.count(),
+        'paid_services_count': PaidService.objects.count(),
     }
     return render(request, 'vault/dashboard.html', context)
 

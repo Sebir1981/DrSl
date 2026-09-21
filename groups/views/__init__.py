@@ -4,7 +4,7 @@
 from .dashboard import groups_dashboard
 from .groups import group_list, group_detail, group_form
 from .groups import group_list, group_detail
-from .api import group_api_data, check_instructor_availability, get_teacher_schedules
+from .api import group_api_data, check_instructor_availability, get_teacher_schedules, live_search_students
 from .credits import (
     credits_exams_dashboard,
     credits_exams_add,
@@ -44,4 +44,5 @@ __all__ = [
     'group_api_data',
     'check_instructor_availability',
     'get_teacher_schedules',
+    'live_search_students',
 ]

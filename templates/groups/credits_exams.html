@@ -1,40 +1,125 @@
 {% extends "base.html" %}
 {% load static %}
+{% load custom_filters %}
 
-{% block title %}📊 Прогресс учащихся{% endblock %}
+{% block title %} Прогресс учащихся{% endblock %}
 
 {% block extra_css %}
 <style>
     .filter-bar { display: flex; gap: 12px; align-items: center; background: white; padding: 15px 20px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
     .filter-bar select, .filter-bar input { padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; }
     .filter-bar .btn { padding: 8px 16px; }
-    .progress-table { width: 100%; border-collapse: collapse; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.05); font-size: 13px; }
-    .progress-table th { background: #f8fafc; padding: 10px 8px; text-align: center; font-weight: 600; color: #475569; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #f1f5f9; }
-    .progress-table th:first-child { text-align: left; padding-left: 15px; border-left: none; }
-    .progress-table th:last-child { border-right: none; }
-    .progress-table td { padding: 10px 8px; border-bottom: 1px solid #f1f5f9; border-right: 1px solid #f1f5f9; text-align: center; vertical-align: middle; }
-    .progress-table td:first-child { text-align: left; padding-left: 15px; font-weight: 500; color: #1e293b; border-left: none; }
-    .progress-table td:last-child { border-right: none; }
-    .progress-table tr:hover { background: #f8fafc; }
+
+    .table-wrapper { overflow-x: auto; border-radius: 12px; }
+
+    .progress-table {
+        width: 100%;
+        border-collapse: collapse;
+        background: white;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        font-size: 13px;
+    }
+
+    .progress-table th, .progress-table td {
+        padding: 10px 8px;
+        border: 1px solid #e2e8f0;
+        text-align: center;
+        vertical-align: middle;
+    }
+
+    /* 🔹 Колонка ФИО */
+    .col-fio {
+        text-align: left !important;
+        padding-left: 15px !important;
+        min-width: 220px;
+        background: #fafbfc;
+    }
+
+    /* 🔹 Заголовки первого уровня — зачёты */
+    .header-top {
+        background: #f8fafc;
+        font-weight: 700;
+        color: #1e293b;
+        font-size: 13px;
+    }
+
+    /* 🔹 Заголовки второго уровня — темы зачётов */
+    .header-bottom {
+        background: #f1f5f9;
+        font-size: 11px;
+        color: #64748b;
+        font-weight: 500;
+        padding: 6px 8px;
+    }
+
+    /* 🔹 Общий заголовок "ЭКЗАМЕНЫ" */
+    .header-exams {
+        background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
+        color: #075985;
+        font-weight: 700;
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        border-left: 3px solid #0284c7;
+        border-right: 3px solid #0284c7;
+    }
+
+    /* 🔹 Подзаголовки экзаменов (конкретные экзамены) */
+    .header-exam-sub {
+        background: #f0f9ff;
+        font-size: 11px;
+        color: #0369a1;
+        font-weight: 600;
+        border-left: 2px solid #7dd3fc;
+        border-right: 2px solid #7dd3fc;
+        padding: 6px 8px;
+    }
+
+    /* 🔹 Подсказка "Тема" */
+    .topic-hint {
+        display: inline-block;
+        font-size: 10px;
+        color: #3b82f6;
+        border-bottom: 1px dotted #3b82f6;
+        cursor: help;
+    }
 
     /* 🔹 Индикаторы статусов */
-    .indicator { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; position: relative; transition: transform 0.15s; }
+    .indicator {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.15s;
+    }
     .indicator:hover { transform: scale(1.1); }
     .indicator.passed { background: #dcfce7; color: #16a34a; }
     .indicator.failed { background: #fee2e2; color: #dc2626; }
     .indicator.none { background: #f1f5f9; color: #94a3b8; cursor: default; }
 
-    /* 🔹 Подсказка для зачётов — адаптивное позиционирование */
+    /* 🔹 Ячейки экзаменов в теле таблицы */
+    .cell-exam {
+        background: #fafbfc;
+    }
+
+    /*  Подсказка для зачётов и экзаменов */
     .credit-tooltip {
         display: none;
-        position: fixed;  /* ✅ fixed — позиционируется относительно окна */
+        position: fixed;
         background: #1e293b;
         color: #fff;
         padding: 10px 12px;
         border-radius: 8px;
         font-size: 11px;
         min-width: 160px;
-        z-index: 10000;  /* ✅ Поверх всех элементов */
+        z-index: 10000;
         box-shadow: 0 4px 12px rgba(0,0,0,0.3);
         text-align: left;
         animation: fadeIn 0.15s;
@@ -43,34 +128,18 @@
         overflow-y: auto;
     }
     .credit-tooltip.visible { display: block; }
-
-    /* Стрелочка подсказки (снизу — когда подсказка открывается вниз) */
     .credit-tooltip.arrow-bottom::after {
-        content: '';
-        position: absolute;
-        bottom: -6px;
-        left: 50%;
-        transform: translateX(-50%);
-        border: 6px solid transparent;
-        border-top-color: #1e293b;
+        content: ''; position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%);
+        border: 6px solid transparent; border-top-color: #1e293b;
     }
-
-    /* Стрелочка подсказки (сверху — когда подсказка открывается вверх) */
     .credit-tooltip.arrow-top::after {
-        content: '';
-        position: absolute;
-        top: -6px;
-        left: 50%;
-        transform: translateX(-50%);
-        border: 6px solid transparent;
-        border-bottom-color: #1e293b;
+        content: ''; position: absolute; top: -6px; left: 50%; transform: translateX(-50%);
+        border: 6px solid transparent; border-bottom-color: #1e293b;
     }
-
     @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 
-    .credit-header { font-size: 11px; color: #64748b; font-weight: 500; }
-    .credit-header span { display: block; font-size: 10px; color: #94a3b8; margin-top: 2px; }
-    .table-wrapper { overflow-x: auto; border-radius: 12px; }
+    .progress-table tr:hover td { background: #f8fafc; }
+    .progress-table tr:hover td.col-fio { background: #f1f5f9; }
 
     @media (max-width: 1024px) { .progress-table { font-size: 12px; } .indicator { width: 24px; height: 24px; font-size: 12px; } }
     @media (max-width: 768px) { .filter-bar { flex-wrap: wrap; } .filter-bar input { width: 100%; } }
@@ -82,71 +151,125 @@
     <h1>📊 Прогресс учащихся</h1>
     <div>
         <a href="{% url 'vault:dashboard' %}" class="btn" style="background:#e2e8f0;color:#334155;">← На главную</a>
-        <a href="{% url 'groups:credits_exams_add' %}" class="btn btn-primary" style="margin-left:10px;">➕ Добавить</a>
+        <a href="{% url 'groups:credits_exams_add' %}" class="btn btn-primary" style="margin-left:10px;">➕ Провести зачёт/экзамен</a>
     </div>
 </div>
 
-<!-- 🔹 Фильтры -->
-<form method="get" class="filter-bar">
+<!-- 🔹 Фильтры с живым поиском -->
+<form method="get" class="filter-bar" id="searchForm">
     <select name="group" style="min-width:180px;">
         <option value="">Все группы</option>
         {% for g in groups %}
         <option value="{{ g.id }}" {% if selected_group == g.id|stringformat:"s" %}selected{% endif %}>
-            {{ g.group_number }} — {{ g.category|default:"—" }}
+            {{ g.group_number }} — {{ g.category.code|default:"—" }}
         </option>
         {% endfor %}
     </select>
-    <input type="text" name="search" value="{{ search|default:'' }}" placeholder="Поиск по ФИО..." style="min-width:200px;">
+
+    <!-- 🔹 Поле живого поиска -->
+    <input
+        type="text"
+        name="search"
+        value="{{ search|default:'' }}"
+        placeholder="Поиск по ФИО..."
+        style="min-width:200px;"
+        data-live-search="true"
+        data-target="studentsTableBody"
+        data-api-url="{% url 'groups:live_search_students' %}"
+        autocomplete="off"
+    >
+
+    <!-- 🔹 Блок подсказок -->
+    <div id="search-suggestions" style="display:none; position:absolute; z-index:1000; background:white; border:1px solid #cbd5e1; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.1); max-height:300px; overflow-y:auto; min-width:300px;"></div>
+
     <button type="submit" class="btn btn-primary">🔍 Найти</button>
     <a href="?" class="btn" style="background:#94a3b8;color:white;">✕ Сброс</a>
-    {% if selected_group or search %}
-    <span style="margin-left:auto;font-size:13px;color:#64748b;">
-        {% if selected_group %}📌 Группа: <strong>{{ selected_group }}</strong>{% endif %}
-        {% if search %}{% if selected_group %} • {% endif %}📌 Поиск: <strong>"{{ search }}"</strong>{% endif %}
-    </span>
-    {% endif %}
 </form>
 
-<!-- 🔹 Матрица прогресса -->
+<!--  Матрица прогресса -->
 <div class="table-wrapper">
     <table class="progress-table">
         <thead>
+            {# 🔹 ПЕРВАЯ СТРОКА: зачёты + общий заголовок экзаменов #}
             <tr>
-                <th style="min-width:200px;text-align:left;">ФИО / Группа</th>
-                {% for num in "123456" %}
-                <th class="credit-header">Зачёт №{{ num }}<span>Тема</span></th>
+                <th rowspan="2" class="col-fio header-top">ФИО / Группа</th>
+                {% for num in credit_numbers %}
+                <th class="header-top">Зачёт №{{ num }}</th>
+                {% endfor %}
+                {% if exam_numbers %}
+                <th colspan="{{ exam_numbers|length }}" class="header-exams">🎓 Экзамены</th>
+                {% endif %}
+            </tr>
+            {# 🔹 ВТОРАЯ СТРОКА: темы зачётов + конкретные экзамены #}
+            <tr>
+                {% for num in credit_numbers %}
+                <th class="header-bottom">
+                    <span class="topic-hint" title="{{ credit_topics|get_item:num|default:'Тема не задана' }}">Тема</span>
+                </th>
+                {% endfor %}
+                {% for num in exam_numbers %}
+                <th class="header-exam-sub">
+                    <span class="topic-hint" title="{{ exam_topics|get_item:num|default:'Тема экзамена' }}">
+                        {{ exam_topics|get_item:num|default:'Экзамен №' }}
+                    </span>
+                </th>
                 {% endfor %}
             </tr>
         </thead>
-        <tbody>
+        <tbody id="studentsTableBody" data-empty-colspan="{{ credit_numbers|length|add:3 }}">
             {% for s in students %}
             <tr>
-                <td style="text-align:left;">
+                {# 🔹 ФИО студента #}
+                <td class="col-fio">
                     <div style="font-weight:600;color:#1e293b;">{{ s.full_name }}</div>
                     <div style="font-size:11px;color:#64748b;margin-top:2px;">{{ s.group_number }}</div>
                 </td>
+
+                {# 🔹 Зачёты #}
                 {% for c in s.credits %}
                 <td>
                     {% if c.icon != '—' %}
-                    <!-- 🔹 Контейнер с подсказкой -->
                     <div style="position:relative;display:inline-block;"
-                         onmouseenter="showCreditTooltip(this, '{{ s.id }}', '{{ c.num }}')"
-                         onmouseleave="hideCreditTooltip('{{ s.id }}', '{{ c.num }}')">
-
-                        <!-- Иконка статуса -->
-                        <span class="indicator {{ c.status }}">
-                            {{ c.icon }}
-                        </span>
-
-                        <!-- 🔹 Всплывающая подсказка со всеми попытками -->
-                        <div id="tooltip-{{ s.id }}-{{ c.num }}" class="credit-tooltip">
+                         onmouseenter="showCreditTooltip(this, '{{ s.id }}', 'c', '{{ c.num }}')"
+                         onmouseleave="hideCreditTooltip('{{ s.id }}', 'c', '{{ c.num }}')">
+                        <span class="indicator {{ c.status }}">{{ c.icon }}</span>
+                        <div id="tooltip-c-{{ s.id }}-{{ c.num }}" class="credit-tooltip">
                             <div style="font-weight:600;margin-bottom:6px;border-bottom:1px solid #334155;padding-bottom:4px;">
                                 Зачёт №{{ c.num }} — Попытки:
                             </div>
-
                             {% if c.attempts %}
                                 {% for att in c.attempts %}
-                                <div style="padding:3px 0;border-bottom:1px solid #334155:last-child:none;">
+                                <div style="padding:3px 0;border-bottom:1px solid #334155;">
+                                    <strong>№{{ att.num }}</strong> {{ att.icon }}<br>
+                                    <span style="color:#94a3b8;">{{ att.type }} • {{ att.date }}</span>
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                                <div style="color:#94a3b8;">Нет данных</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% else %}
+                    <span class="indicator none">—</span>
+                    {% endif %}
+                </td>
+                {% endfor %}
+
+                {# 🔹 Экзамены #}
+                {% for e in s.exams %}
+                <td class="cell-exam">
+                    {% if e.icon != '—' %}
+                    <div style="position:relative;display:inline-block;"
+                         onmouseenter="showCreditTooltip(this, '{{ s.id }}', 'e', '{{ e.num }}')"
+                         onmouseleave="hideCreditTooltip('{{ s.id }}', 'e', '{{ e.num }}')">
+                        <span class="indicator {{ e.status }}">{{ e.icon }}</span>
+                        <div id="tooltip-e-{{ s.id }}-{{ e.num }}" class="credit-tooltip">
+                            <div style="font-weight:600;margin-bottom:6px;border-bottom:1px solid #334155;padding-bottom:4px;">
+                                🎓 Экзамен №{{ e.num }} — Попытки:
+                            </div>
+                            {% if e.attempts %}
+                                {% for att in e.attempts %}
+                                <div style="padding:3px 0;border-bottom:1px solid #334155;">
                                     <strong>№{{ att.num }}</strong> {{ att.icon }}<br>
                                     <span style="color:#94a3b8;">{{ att.type }} • {{ att.date }}</span>
                                 </div>
@@ -163,7 +286,11 @@
                 {% endfor %}
             </tr>
             {% empty %}
-            <tr><td colspan="10" style="padding:30px;text-align:center;color:#64748b;">📭 Учащиеся не найдены</td></tr>
+            <tr>
+                <td colspan="{% widthratio credit_numbers|length|add:exam_numbers|length|add:1 1 1 %}" style="padding:30px;text-align:center;color:#64748b;">
+                     Учащиеся не найдены
+                </td>
+            </tr>
             {% endfor %}
         </tbody>
     </table>
@@ -175,79 +302,84 @@
     <span><span class="indicator passed" style="width:20px;height:20px;font-size:11px;">✅</span> Сдал</span>
     <span><span class="indicator failed" style="width:20px;height:20px;font-size:11px;">❌</span> Не сдал</span>
     <span><span class="indicator none" style="width:20px;height:20px;font-size:11px;">—</span> Не сдавал</span>
-    <span style="margin-left:auto;color:#94a3b8;">💡 Наведите на иконку для истории попыток</span>
+    <span style="margin-left:auto;color:#94a3b8;">💡 Наведите на иконку или "Тема" для подробностей</span>
 </div>
 
-<!-- 🔹 Скрипт для подсказок с адаптивным позиционированием -->
+{% block extra_js %}
+<script src="{% static 'js/live_search.js' %}"></script>
+{% endblock %}
+<!-- 🔹 Скрипт для подсказок -->
 <script>
-function showCreditTooltip(element, studentId, creditNum) {
-    const tooltip = document.getElementById('tooltip-' + studentId + '-' + creditNum);
+function showCreditTooltip(element, studentId, type, num) {
+    const tooltipId = 'tooltip-' + type + '-' + studentId + '-' + num;
+    const tooltip = document.getElementById(tooltipId);
     if (!tooltip) return;
 
-    // Получаем координаты элемента
+    // Получаем размеры и позицию элемента
     const rect = element.getBoundingClientRect();
-    const tooltipWidth = 160;
-    const tooltipHeight = tooltip.scrollHeight;
-    const viewportHeight = window.innerHeight;
+    const tooltipWidth = 200;  // Увеличили для лучшего отображения
+    const tooltipHeight = tooltip.scrollHeight || 100;
+
+    // Размеры viewport
     const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
 
-    // ✅ Определяем, открывать вверх или вниз
-    const spaceBelow = viewportHeight - rect.bottom;
-    const spaceAbove = rect.top;
+    // Отступы от краёв
+    const margin = 10;
 
-    // Сбрасываем классы
+    // Рассчитываем позицию по горизонтали (центрируем относительно элемента)
+    let left = rect.left + (rect.width / 2) - (tooltipWidth / 2);
+
+    // Проверяем правый край
+    if (left + tooltipWidth > viewportWidth - margin) {
+        left = viewportWidth - tooltipWidth - margin;
+    }
+
+    // Проверяем левый край
+    if (left < margin) {
+        left = margin;
+    }
+
+    // Рассчитываем позицию по вертикали
+    // Сначала пробуем показать снизу
+    let top = rect.bottom + 5;
+    let arrowClass = 'arrow-top';
+
+    // Если не помещается снизу — показываем сверху
+    if (top + tooltipHeight > viewportHeight - margin) {
+        top = rect.top - tooltipHeight - 5;
+        arrowClass = 'arrow-bottom';
+
+        // Если и сверху не помещается — показываем внутри viewport
+        if (top < margin) {
+            top = margin;
+            arrowClass = 'arrow-bottom';
+        }
+    }
+
+    // Применяем стили
     tooltip.classList.remove('arrow-top', 'arrow-bottom');
-
-    // ✅ Если места снизу больше — открываем вниз, иначе вверх
-    if (spaceBelow > spaceAbove || spaceBelow > tooltipHeight + 10) {
-        // Открываем ВНИЗ
-        tooltip.style.top = (rect.bottom + window.scrollY + 5) + 'px';
-        tooltip.style.left = (rect.left + window.scrollX + rect.width/2 - tooltipWidth/2) + 'px';
-        tooltip.classList.add('arrow-top');  // Стрелка сверху подсказки
-    } else {
-        // Открываем ВВЕРХ
-        tooltip.style.top = (rect.top + window.scrollY - tooltipHeight - 5) + 'px';
-        tooltip.style.left = (rect.left + window.scrollX + rect.width/2 - tooltipWidth/2) + 'px';
-        tooltip.classList.add('arrow-bottom');  // Стрелка снизу подсказки
-    }
-
-    // ✅ Проверяем, не вылезает ли за правый край
-    const tooltipRight = parseFloat(tooltip.style.left) + tooltipWidth;
-    if (tooltipRight > viewportWidth - 10) {
-        tooltip.style.left = (viewportWidth - tooltipWidth - 10) + 'px';
-    }
-
-    // ✅ Проверяем, не вылезает ли за левый край
-    if (parseFloat(tooltip.style.left) < 10) {
-        tooltip.style.left = '10px';
-    }
-
-    // Показываем подсказку
+    tooltip.classList.add(arrowClass);
+    tooltip.style.top = top + 'px';
+    tooltip.style.left = left + 'px';
+    tooltip.style.maxWidth = tooltipWidth + 'px';
     tooltip.classList.add('visible');
 }
 
-function hideCreditTooltip(studentId, creditNum) {
-    const tooltip = document.getElementById('tooltip-' + studentId + '-' + creditNum);
-    if (tooltip) {
-        tooltip.classList.remove('visible');
-    }
+function hideCreditTooltip(studentId, type, num) {
+    const tooltipId = 'tooltip-' + type + '-' + studentId + '-' + num;
+    const tooltip = document.getElementById(tooltipId);
+    if (tooltip) tooltip.classList.remove('visible');
 }
 
-// Закрытие всех подсказок при клике вне таблицы
 document.addEventListener('click', function(e) {
     if (!e.target.closest('.progress-table')) {
         document.querySelectorAll('.credit-tooltip').forEach(t => t.classList.remove('visible'));
     }
 });
-
-// Закрытие при нажатии Escape
 document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') {
-        document.querySelectorAll('.credit-tooltip').forEach(t => t.classList.remove('visible'));
-    }
+    if (e.key === 'Escape') document.querySelectorAll('.credit-tooltip').forEach(t => t.classList.remove('visible'));
 });
-
-// Закрытие при скролле
 window.addEventListener('scroll', function() {
     document.querySelectorAll('.credit-tooltip').forEach(t => t.classList.remove('visible'));
 }, { passive: true });
