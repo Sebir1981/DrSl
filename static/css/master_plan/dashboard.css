@@ -1,0 +1,474 @@
+/* =================================================================== */
+/* 🔹 ПЕРЕМЕННЫЕ */
+/* =================================================================== */
+:root {
+    --col-width: 120px;
+    --matrix-col-width: 130px;
+    --row-height: 55px;
+}
+
+/* =================================================================== */
+/* 🔹 ОСНОВНОЙ КОНТЕЙНЕР СТРАНИЦЫ */
+/* =================================================================== */
+.master-plan-container {
+    max-width: 100%;
+    margin: 0 auto;
+    padding: 0px;
+    display: grid;
+    grid-template-columns: 20% 62% 18%;
+    grid-template-rows: auto auto 1fr;
+    gap: 15px;
+    min-height: 600px;
+    align-items: stretch;
+}
+
+/* =================================================================== */
+/* 🔹 ВЕРХНЯЯ ПАНЕЛЬ С ЗАГОЛОВКОМ */
+/* =================================================================== */
+.page-header {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0;
+}
+
+.page-header h1 { font-size: 28px; color: white; margin: 0; display: flex; align-items: center; gap: 12px; }
+.page-actions { display: flex; gap: 10px; }
+
+/* =================================================================== */
+/* 🔹 ОБЩИЙ СТИЛЬ ДЛЯ ВСЕХ БЛОКОВ */
+/* =================================================================== */
+.plan-header-column, .masters-column, .groups-column, .stats-column {
+    background: white;
+    border-radius: 10px;
+    padding: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+/* =================================================================== */
+/* 🔹 БЛОК 1: НАЗВАНИЯ СТОЛБЦОВ */
+/* =================================================================== */
+.labels-column { grid-column: 1; grid-row: 2; overflow: hidden; display: flex; flex-direction: column; }
+.labels-scroll-container { overflow-x: hidden; overflow-y: hidden; white-space: nowrap; padding-bottom: 6px; flex: 1; display: flex; flex-direction: column; }
+
+.header-item { display: flex; align-items: center; padding: 0 8px; border-bottom: 1px solid #f1f5f9; height: 20px; flex-shrink: 0; }
+.header-item:first-child { font-weight: 700; background: #f8fafc; border-radius: 6px 6px 0 0; margin: 0 4px; padding: 4px 8px; height: 22px; }
+.header-item:last-child { border-bottom: none; }
+.header-label { font-size: 11px; color: #64748b; font-weight: 500; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.header-item:first-child .header-label { font-size: 12px; color: #1e293b; font-weight: 700; }
+
+/* =================================================================== */
+/* 🔹 БЛОК 2: ДАННЫЕ ГРУПП */
+/* =================================================================== */
+.values-column { grid-column: 2; grid-row: 2; overflow: hidden; display: flex; flex-direction: column; }
+.values-scroll-container { overflow-x: auto; overflow-y: hidden; white-space: nowrap; padding-bottom: 6px; flex: 1; }
+
+.values-scroll-container::-webkit-scrollbar { height: 8px; }
+.values-scroll-container::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+.values-scroll-container::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 4px; }
+.values-scroll-container::-webkit-scrollbar-thumb:hover { background: #64748b; }
+
+.header-value-row { display: inline-grid; grid-template-rows: 22px repeat(9, 22px); gap: 0; min-width: var(--col-width); width: var(--col-width); border-right: 1px solid #e2e8f0; padding: 4px 0; vertical-align: top; flex-shrink: 0; }
+.header-value-row:first-child { background: #f8fafc; border-radius: 6px 6px 0 0; margin: 0 4px; padding: 4px 8px; }
+.header-value-row:last-child { border-right: none; }
+
+.value-item { display: flex; align-items: center; padding: 0 8px; font-size: 11px; color: #1e293b; border-bottom: 1px solid #f1f5f9; }
+.value-item:first-child { font-weight: 700; font-size: 12px; color: #1e293b; }
+.value-item:last-child { border-bottom: none; }
+.value-text { font-weight: 500; word-break: break-word; line-height: 1.2; display: block; overflow: hidden; }
+.text-danger { color: #dc2626; font-weight: 600; }
+.text-success { color: #16a34a; font-weight: 600; }
+.text-warning { color: #d97706; font-weight: 600; }
+.text-drive-future {
+    background: #dc2626;
+    color: #000000;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 4px;
+    display: inline-block;
+}
+.empty-values { text-align: center; padding: 20px; color: #94a3b8; font-style: italic; font-size: 12px; }
+
+/* =================================================================== */
+/* 🔹 БЛОК 3: ОБЩАЯ СТАТИСТИКА */
+/* =================================================================== */
+.stats-column-header { grid-column: 3; grid-row: 2; display: flex; flex-direction: column; justify-content: flex-start; }
+.stats-summary { display: flex; flex-direction: column; gap: 4px; flex: 1; justify-content: flex-start; }
+.stat-summary-item { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; border-bottom: 1px solid #e2e8f0; }
+.stat-summary-item:last-child { border-bottom: none; }
+.stat-summary-label { font-size: 11px; color: #64748b; }
+.stat-summary-value { font-size: 12px; font-weight: 700; color: #1e293b; }
+
+/* =================================================================== */
+/* 🔹 БЛОК 4: СПИСОК МАСТЕРОВ */
+/* =================================================================== */
+.masters-column {
+    grid-column: 1;
+    grid-row: 3;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    max-height: calc(100vh - 380px);
+}
+
+.masters-column h3 {
+    margin: 0 0 33px 0;
+    padding-bottom: 4px;
+    height: 22px;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    font-size: 15px;
+    border-bottom: 2px solid #e2e8f0;
+    flex-shrink: 0;
+}
+
+.masters-scroll-container {
+    overflow-y: auto;
+    overflow-x: hidden;
+    flex: 1;
+}
+
+.master-item {
+    height: var(--row-height);
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 0 12px;
+    border-bottom: 1px solid #cbd5e1;
+    overflow: hidden;
+}
+
+.master-item:last-child { border-bottom: none; }
+.master-name-main { font-weight: 600; font-size: 13px; color: #1e293b; line-height: 1.3; }
+.master-name-patronymic { font-weight: 400; font-size: 12px; color: #94a3b8; margin-top: 2px; line-height: 1.2; }
+
+/* =================================================================== */
+/* 🔹 БЛОК 5: МАТРИЦА РАСПРЕДЕЛЕНИЯ */
+/* =================================================================== */
+.groups-column {
+    grid-column: 2;
+    grid-row: 3;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 380px);
+}
+
+.groups-header {
+    height: 22px;
+    margin-bottom: 12px;
+    padding-bottom: 6px;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    border-bottom: 2px solid #e2e8f0;
+    flex-shrink: 0;
+}
+
+.groups-header h3 { margin: 0; color: #1e293b; font-size: 16px; }
+
+.distribution-matrix-wrapper {
+    overflow-x: auto;
+    overflow-y: auto;
+    padding-bottom: 8px;
+    padding-left: 4px;
+    flex: 1;
+}
+
+.matrix-header-row {
+    display: flex;
+    width: max-content;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: white;
+    padding-top: 2px;
+    padding-bottom: 2px;
+}
+
+.matrix-header-group {
+    width: var(--matrix-col-width);
+    min-width: var(--matrix-col-width);
+    max-width: var(--matrix-col-width);
+    box-sizing: border-box;
+    background: #f8fafc;
+    border-right: 1px solid #cbd5e1;
+    border-bottom: 2px solid #94a3b8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.3s;
+}
+
+.matrix-header-group.is-archived {
+    background: #f0fdf4 !important;
+}
+
+.matrix-header-group.is-archived .remaining-counter {
+    color: #16a34a !important;
+    font-weight: 700;
+}
+
+.group-header-compact {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    padding: 0 4px;
+    font-size: 10px;
+    color: #64748b;
+}
+
+.group-number-compact { font-weight: 700; font-size: 13px; color: #1e293b; }
+.group-students-compact { color: #475569; font-weight: 600; }
+.remaining-counter { color: #d97706; font-weight: 700; }
+
+.matrix-row {
+    display: flex;
+    width: max-content;
+}
+
+.matrix-cell {
+    width: var(--matrix-col-width);
+    min-width: var(--matrix-col-width);
+    max-width: var(--matrix-col-width);
+    height: var(--row-height);
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-right: 1px solid #cbd5e1;
+    border-bottom: 1px solid #cbd5e1;
+    padding: 5px;
+    background: white;
+}
+
+.matrix-cell-content { display: flex; justify-content: center; align-items: center; gap: 8px; }
+
+.matrix-input-manual {
+    width: 40px;
+    padding: 4px 6px;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    text-align: center;
+    font-size: 12px;
+    background: white;
+}
+
+.matrix-input-manual:focus {
+    outline: none;
+    border-color: #4facfe;
+    box-shadow: 0 0 0 2px rgba(79, 172, 254, 0.2);
+}
+
+.matrix-input-auto {
+    font-size: 11px;
+    color: #64748b;
+    font-weight: 500;
+    background: #f1f5f9;
+    padding: 4px 8px;
+    border-radius: 4px;
+    min-width: 35px;
+    text-align: center;
+}
+
+/* =================================================================== */
+/* 🔹 БЛОК 6: СТАТИСТИКА ПО МАСТЕРАМ */
+/* =================================================================== */
+.stats-column {
+    grid-column: 3;
+    grid-row: 3;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 380px);
+}
+
+.stats-column h3 {
+    margin: 0 0 28px 0;
+    padding-bottom: 4px;
+    height: 12px;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    color: #1e293b;
+    font-size: 15px;
+    border-bottom: 2px solid #e2e8f0;
+    flex-shrink: 0;
+}
+
+.stats-scroll-container {
+    overflow-y: auto;
+    overflow-x: hidden;
+    flex: 1;
+}
+
+.master-stat-item {
+    min-height: var(--row-height);
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 0 4px;
+    border-bottom: 1px solid #cbd5e1;
+    width: 100%;
+}
+
+.master-stat-item:last-child { border-bottom: none; }
+
+.stat-compact-row {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    gap: 2px !important;
+    font-size: 11px;
+    flex-wrap: nowrap !important;
+    white-space: nowrap !important;
+    width: 100%;
+}
+
+.stat-compact-value {
+    font-weight: 700;
+    color: #1e293b;
+    cursor: help;
+    padding: 1px 3px;
+    border-radius: 3px;
+    transition: background 0.2s;
+    position: relative;
+    min-width: 22px;
+    text-align: center;
+    display: inline-block;
+    flex-shrink: 0;
+}
+
+.stat-compact-value:hover { background: #e0f2fe; color: #0369a1; }
+
+.stat-compact-separator {
+    color: #cbd5e1;
+    font-weight: 400;
+    user-select: none;
+    min-width: 6px;
+    text-align: center;
+    flex-shrink: 0;
+    font-size: 10px;
+}
+
+/* =================================================================== */
+/* 🔹 КНОПКА РАСПРЕДЕЛЕНИЯ В ШАПКЕ БЛОКА 6 */
+/* =================================================================== */
+.stats-header-actions {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 6px;
+    padding-bottom: 6px;
+    border-bottom: 2px solid #e2e8f0;
+}
+
+.btn-distribute {
+    width: 100%;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 100;
+}
+
+/* =================================================================== */
+/* 🔹 КАСТОМНЫЕ СКРОЛЛБАРЫ */
+/* =================================================================== */
+.masters-scroll-container::-webkit-scrollbar,
+.stats-scroll-container::-webkit-scrollbar,
+.distribution-matrix-wrapper::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.masters-scroll-container::-webkit-scrollbar-track,
+.stats-scroll-container::-webkit-scrollbar-track,
+.distribution-matrix-wrapper::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 4px;
+}
+
+.masters-scroll-container::-webkit-scrollbar-thumb,
+.stats-scroll-container::-webkit-scrollbar-thumb,
+.distribution-matrix-wrapper::-webkit-scrollbar-thumb {
+    background: #94a3b8;
+    border-radius: 4px;
+}
+
+.masters-scroll-container::-webkit-scrollbar-thumb:hover,
+.stats-scroll-container::-webkit-scrollbar-thumb:hover,
+.distribution-matrix-wrapper::-webkit-scrollbar-thumb:hover {
+    background: #64748b;
+}
+
+/* =================================================================== */
+/* 🔹 КНОПКИ */
+/* =================================================================== */
+.btn { padding: 8px 16px; border-radius: 8px; font-weight: 600; cursor: pointer; border: none; font-size: 13px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; transition: all 0.2s; }
+.btn-primary { background: #4facfe; color: white; }
+.btn-secondary { background: #e2e8f0; color: #475569; }
+.btn-primary:hover { background: #3b82f6; transform: translateY(-1px); }
+.btn-secondary:hover { background: #cbd5e1; }
+.btn-danger { background: #dc2626; color: white; border: none; }
+.btn-danger:hover { background: #b91c1c; transform: translateY(-1px); }
+
+.stats-actions { display: flex; gap: 8px; margin-bottom: 4px; }
+.stats-actions .btn.btn-primary { flex: 0 0 57%; padding: 6px 8px; font-size: 12px; justify-content: center; white-space: nowrap; overflow: hidden; }
+.stats-actions .btn.btn-danger {
+    flex: 0 0 calc(43% - 8px);
+    padding: 6px 8px;
+    font-size: 12px;
+    justify-content: center;
+    white-space: nowrap;
+    overflow: hidden;
+    background: #dc2626 !important;
+    color: white !important;
+    border: none;
+}
+.stats-actions .btn.btn-danger:hover {
+    background: #b91c1c !important;
+    color: white !important;
+    transform: translateY(-1px);
+}
+.btn-text-short { display: none; }
+.btn-text-full { display: inline; }
+
+/* =================================================================== */
+/* 🔹 МОДАЛЬНЫЕ ОКНА */
+/* =================================================================== */
+.modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 10000; align-items: center; justify-content: center; }
+.modal-overlay.active { display: flex; }
+.modal-content { background: white; border-radius: 16px; padding: 24px; max-width: 550px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3); }
+.modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.modal-header h2 { margin: 0; color: #1e293b; font-size: 20px; }
+.modal-close { background: none; border: none; font-size: 24px; cursor: pointer; color: #64748b; }
+.form-group { margin-bottom: 14px; }
+.form-group label { display: block; font-weight: 600; color: #475569; margin-bottom: 5px; font-size: 13px; }
+.form-group input, .form-group select { width: 100%; padding: 9px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; box-sizing: border-box; min-height: 40px; }
+.form-group input:focus, .form-group select:focus { outline: none; border-color: #4facfe; box-shadow: 0 0 0 2px rgba(79, 172, 254, 0.2); }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+.modal-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 20px; }
+
+/* =================================================================== */
+/* 🔹 АДАПТИВНОСТЬ */
+/* =================================================================== */
+@media (max-width: 1200px) {
+    .master-plan-container { grid-template-columns: 1fr; grid-template-rows: auto; }
+    .page-header, .labels-column, .values-column, .stats-column-header, .masters-column, .groups-column, .stats-column { grid-column: 1; grid-row: auto; margin-bottom: 15px; }
+}
+
+/* =================================================================== */
+/* 🔹 АНИМАЦИИ ДЛЯ TOAST */
+/* =================================================================== */
+@keyframes slideIn {
+    from { transform: translateX(400px); opacity: 0; }
+    to   { transform: translateX(0);     opacity: 1; }
+}
+@keyframes fadeOut {
+    from { transform: translateX(0);     opacity: 1; }
+    to   { transform: translateX(400px); opacity: 0; }
+}

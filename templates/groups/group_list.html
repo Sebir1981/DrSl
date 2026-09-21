@@ -1,6 +1,185 @@
 {% extends "base.html" %}
 {% load static %}
-{% block title %}👥 Группы — Автошкола{% endblock %}
+{% block title %} Группы — Автошкола{% endblock %}
+
+{% block extra_css %}
+<style>
+    .group-row {
+        cursor: pointer;
+        transition: background 0.15s;
+    }
+
+    .group-row:hover {
+        background: #f1f5f9 !important;
+    }
+
+    /* 🔹 Стили модального окна удаления */
+    .modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 10000;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .modal-overlay.active {
+        display: flex;
+    }
+
+    .modal-content {
+        background: white;
+        border-radius: 16px;
+        padding: 24px;
+        max-width: 550px;
+        width: 90%;
+        max-height: 90vh;
+        overflow-y: auto;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    }
+
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+    }
+
+    .modal-header h2 {
+        margin: 0;
+        color: #1e293b;
+        font-size: 20px;
+    }
+
+    .modal-close {
+        background: none;
+        border: none;
+        font-size: 24px;
+        cursor: pointer;
+        color: #64748b;
+        padding: 0;
+        line-height: 1;
+    }
+
+    .modal-close:hover {
+        color: #1e293b;
+    }
+
+    .groups-select-list {
+        max-height: 300px;
+        overflow-y: auto;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 16px;
+    }
+
+    .group-checkbox-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 0;
+        border-bottom: 1px solid #f1f5f9;
+    }
+
+    .group-checkbox-item:last-child {
+        border-bottom: none;
+    }
+
+    .group-checkbox-item input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        cursor: pointer;
+        accent-color: #dc2626;
+    }
+
+    .group-checkbox-item label {
+        cursor: pointer;
+        font-size: 14px;
+        flex: 1;
+        user-select: none;
+    }
+
+    .delete-warning {
+        display: none;
+        background: #fef2f2;
+        border: 1px solid #fecaca;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 16px;
+    }
+
+    .delete-warning p {
+        margin: 0;
+        font-size: 13px;
+        color: #dc2626;
+        font-weight: 500;
+    }
+
+    .modal-actions {
+        display: flex;
+        gap: 12px;
+        justify-content: flex-end;
+    }
+
+    .btn-cancel {
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        border: none;
+        font-size: 14px;
+        background: #e2e8f0;
+        color: #475569;
+        transition: background 0.2s;
+    }
+
+    .btn-cancel:hover {
+        background: #cbd5e1;
+    }
+
+    .btn-delete {
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        border: none;
+        font-size: 14px;
+        background: #dc2626;
+        color: white;
+        transition: background 0.2s;
+    }
+
+    .btn-delete:hover:not(:disabled) {
+        background: #b91c1c;
+    }
+
+    .btn-delete:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .btn-delete-danger {
+        padding: 8px 16px;
+        font-size: 14px;
+        background: #dc2626 !important;
+        color: white !important;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+
+    .btn-delete-danger:hover {
+        background: #b91c1c !important;
+    }
+</style>
+{% endblock %}
 
 {% block content %}
 <div class="page-header">
@@ -12,7 +191,7 @@
 </div>
 
 <!-- 🔹 ФИЛЬТРЫ -->
-<form method="get" style="background:white;padding:15px 20px;border-radius:12px;margin-bottom:20px;box-shadow:0 2px 8px rgba(0,0,0,0.05);display:flex;gap:15px;flex-wrap:wrap;align-items:flex-end;">
+<form method="get" id="filterForm" style="background:white;padding:15px 20px;border-radius:12px;margin-bottom:20px;box-shadow:0 2px 8px rgba(0,0,0,0.05);display:flex;gap:15px;flex-wrap:wrap;align-items:flex-end;">
 
     <!-- Поиск -->
     <div style="display:flex;flex-direction:column;gap:6px;min-width:200px;">
@@ -21,7 +200,7 @@
     </div>
 
     <!-- Категория -->
-    <div style="display:flex;flex-direction:column;gap:6px;min-width:180px;">
+    <div style="display:flex;flex-direction:column;gap:6px;width:150px;">
         <label style="font-size:13px;font-weight:600;color:#475569;">📁 Категория</label>
         <select name="category" style="padding:8px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;">
             <option value="">Все</option>
@@ -36,7 +215,7 @@
         <label style="font-size:13px;font-weight:600;color:#475569;">📊 Статус</label>
         <select name="status" style="padding:8px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;">
             <option value="">Все</option>
-            <option value="active" {% if selected_status == 'active' %}selected{% endif %}>🟢 Активна</option>
+            <option value="active" {% if selected_status == 'active' %}selected{% endif %}> Активна</option>
             <option value="closed" {% if selected_status == 'closed' %}selected{% endif %}>🔒 Закрыта</option>
         </select>
     </div>
@@ -45,10 +224,11 @@
     <div style="display:flex;gap:8px;">
         <button type="submit" class="btn btn-primary" style="padding:8px 16px;font-size:14px;">🔍 Найти</button>
         <a href="?" class="btn" style="padding:8px 16px;font-size:14px;background:#94a3b8;color:white;">✕ Сброс</a>
+        <button type="button" class="btn-delete-danger" onclick="openDeleteModal()" style="margin-right:auto;">️ Удалить</button>
     </div>
 </form>
 
-<!-- 🔹 ТАБЛИЦА ГРУПП (5 колонок: без "Действия") -->
+<!-- 🔹 ТАБЛИЦА ГРУПП -->
 <div class="data-table" style="overflow-x:auto;">
     <table style="width:100%;border-collapse:collapse;background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.05);">
         <thead style="background:#f8fafc;">
@@ -58,21 +238,20 @@
                 <th style="padding:12px 15px;text-align:left;font-size:13px;font-weight:600;color:#475569;border-bottom:2px solid #e2e8f0;">🏫 Аудитория</th>
                 <th style="padding:12px 15px;text-align:left;font-size:13px;font-weight:600;color:#475569;border-bottom:2px solid #e2e8f0;">Преподаватель</th>
                 <th style="padding:12px 15px;text-align:left;font-size:13px;font-weight:600;color:#475569;border-bottom:2px solid #e2e8f0;">Статус</th>
-                <!-- ❌ Колонка "Действия" удалена -->
             </tr>
         </thead>
         <tbody>
             {% for g in groups %}
-            <tr style="border-bottom:1px solid #f1f5f9;transition:background 0.15s;">
+            <tr class="group-row"
+                style="border-bottom:1px solid #f1f5f9;"
+                onclick="window.location.href='{% url 'groups:group_detail' g.pk %}'"
+                onmouseover="this.style.background='#f1f5f9'"
+                onmouseout="this.style.background='transparent'">
 
-                <!-- № Группы -->
-              <td>
-        <a href="{% url 'groups:group_detail' g.pk %}" style="color:#4facfe;text-decoration:none;font-weight:600;">
-            {{ g.group_number }}
-        </a>
-        </td>
+                <td style="padding:12px 15px;font-size:14px;">
+                    <span style="color:#4facfe;font-weight:600;">{{ g.group_number }}</span>
+                </td>
 
-                <!-- Категория -->
                 <td style="padding:12px 15px;font-size:14px;">
                     {% if g.category %}
                     <span style="background:#e0f2fe;color:#0369a1;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:500;">
@@ -81,7 +260,6 @@
                     {% else %}—{% endif %}
                 </td>
 
-                <!-- 🏫 Аудитория (✅ ТЕПЕРЬ ОБЫЧНЫЙ ТЕКСТ, без ссылки) -->
                 <td style="padding:12px 15px;font-size:14px;color:#64748b;">
                     {% if g.classroom %}
                         {{ g.classroom.name|default:g.classroom }}
@@ -90,25 +268,21 @@
                     {% endif %}
                 </td>
 
-                <!-- Преподаватель -->
                 <td style="padding:12px 15px;font-size:14px;color:#64748b;">
                     {% if g.teacher %}
                         {{ g.teacher.last_name }} {{ g.teacher.first_name|slice:":1" }}.
                     {% else %}—{% endif %}
                 </td>
 
-                <!-- Статус -->
                 <td style="padding:12px 15px;font-size:14px;">
                     {% if g.status == 'active' %}
                     <span style="color:#16a34a;font-weight:500;">🟢 Активна</span>
                     {% elif g.status == 'closed' %}
                     <span style="color:#64748b;">🔒 Закрыта</span>
                     {% else %}
-                    <span style="color:#f59e0b;">🟡 В процессе</span>
+                    <span style="color:#f59e0b;"> В процессе</span>
                     {% endif %}
                 </td>
-
-                <!-- ❌ Ячейка "Действия" удалена -->
 
             </tr>
             {% empty %}
@@ -119,4 +293,112 @@
         </tbody>
     </table>
 </div>
+
+<!-- =================================================================== -->
+<!-- 🔹 МОДАЛЬНОЕ ОКНО: УДАЛЕНИЕ ГРУПП -->
+<!-- =================================================================== -->
+<div class="modal-overlay" id="deleteModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>🗑️ Удалить группы</h2>
+            <button class="modal-close" onclick="closeDeleteModal()" aria-label="Закрыть">&times;</button>
+        </div>
+
+        <form id="deleteForm" method="post" action="{% url 'groups:delete_groups' %}">
+            {% csrf_token %}
+
+            <div style="margin-bottom:8px;">
+                <label style="display:block;font-weight:600;color:#475569;margin-bottom:8px;font-size:13px;">
+                    Выберите группы для удаления:
+                </label>
+                <div class="groups-select-list">
+                    {% for g in groups %}
+                    <div class="group-checkbox-item">
+                        <input type="checkbox" name="group_ids" value="{{ g.pk }}" id="group_{{ g.pk }}">
+                        <label for="group_{{ g.pk }}">
+                            <strong>{{ g.group_number }}</strong>
+                            {% if g.category %}
+                                <span style="background:#e0f2fe;color:#0369a1;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:8px;">{{ g.category.code }}</span>
+                            {% endif %}
+                            {% if g.status == 'active' %}
+                                <span style="color:#16a34a;font-size:11px;margin-left:8px;">🟢</span>
+                            {% elif g.status == 'closed' %}
+                                <span style="color:#64748b;font-size:11px;margin-left:8px;">🔒</span>
+                            {% endif %}
+                        </label>
+                    </div>
+                    {% empty %}
+                    <div style="text-align:center;color:#94a3b8;padding:20px;font-size:13px;">Нет групп для удаления</div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="delete-warning" id="deleteWarning">
+                <p>
+                    ⚠️ <strong>Внимание!</strong> Это действие <strong>нельзя отменить</strong>.
+                    Выбранные группы будут удалены безвозвратно вместе со всеми связанными данными.
+                </p>
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="btn-cancel" onclick="closeDeleteModal()">Отмена</button>
+                <button type="submit" class="btn-delete" id="confirmDeleteBtn" disabled>🗑️ Удалить</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // =======================================================================
+    //  УПРАВЛЕНИЕ МОДАЛЬНЫМ ОКНОМ УДАЛЕНИЯ
+    // =======================================================================
+    function openDeleteModal() {
+        document.getElementById('deleteModal').classList.add('active');
+        document.getElementById('deleteWarning').style.display = 'none';
+        document.getElementById('confirmDeleteBtn').disabled = true;
+    }
+
+    function closeDeleteModal() {
+        document.getElementById('deleteModal').classList.remove('active');
+        document.getElementById('deleteForm').reset();
+        document.getElementById('deleteWarning').style.display = 'none';
+        document.getElementById('confirmDeleteBtn').disabled = true;
+    }
+
+    // Обработка выбора чекбоксов
+    document.querySelectorAll('input[name="group_ids"]').forEach(function(checkbox) {
+        checkbox.addEventListener('change', function() {
+            const selectedCount = document.querySelectorAll('input[name="group_ids"]:checked').length;
+            const warning = document.getElementById('deleteWarning');
+            const confirmBtn = document.getElementById('confirmDeleteBtn');
+
+            if (selectedCount > 0) {
+                warning.style.display = 'block';
+                confirmBtn.disabled = false;
+            } else {
+                warning.style.display = 'none';
+                confirmBtn.disabled = true;
+            }
+        });
+    });
+
+    // Закрытие модалки по клику вне её содержимого
+    document.getElementById('deleteModal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeDeleteModal();
+        }
+    });
+
+    // Закрытие модалки по клавише Escape
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            const modal = document.getElementById('deleteModal');
+            if (modal.classList.contains('active')) {
+                closeDeleteModal();
+            }
+        }
+    });
+</script>
 {% endblock %}

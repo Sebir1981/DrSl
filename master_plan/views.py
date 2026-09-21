@@ -1,6 +1,6 @@
 # master_plan/views.py
 import logging
-from datetime import datetime
+from datetime import datetime, date
 
 from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
@@ -46,32 +46,64 @@ def fmt_date(date_obj):
 @login_required
 def master_plan_dashboard(request):
     """Главная страница генерального плана."""
-    plan_groups = (
+
+    # 1. Получаем все активные группы плана
+    plan_groups_qs = (
         MasterPlanGroup.objects
         .filter(is_archived=False)
         .select_related('group', 'teacher', 'group__classroom')
         .prefetch_related('distributions__master')
-        .order_by('created_at')
+    )
+
+    # 2. 🔥 СОРТИРОВКА: Ближайшие даты Экзамена ГАИ слева, без даты — в конце
+    # Используем datetime.date(9999, 12, 31) как "бесконечность" для групп без даты
+    plan_groups = sorted(
+        plan_groups_qs,
+        key=lambda pg: pg.group.exam_gai_date or date(9999, 12, 31)
     )
 
     masters = MasterPouts.objects.all().order_by('last_name', 'first_name')
     all_groups = Group.objects.filter(status='active').order_by('group_number')
 
+    # =======================================================================
+    # 🔹 ФИЛЬТРАЦИЯ ГРУПП ДЛЯ ДОБАВЛЕНИЯ
+    # =======================================================================
+
+    # 1. Получаем ID групп, которые УЖЕ находятся в активном генеральном плане
+    active_plan_group_ids = MasterPlanGroup.objects.filter(
+        is_archived=False
+    ).values_list('group_id', flat=True)
+
+    # 2. Формируем итоговый список:
+    # - Берем только активные группы (предполагаем, что у вас есть status='active')
+    # - Исключаем те, чьи ID есть в списке active_plan_group_ids
+    # - Если у модели Group есть поле is_archived, можно добавить .filter(is_archived=False)
+    all_groups = Group.objects.filter(
+        status='active'  # <-- Убедитесь, что это поле соответствует вашей модели Group
+    ).exclude(
+        pk__in=active_plan_group_ids
+    ).order_by('group_number')
+
+    # 💡 ПОДСКАЗКА: Если бизнес-логика требует исключить ВООБЩЕ ЛЮБЫЕ группы,
+    # которые когда-либо были в плане (даже если они уже в архиве плана),
+    # замените первую строку на:
+    # existing_plan_group_ids = MasterPlanGroup.objects.values_list('group_id', flat=True)
+    # и используйте existing_plan_group_ids в .exclude()
+
     # ============================================================
-    # ОБЩАЯ СТАТИСТИКА (для верхнего правого блока)
+    # ОБЩАЯ СТАТИСТИКА
     # ============================================================
-    total_groups = plan_groups.count()
+    total_groups = len(plan_groups)  # Используем len, так как теперь это список
     total_students = sum(pg.total_students for pg in plan_groups)
     total_hours = sum(pg.total_hours for pg in plan_groups)
     total_driven = sum(pg.driven_hours for pg in plan_groups)
     total_remaining = sum(pg.remaining_hours for pg in plan_groups)
 
     # ============================================================
-    # 🔹 СТАТИСТИКА ПО МАСТЕРАМ (для нижнего правого блока)
+    # СТАТИСТИКА ПО МАСТЕРАМ
     # ============================================================
     masters_stats = []
     for master in masters:
-        # Получаем все распределения этого мастера по активным группам плана
         distributions = master.distributions.filter(plan_group__in=plan_groups)
 
         master_total_students = 0
@@ -83,24 +115,11 @@ def master_plan_dashboard(request):
             master_total_students += students_count
 
             hours_per_student = float(dist.plan_group.hours_per_student)
-
-            # Всего часов у этого мастера в этой группе
             group_hours = students_count * hours_per_student
             master_total_hours += group_hours
 
-            # 🔥 ВАЖНО: Считаем реально выкатанные часы из карточек СТУДЕНТОВ
-            # Получаем всех студентов этой группы, закрепленных за этим мастером
-            students_in_group = Student.objects.filter(
-                group=dist.plan_group.group,
-                master=master  # Студенты, закрепленные за этим мастером
-            )
-
-            # Суммируем их выкатанные часы
-            group_driven_hours = students_in_group.aggregate(
-                total=Sum('driving_hours_completed')
-            )['total'] or 0
-
-            master_driven_hours += group_driven_hours
+            driven_students = dist.completed_count
+            master_driven_hours += driven_students * hours_per_student
 
         master_remaining_hours = max(0, master_total_hours - master_driven_hours)
 
@@ -133,15 +152,12 @@ def master_plan_dashboard(request):
         'masters': masters,
         'all_groups': all_groups,
         'today': timezone.now().date(),
-        # Общая статистика
         'total_groups': total_groups,
         'total_students': total_students,
         'total_hours': total_hours,
         'total_driven': total_driven,
         'total_remaining': total_remaining,
-        # Статистика по мастерам (НОВОЕ)
         'masters_stats': masters_stats,
-        # Матрица
         'matrix_rows': matrix_rows,
     }
     return render(request, 'master_plan/dashboard.html', context)

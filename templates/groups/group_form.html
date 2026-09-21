@@ -190,33 +190,34 @@
             <div class="form-grid">
                 <div class="form-group">
                     <label>Договор: с</label>
+                    <!-- 🔥 ДОБАВЛЕНО: data-date-input="true" -->
                     <input type="text" name="contract_start"
                            value="{% if group and group.contract_start %}{{ group.contract_start|date:'d.m.Y' }}{% endif %}"
-                           placeholder="дд.мм.гггг" class="ru-date-input">
+                           placeholder="дд.мм.гггг" data-date-input="true">
                 </div>
                 <div class="form-group">
                     <label>по</label>
                     <input type="text" name="contract_end"
                            value="{% if group and group.contract_end %}{{ group.contract_end|date:'d.m.Y' }}{% endif %}"
-                           placeholder="дд.мм.гггг" class="ru-date-input">
+                           placeholder="дд.мм.гггг" data-date-input="true">
                 </div>
                 <div class="form-group">
                     <label>📚 ПДД (внутр.)</label>
                     <input type="text" name="exam_internal_theory_date"
                            value="{% if group and group.exam_internal_theory_date %}{{ group.exam_internal_theory_date|date:'d.m.Y' }}{% endif %}"
-                           placeholder="дд.мм.гггг" class="ru-date-input">
+                           placeholder="дд.мм.гггг" data-date-input="true">
                 </div>
                 <div class="form-group">
                     <label>🚗 Вождение (внутр.)</label>
                     <input type="text" name="exam_internal_driving_date"
                            value="{% if group and group.exam_internal_driving_date %}{{ group.exam_internal_driving_date|date:'d.m.Y' }}{% endif %}"
-                           placeholder="дд.мм.гггг" class="ru-date-input">
+                           placeholder="дд.мм.гггг" data-date-input="true">
                 </div>
                 <div class="form-group">
                     <label>🏁 Экзамен ГАИ</label>
                     <input type="text" name="exam_gai_date"
                            value="{% if group and group.exam_gai_date %}{{ group.exam_gai_date|date:'d.m.Y' }}{% endif %}"
-                           placeholder="дд.мм.гггг" class="ru-date-input">
+                           placeholder="дд.мм.гггг" data-date-input="true">
                 </div>
                 <div class="form-group">
                     <label>🚦 Статус</label>
@@ -273,9 +274,9 @@
         </div>
     </form>
 </div>
+{% endblock %}
 
-<!-- 🔹 Подключение скриптов масок -->
-
-<script src="{% static 'js/date-mask.js' %}" defer></script>
-
+<!-- 🔹 Подключение скрипта маски (в отдельном блоке, чтобы грузился после HTML) -->
+{% block extra_js %}
+<script src="{% static 'js/date-mask.js' %}"></script>
 {% endblock %}

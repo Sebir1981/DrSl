@@ -41,7 +41,7 @@ class MasterPlanGroup(models.Model):
         blank=True
     )
     status = models.CharField(
-        "Ситуация",
+        "Статус",  # 🔥 Исправлено: было "Ситуация"
         max_length=20,
         choices=STATUS_CHOICES,
         default='recruiting'
@@ -60,7 +60,7 @@ class MasterPlanGroup(models.Model):
     class Meta:
         verbose_name = "Группа в плане"
         verbose_name_plural = "Группы в плане"
-        ordering = ['group__group_number']
+        ordering = ['created_at']  # 🔥 Порядок добавления, а не по номеру
 
     def __str__(self):
         return f"{self.group.group_number} ({self.get_status_display()})"
@@ -81,26 +81,18 @@ class MasterPlanGroup(models.Model):
     @property
     def driven_hours(self):
         """
-        Выкатано часов.
-
-        СЕЙЧАС: Заглушка 36 (для тестирования)
-        ПОЗЖЕ: Будет рассчитываться из путевых листов (когда реализуем эту модель)
-
-        Пример будущей реализации:
-        return self.group.students.aggregate(
-            total=Sum('driving_hours_completed')
-        )['total'] or 0
+        Выкатано часов — сумма driving_hours_completed по всем студентам группы.
+        Работает корректно, когда у студентов заполнено driving_hours_completed.
         """
-        return 36  # TODO: Заменить на расчёт из путевых листов
+        result = self.group.students.aggregate(
+            total=Sum('driving_hours_completed')
+        )['total']
+        return float(result) if result else 0.0
 
     @property
     def driven_students_count(self):
         """
         Количество студентов, которые полностью выкатали свои часы.
-        Считается по полю driving_hours_completed у каждого студента.
-
-        ПОЗЖЕ: driving_hours_completed будет заполняться автоматически
-        из путевых листов (сумма часов по всем поездкам студента).
         """
         return self.group.students.filter(
             driving_hours_required__gt=0,
@@ -114,13 +106,7 @@ class MasterPlanGroup(models.Model):
 
     @property
     def is_completed(self):
-        """
-        Все ли студенты группы полностью выкатали часы.
-        Группа готова к архивации, когда это свойство == True.
-
-        ПОКА НЕ РАБОТАЕТ: так как driven_hours = 36 (заглушка)
-        Будет работать после реализации путевых листов.
-        """
+        """Все ли студенты группы полностью выкатали часы"""
         return (self.driven_students_count >= self.total_students) and (self.total_students > 0)
 
     @property
@@ -132,12 +118,7 @@ class MasterPlanGroup(models.Model):
 
     @property
     def drive_until_status(self):
-        """Цветовой статус даты 'Выкатать до':
-        normal  — больше 14 дней
-        warning — 14 дней и меньше (оранжевая)
-        danger  — 7 дней и меньше (красная)
-        none    — дата не задана
-        """
+        """Цветовой статус даты 'Выкатать до'"""
         days = self.days_until_drive_deadline
         if days is None:
             return 'none'
@@ -146,6 +127,31 @@ class MasterPlanGroup(models.Model):
         if days <= 14:
             return 'warning'
         return 'normal'
+
+    # =========================================================
+    # 🔹 НОВЫЙ МЕТОД: Пересчёт completed_count для всех распределений
+    # =========================================================
+    def recalculate_distribution_completed(self):
+        """
+        Пересчитывает completed_count для всех распределений этой группы.
+        Распределяет выкатанных студентов пропорционально students_count.
+        """
+        distributions = self.distributions.all()
+        total_distributed = sum(d.students_count for d in distributions)
+
+        if total_distributed == 0:
+            distributions.update(completed_count=0)
+            return
+
+        # Получаем реально выкатанных студентов в этой группе
+        driven_students = self.driven_students_count
+
+        for dist in distributions:
+            if dist.students_count > 0:
+                # Пропорциональное распределение
+                ratio = dist.students_count / total_distributed
+                dist.completed_count = round(driven_students * ratio)
+                dist.save(update_fields=['completed_count'])
 
 
 class MasterPlanDistribution(models.Model):
