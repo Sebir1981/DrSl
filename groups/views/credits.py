@@ -54,12 +54,12 @@ def credits_exams_dashboard(request):
             Q(last_name__icontains=search) | Q(first_name__icontains=search)
         )
 
-    # 🔹 ДИНАМИЧЕСКИ получаем все зачёты из базы
-    all_credits = Credit.objects.all().order_by('number')
+    # 🔹 ДИНАМИЧЕСКИ получаем все зачёты и экзамены (без тематического контроля)
+    all_credits = Credit.objects.exclude(credit_type='control').order_by('credit_type', 'number')
 
-    # 🔹 РАЗДЕЛЯЕМ зачёты и экзамены
-    regular_credits = all_credits.filter(is_exam=False)
-    exam_credits = all_credits.filter(is_exam=True)
+    # 🔹 РАЗДЕЛЯЕМ зачёты и экзамены по credit_type (строка, не boolean!)
+    regular_credits = all_credits.filter(credit_type='credit')
+    exam_credits = all_credits.filter(credit_type='exam')
 
     credit_numbers = [c.number for c in regular_credits]
     credit_topics = {c.number: c.topic for c in regular_credits}
@@ -91,15 +91,17 @@ def credits_exams_dashboard(request):
     for att in all_attempts:
         attempts_by_key[(att.student_id, att.credit.number)].append(att)
 
-    # 🔹 Получаем результаты экзаменов
+    #  Получаем результаты экзаменов (тоже из CreditResult!)
     exam_results = {}
     all_exam_attempts = CreditResult.objects.filter(
         student_id__in=student_ids,
-        credit__number__in=exam_numbers
+        credit__number__in=exam_numbers,
+        credit__credit_type='exam'  # ← ВАЖНО: фильтруем только экзамены!
     ).select_related('credit').order_by('student_id', 'credit__number', 'credit_date', 'id')
 
     for att in all_exam_attempts:
-        key = (att.student_id, att.credit.number)
+        #  ИСПОЛЬЗУЕМ УНИКАЛЬНЫЙ КЛЮЧ С ТИПОМ
+        key = (att.student_id, 'exam', att.credit.number)
         if key not in exam_results:
             exam_results[key] = []
         exam_results[key].append(att)
@@ -123,7 +125,7 @@ def credits_exams_dashboard(request):
                     parsed = _parse_credit_comment(att.comment)
                     attempts_for_tooltip.append({
                         'num': parsed['attempt_num'],
-                        'icon': '✅' if att.status == 'passed' else '',
+                        'icon': '✅' if att.status == 'passed' else '❌',
                         'type': 'Платная' if parsed['attempt_type'] == 'paid' else 'Бесплатная',
                         'date': att.credit_date.strftime('%d.%m.%Y') if att.credit_date else '—'
                     })
@@ -145,10 +147,12 @@ def credits_exams_dashboard(request):
                     'attempts': []
                 })
 
-        # 🔹 Экзамены
+        #  Экзамены
         exams_status = []
         for num in exam_numbers:
-            key = (s.id, num)
+            #  ИСПОЛЬЗУЕМ УНИКАЛЬНЫЙ КЛЮЧ: (student_id, 'exam', num)
+            # Вместо (student_id, num), чтобы не путать с зачётами
+            key = (s.id, 'exam', num)
             attempts_list = exam_results.get(key, [])
             topic = exam_topics.get(num, f'Экзамен №{num}')
 
@@ -182,7 +186,6 @@ def credits_exams_dashboard(request):
                     'topic': topic,
                     'attempts': []
                 })
-
         students_data.append({
             'id': s.id,
             'full_name': s.full_name,
@@ -211,7 +214,8 @@ def credits_exams_add(request):
     teachers = Teacher.objects.filter(is_active=True).order_by('last_name', 'first_name')
     groups = Group.objects.filter(status='active').order_by('group_number')
     students = Student.objects.select_related('group').order_by('last_name', 'first_name')
-    credits = Credit.objects.select_related('category').order_by('number')
+    # Исключаем тематический контроль (он добавляется из путевого листа)
+    credits = Credit.objects.select_related('category').exclude(credit_type='control').order_by('credit_type', 'number')
 
     # Предзагрузка количества попыток
     attempts_counts = CreditResult.objects.filter(

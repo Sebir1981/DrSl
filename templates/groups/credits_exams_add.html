@@ -331,7 +331,7 @@ function appendStudentRow(s) {
     const creditId = document.getElementById('creditSelect').value;
     const attempts = s.attempts || {};
     const count = attempts[creditId] || 0;
-    const defaultType = count >= 4 ? 'paid' : 'free';
+    const defaultType = count >= 3 ? 'paid' : 'free';
 
     tr.innerHTML = `
         <td style="font-weight:500;color:#1e293b;">${s.name}</td>

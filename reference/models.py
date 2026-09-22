@@ -22,7 +22,15 @@ class GroupCategory(models.Model):
 
 
 class Credit(models.Model):
-    """Тема зачёта (привязана к категории)"""
+    """Тема зачёта / контроля / экзамена (привязана к категории)"""
+
+    # 🔹 НОВЫЕ ТИПЫ
+    TYPE_CHOICES = [
+        ('credit', 'Зачёт'),
+        ('control', 'Тематический контроль'),
+        ('exam', 'Экзамен'),
+    ]
+
     category = models.ForeignKey(
         'GroupCategory',
         on_delete=models.CASCADE,
@@ -31,24 +39,28 @@ class Credit(models.Model):
     )
     number = models.PositiveSmallIntegerField(
         "Номер",
-        help_text="1-9 для зачётов, 10+ для экзаменов"
+        help_text="1-9 для зачётов/контроля, 10+ для экзаменов"
     )
     topic = models.CharField("Тема", max_length=255)
 
-    is_exam = models.BooleanField(
-        "Это экзамен",
-        default=False,
-        help_text="Отметьте, если это экзамен (теоретический или практический)"
+    # 🔹 ЗАМЕНИТЕ is_exam НА ЭТО ПОЛЕ:
+    credit_type = models.CharField(
+        "Тип",
+        max_length=20,
+        choices=TYPE_CHOICES,
+        default='credit',
+        help_text="Выберите тип проверки знаний"
     )
 
     class Meta:
-        verbose_name = "Тема зачёта"
-        verbose_name_plural = "📚 Темы зачётов"
-        ordering = ['category__code', 'number']
-        unique_together = ['category', 'number']
+        verbose_name = "Тема проверки"
+        verbose_name_plural = "📚 Темы проверок"
+        ordering = ['category__code', 'credit_type', 'number']
+        unique_together = ['category', 'credit_type', 'number']
 
     def __str__(self):
-        return f"{self.category.code} — Зачёт №{self.number}: {self.topic}"
+        type_display = dict(self.TYPE_CHOICES).get(self.credit_type, 'Зачёт')
+        return f"{self.category.code} — {type_display} №{self.number}: {self.topic}"
 
 
 class SubjectDictionary(models.Model):

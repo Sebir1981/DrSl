@@ -1,6 +1,7 @@
 # students/views.py
 import json
 import random
+import re
 from datetime import datetime
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
@@ -22,13 +23,13 @@ from groups.models import Group, SchedulePlan
 from master_plan.models import MasterPlanGroup
 from cars.models import Car
 
-
 # =============================================================================
 # 🔹 КОНСТАНТЫ
 # =============================================================================
 REDIRECT_STUDENT_DETAIL = 'students:student_detail'
 TODAY = timezone.now().date()
 TEMPLATE_TRANSFER_STUDENT = 'students/transfer_student.html'
+
 
 # =============================================================================
 # 🔹 ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
@@ -136,7 +137,6 @@ def student_add(request):
         if form.is_valid():
             student = form.save()
 
-            # 🔹 Наследуем преподавателя из группы при создании (если не задан вручную)
             if student.group and student.group.teacher and not student.teacher_id:
                 student.teacher = student.group.teacher
                 student.save()
@@ -202,7 +202,6 @@ def student_list(request):
     group_filter = request.GET.get('group', '').strip()
     if group_filter:
         if group_filter.isdigit():
-            # 🔹 Значение может быть номерм группы ИЛИ её ID — проверяем оба варианта
             students = students.filter(
                 Q(group__group_number=group_filter) | Q(group_id=group_filter)
             )
@@ -253,7 +252,7 @@ def student_list(request):
 
 
 # =============================================================================
-# ✅ 3. Карточка учащегося
+# ✅ 3. Карточка учащегося (с Историей)
 # =============================================================================
 @login_required
 @require_http_methods(["GET"])
@@ -276,58 +275,60 @@ def student_detail(request, student_id):
     change_history = _prepare_change_history(activity_log, author_name)
 
     # 🔹 Получаем результаты зачётов и экзаменов
-    from groups.models import CreditResult, ExamResult
-    from reference.models import Credit
+    from groups.models import CreditResult
+    from reference.models import PaidService
 
-    # Все зачёты студента
+    def parse_comment(comment):
+        if not comment:
+            return {'attempt_num': 1, 'attempt_type': 'free'}
+        match = re.search(r'Попытка №(\d+)', comment)
+        attempt_num = int(match.group(1)) if match else 1
+        attempt_type = 'paid' if 'Тип: paid' in comment else 'free'
+        return {'attempt_num': attempt_num, 'attempt_type': attempt_type}
+
+    # 1. Все ЗАЧЁТЫ студента (строго credit_type='credit')
     credit_results = CreditResult.objects.filter(
-        student=student
+        student=student,
+        credit__credit_type='credit'
     ).select_related('credit').order_by('credit__number', '-credit_date')
 
-    # Группируем по номерам зачётов
-    # Все зачёты студента
-    credit_results = CreditResult.objects.filter(
-        student=student
-    ).select_related('credit').order_by('credit__number', '-credit_date')
-
-    # Группируем по номерам зачётов с распарсенными данными
     credits_by_number = defaultdict(list)
     for cr in credit_results:
-        # Парсим комментарий для получения типа попытки
-        attempt_type = 'Бесплатная'
-        attempt_num = 0
-        if cr.comment:
-            # Ищем в комментарии маркеры типа попытки
-            if 'платная' in cr.comment.lower() or 'paid' in cr.comment.lower():
-                attempt_type = 'Платная'
-            elif 'бесплатная' in cr.comment.lower() or 'free' in cr.comment.lower():
-                attempt_type = 'Бесплатная'
-
-            # Ищем номер попытки
-            import re
-            match = re.search(r'попытка\s*#?(\d+)', cr.comment.lower())
-            if match:
-                attempt_num = int(match.group(1))
-
+        parsed = parse_comment(cr.comment)
         credits_by_number[cr.credit.number].append({
             'credit_date': cr.credit_date,
             'status': cr.status,
-            'attempt_type': attempt_type,
-            'attempt_num': attempt_num,
+            'attempt_type': 'Платная' if parsed['attempt_type'] == 'paid' else 'Бесплатная',
+            'attempt_num': parsed['attempt_num'],
         })
-    # Все экзамены студента
-    exam_results = ExamResult.objects.filter(
-        student=student
-    ).order_by('exam_type', '-exam_date')
 
-    theory_exams = exam_results.filter(exam_type='theory')
-    driving_exams = exam_results.filter(exam_type='driving')
+    # 2. Все ЭКЗАМЕНЫ студента (строго credit_type='exam')
+    exam_results_qs = CreditResult.objects.filter(
+        student=student,
+        credit__credit_type='exam'
+    ).select_related('credit').order_by('credit__number', '-credit_date')
 
-    # 🔹 Получаем все платные услуги и выбранные для студента
-    from reference.models import PaidService
+    theory_exams = []
+    driving_exams = []
+
+    for er in exam_results_qs:
+        parsed = parse_comment(er.comment)
+        exam_data = {
+            'exam_date': er.credit_date,
+            'status': er.status,
+            'attempt_type': 'paid' if parsed['attempt_type'] == 'paid' else 'free',
+        }
+
+        topic_lower = er.credit.topic.lower() if er.credit.topic else ''
+        if er.credit.number == 1 or 'теоретич' in topic_lower or 'пдд' in topic_lower:
+            theory_exams.append(exam_data)
+        elif er.credit.number == 2 or 'практич' in topic_lower or 'вожден' in topic_lower:
+            driving_exams.append(exam_data)
+        else:
+            theory_exams.append(exam_data)
+
+    # 🔹 Платные услуги
     all_services = PaidService.objects.all()
-
-    # Получаем значения услуг для студента (из activity_log или отдельного поля)
     student_services = {}
     if student.activity_log:
         for entry in student.activity_log:
@@ -336,22 +337,17 @@ def student_detail(request, student_id):
                 if service_id:
                     student_services[service_id] = True
 
-    # 🔹 Получаем уникальные марки автомобилей из автопарка
     car_brands = Car.objects.values_list('make', flat=True).distinct().order_by('make')
     today = timezone.now().date()
 
-    # 🔹 1. Расчёт часов ТЕОРИИ из план-графика
+    # 🔹 1. Расчёт часов ТЕОРИИ
     theory_total = 0.0
     theory_distributed = 0.0
 
     if student.group:
         schedule_plan = SchedulePlan.objects.filter(group=student.group).order_by('-created_at').first()
-
         if schedule_plan:
-            # 🔹 БЕРЁМ готовое значение "Итого" из план-графика
             theory_total = float(schedule_plan.required_hours or 0)
-
-            # 🔹 Считаем только распределённые часы (прошедшие дни)
             if schedule_plan.class_days:
                 class_days = schedule_plan.class_days
                 if isinstance(class_days, str):
@@ -361,37 +357,26 @@ def student_detail(request, student_id):
                         class_days = {}
 
                 if isinstance(class_days, dict):
-                    # Получаем список исключённых и дополнительных дней
                     excluded_dates = set(schedule_plan.excluded_dates or [])
                     additional_dates = set(schedule_plan.additional_dates or [])
 
                     for date_str, day_data in class_days.items():
-                        # Пропускаем служебные ключи
                         if date_str.startswith('_') or not isinstance(day_data, dict):
                             continue
-
-                        #  СТРОГАЯ ПРОВЕРКА: день должен быть активен
-                        # Проверяем excluded_dates
                         if date_str in excluded_dates:
-                            if settings.DEBUG:
-                                print(f"SKIP (excluded): {date_str}")
                             continue
 
-                        # Проверяем флаг scheduled
                         is_scheduled = day_data.get('scheduled', None)
                         if is_scheduled is False:
-                            if settings.DEBUG:
-                                print(f"SKIP (scheduled=False): {date_str}")
                             continue
 
-                        # Если scheduled не установлен (None), проверяем по алгоритму
                         if is_scheduled is None:
                             try:
                                 date_obj = datetime.strptime(date_str, '%Y-%m-%d')
                                 weekday = date_obj.weekday()
                                 schedule_type = schedule_plan.schedule_type
-
                                 should_be_scheduled = False
+
                                 if schedule_type == 'even' and date_obj.day % 2 == 0 and weekday < 5:
                                     should_be_scheduled = True
                                 elif schedule_type == 'odd' and date_obj.day % 2 == 1 and weekday < 5:
@@ -401,27 +386,21 @@ def student_detail(request, student_id):
                                 elif schedule_type == 'everyday':
                                     should_be_scheduled = True
 
-                                # Если день не должен быть по алгоритму и не в additional_dates
                                 if not should_be_scheduled and date_str not in additional_dates:
-                                    if settings.DEBUG:
-                                        print(f"SKIP (not scheduled by algo): {date_str}")
                                     continue
                             except (ValueError, TypeError):
                                 pass
 
                         try:
                             date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
-                            # Суммируем только прошедшие дни (включая сегодня)
                             if date_obj <= today:
                                 day_hours = 0.0
                                 for k, v in day_data.items():
-                                    # Пропускаем служебные ключи
                                     if k.startswith('_') or k.endswith('_topics'):
                                         continue
                                     if k in ['scheduled', 'manuallyRemoved', 'is_med', 'med', 'med_hours',
                                              'location', 'time_start', 'time_end', 'category']:
                                         continue
-                                    # Суммируем только числа
                                     if isinstance(v, (int, float)):
                                         day_hours += float(v)
                                     elif isinstance(v, str):
@@ -429,22 +408,17 @@ def student_detail(request, student_id):
                                             day_hours += float(v)
                                         except (ValueError, TypeError):
                                             pass
-
                                 if day_hours > 0:
                                     theory_distributed += day_hours
-
-                                    # Отладка
-                                    if settings.DEBUG:
-                                        print(f"✓ COUNT: {date_str} = {day_hours} ч. (всего: {theory_distributed})")
-                        except (ValueError, TypeError) as e:
+                        except (ValueError, TypeError):
                             continue
 
-    # Ограничиваем распределённые часы общим количеством
     theory_distributed = min(theory_distributed, theory_total)
     theory_remaining = max(0.0, theory_total - theory_distributed)
-    theory_percent = round((theory_distributed / theory_total * 100), 1) if theory_total > 0 else 0.0
+    # 🔹 Форматируем с ТОЧКОЙ для CSS (чтобы не было 20,6%)
+    theory_percent = f"{(theory_distributed / theory_total * 100):.1f}" if theory_total > 0 else "0.0"
 
-    # 🔹 2. Расчёт часов ПРАКТИКИ из генерального плана (с заглушкой)
+    # 🔹 2. Расчёт часов ПРАКТИКИ
     practice_total = 0.0
     practice_driven = 0.0
 
@@ -452,13 +426,63 @@ def student_detail(request, student_id):
         master_plan = MasterPlanGroup.objects.filter(group=student.group, is_archived=False).first()
         if master_plan:
             practice_total = float(master_plan.hours_per_student)
-            # 🚧 ЗАГЛУШКА: рандомное число до 50, пока не реализован учёт из путевых листов
             practice_driven = min(random.randint(0, 50), practice_total)
 
     practice_remaining = max(0.0, practice_total - practice_driven)
-    practice_percent = round((practice_driven / practice_total * 100), 1) if practice_total > 0 else 0.0
+    practice_percent = f"{(practice_driven / practice_total * 100):.1f}" if practice_total > 0 else "0.0"
 
-    # ✅ ИСПРАВЛЕННЫЙ ОТСТУП ЗДЕСЬ:
+    # 🔹 3. Формирование ОБЩЕЙ ИСТОРИИ (Таймлайн)
+    history_timeline = []
+    EVENT_ICONS = {
+        'enrollment': '🎓', 'transfer': '🔄', 'credit_result': '📝',
+        'service_added': '💰', 'service_removed': '❌', 'refusal': '🚫',
+        'dismissal': '🚪', 'suspension': '⏸️', 'contract_extension': '📄',
+        'teacher_change': '👨‍🏫', 'activated': '✅',
+    }
+    EVENT_TITLES = {
+        'enrollment': 'Зачисление', 'transfer': 'Перевод в группу',
+        'credit_result': 'Результат зачёта', 'service_added': 'Добавлена услуга',
+        'service_removed': 'Удалена услуга', 'refusal': 'Отказ от обучения',
+        'dismissal': 'Отчисление', 'suspension': 'Приостановка',
+        'contract_extension': 'Продление договора', 'teacher_change': 'Смена преподавателя',
+        'activated': 'Активация',
+    }
+
+    for entry in activity_log:
+        entry_type = entry.get('type', 'other')
+        entry_date = entry.get('date', '')
+        details = entry.get('details', {})
+
+        display_date = entry_date
+        if entry_date and len(entry_date) == 10 and entry_date[4] == '-':
+            parts = entry_date.split('-')
+            display_date = f"{parts[2]}.{parts[1]}.{parts[0]}"
+
+        description = entry.get('title', EVENT_TITLES.get(entry_type, entry_type))
+        extra_info = ''
+        if entry_type == 'transfer':
+            extra_info = f"{details.get('from_group', '—')} → {details.get('to_group', '—')}"
+        elif entry_type == 'credit_result':
+            extra_info = f"Попытка №{details.get('attempt_number', 0)} {details.get('result_icon', '')}"
+        elif entry_type == 'dismissal':
+            extra_info = f"Приказ №{details.get('order_number', '—')}"
+        elif entry_type == 'refusal':
+            from_group = details.get('from_group', '')
+            if from_group:
+                extra_info = f"из группы {from_group}"
+
+        history_timeline.append({
+            'date': display_date,
+            'date_raw': entry_date,
+            'type': entry_type,
+            'icon': EVENT_ICONS.get(entry_type, '📌'),
+            'title': description,
+            'extra': extra_info,
+        })
+
+    # Сортируем по дате (новые сверху)
+    history_timeline.sort(key=lambda x: x['date_raw'], reverse=True)
+
     context = {
         'student': student,
         'activity_log': activity_log,
@@ -482,12 +506,13 @@ def student_detail(request, student_id):
         'practice_driven': round(practice_driven, 1),
         'practice_remaining': round(practice_remaining, 1),
         'practice_percent': practice_percent,
+        'history_timeline': history_timeline,  # ← НОВЫЙ КОНТЕКСТ ДЛЯ ИСТОРИИ
     }
     return render(request, 'students/student_detail.html', context)
 
 
 # =============================================================================
-# ✅ 4. Перевод в другую группу (с наследованием преподавателя)
+# ✅ 4. Перевод в другую группу
 # =============================================================================
 @login_required
 @require_http_methods(["GET", "POST"])
@@ -521,7 +546,6 @@ def transfer_student(request, student_id):
             }
         )
 
-        # 🔹 Назначаем новую группу и наследуем преподавателя
         student.group = target_group
         if target_group.teacher:
             student.teacher = target_group.teacher
@@ -538,7 +562,7 @@ def transfer_student(request, student_id):
 
 
 # =============================================================================
-# ✅ 5. Отказ от обучения
+# ✅ 5. Отказ от обучения (с исключением из группы)
 # =============================================================================
 @login_required
 @require_http_methods(["GET", "POST"])
@@ -552,16 +576,27 @@ def student_refusal(request, student_id):
             comment = form.cleaned_data.get('comment', '')
             parsed_date = _parse_date_from_request(request, 'refusal_date') or TODAY
 
+            # 🔹 Запоминаем группу перед очисткой
+            old_group = student.group.group_number if student.group else '—'
+
             service = StudentStatusService(student)
             service.add_event(
                 event_type='refusal',
                 created_by=request.user,
                 event_date=parsed_date,
-                details={'comment': comment},
+                details={
+                    'comment': comment,
+                    'from_group': old_group
+                },
                 comment=comment
             )
 
-            messages.success(request, f"✅ Зафиксирован отказ: {student.last_name} {student.first_name}")
+            # 🔹 УБИРАЕМ СТУДЕНТА ИЗ ГРУППЫ
+            student.group = None
+            student.save(update_fields=['group'])
+
+            messages.success(request,
+                             f"✅ Зафиксирован отказ: {student.last_name} {student.first_name}. Исключён из группы {old_group}.")
             return redirect(REDIRECT_STUDENT_DETAIL, student_id=student.id)
         else:
             for field, errors in form.errors.items():
@@ -618,7 +653,7 @@ def student_suspension(request, student_id):
 
 
 # =============================================================================
-# ✅ 7. Отчисление учащегося
+# ✅ 7. Отчисление учащегося (с исключением из группы)
 # =============================================================================
 @login_required
 @require_http_methods(["GET", "POST"])
@@ -633,6 +668,9 @@ def student_dismissal(request, student_id):
             comment = form.cleaned_data.get('comment', '')
             parsed_date = _parse_date_from_request(request, 'event_date') or TODAY
 
+            # 🔹 Запоминаем группу перед очисткой
+            old_group = student.group.group_number if student.group else '—'
+
             service = StudentStatusService(student)
             service.add_event(
                 event_type='dismissal',
@@ -640,14 +678,19 @@ def student_dismissal(request, student_id):
                 event_date=parsed_date,
                 details={
                     'order_number': order_number if order_number else '—',
-                    'comment': comment
+                    'comment': comment,
+                    'from_group': old_group
                 },
                 comment=comment
             )
 
+            # 🔹 УБИРАЕМ СТУДЕНТА ИЗ ГРУППЫ
+            student.group = None
+            student.save(update_fields=['group'])
+
             messages.success(
                 request,
-                f"✅ {student.last_name} {student.first_name} отчислен. Приказ №{order_number if order_number else '—'}"
+                f"✅ {student.last_name} {student.first_name} отчислен. Приказ №{order_number if order_number else '—'}. Исключён из группы {old_group}."
             )
             return redirect(REDIRECT_STUDENT_DETAIL, student_id=student.id)
         else:
@@ -729,17 +772,12 @@ def surname_suggestions(request):
 # 🔹 Вспомогательные функции для student_edit
 # =============================================================================
 def _handle_group_change(student, new_group_id, old_group_id, request):
-    """
-    Обрабатывает смену группы: назначает группу, наследует преподавателя,
-    записывает событие перевода. Возвращает True, если группа изменилась.
-    """
     if new_group_id and new_group_id.isdigit():
         new_group_id = int(new_group_id)
         if new_group_id != old_group_id:
             target_group = get_object_or_404(Group, pk=new_group_id, status='active')
             old_group_number = student.group.group_number if student.group else '—'
 
-            # 🔹 Назначаем новую группу и наследуем преподавателя
             student.group = target_group
             if target_group.teacher:
                 student.teacher = target_group.teacher
@@ -761,10 +799,6 @@ def _handle_group_change(student, new_group_id, old_group_id, request):
 
 
 def _handle_teacher_change(student, new_teacher_id, old_teacher_id, request):
-    """
-    Обрабатывает РУЧНУЮ смену преподавателя.
-    Вызывается только если группа НЕ менялась (иначе преподаватель унаследован).
-    """
     if new_teacher_id and new_teacher_id.isdigit():
         new_teacher_id = int(new_teacher_id)
         if new_teacher_id != student.teacher_id:
@@ -798,17 +832,14 @@ def student_edit(request, student_id):
         old_group_id = student.group_id
         old_teacher_id = student.teacher_id
 
-        # 1. Личные данные
         student.last_name = request.POST.get('last_name', '').strip()
         student.first_name = request.POST.get('first_name', '').strip()
         student.patronymic = request.POST.get('patronymic', '').strip()
         student.phone = request.POST.get('phone', '').strip()
 
-        # 2. Даты
         student.birth_date = _parse_date_from_request(request, 'birth_date')
         student.enrolled_date = _parse_date_from_request(request, 'enrolled_date', None)
 
-        # 3. Адреса и прочее
         student.place_of_birth = request.POST.get('place_of_birth', '').strip()
         student.place_of_residence = request.POST.get('place_of_residence', '').strip()
         student.place_of_registration = request.POST.get('place_of_registration', '').strip()
@@ -816,25 +847,20 @@ def student_edit(request, student_id):
         student.position = request.POST.get('position', '').strip()
         student.gearbox_type = request.POST.get('gearbox_type', '')
 
-        # 4. Обработка связей
         new_group_id = request.POST.get('group')
         new_teacher_id = request.POST.get('teacher')
         new_master_id = request.POST.get('master')
 
-        # 🔹 Смена группы → преподаватель наследуется автоматически
         group_changed = _handle_group_change(student, new_group_id, old_group_id, request)
 
-        # 🔹 Ручная смена преподавателя — только если группа НЕ менялась
         if not group_changed:
             _handle_teacher_change(student, new_teacher_id, old_teacher_id, request)
 
-        # Мастер
         if new_master_id and new_master_id.isdigit():
             student.master = get_object_or_404(Master, pk=new_master_id)
         elif new_master_id is None or new_master_id == '':
             student.master = None
 
-        # 5. Сохраняем и редиректим
         student.save()
         messages.success(request, f'✅ Данные учащегося {student.last_name} обновлены!')
         return redirect(REDIRECT_STUDENT_DETAIL, student_id=student.pk)
@@ -903,14 +929,13 @@ def get_students_api(request):
 
     return JsonResponse({'rows': rows_html, 'suggestions': suggestions_list})
 
+
 # =============================================================================
 # ✅ 12. Выбор платных услуг
 # =============================================================================
-
 @login_required
 @require_http_methods(["POST"])
 def update_service_value(request, student_id):
-    """Обновление значения выбранной услуги для студента"""
     student = get_object_or_404(Student, pk=student_id)
 
     try:
@@ -922,7 +947,6 @@ def update_service_value(request, student_id):
         from reference.models import PaidService
         service = get_object_or_404(PaidService, pk=service_id)
 
-        # Добавляем запись в activity_log
         log_entry = {
             'type': 'service_value_updated',
             'date': timezone.now().date().isoformat(),
@@ -945,14 +969,13 @@ def update_service_value(request, student_id):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=400)
 
+
 # =============================================================================
 # ✅ 13. Включение/выключение платной услуги
 # =============================================================================
-
 @login_required
 @require_http_methods(["POST"])
 def toggle_service(request, student_id):
-    """Включение/выключение платной услуги для студента"""
     student = get_object_or_404(Student, pk=student_id)
 
     try:
@@ -963,7 +986,6 @@ def toggle_service(request, student_id):
         from reference.models import PaidService
         service = get_object_or_404(PaidService, pk=service_id)
 
-        # Добавляем запись в activity_log
         log_entry = {
             'type': 'service_added' if enabled else 'service_removed',
             'date': timezone.now().date().isoformat(),
@@ -989,11 +1011,9 @@ def toggle_service(request, student_id):
 # =============================================================================
 # ✅ 14. Сохранение всех платных услуг для студента
 # =============================================================================
-
 @login_required
 @require_http_methods(["POST"])
 def save_services(request, student_id):
-    """Сохранение всех выбранных платных услуг для студента"""
     student = get_object_or_404(Student, pk=student_id)
 
     try:
@@ -1002,13 +1022,9 @@ def save_services(request, student_id):
 
         from reference.models import PaidService
 
-        # Получаем текущий activity_log
         current_log = student.activity_log or []
-
-        # Удаляем старые записи о услугах
         current_log = [entry for entry in current_log if entry.get('type') not in ['service_added', 'service_removed']]
 
-        # Добавляем новые записи
         for service_data in services:
             service_id = service_data.get('service_id')
             service_name = service_data.get('service_name')

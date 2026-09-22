@@ -217,82 +217,82 @@
             </tr>
         </thead>
         <tbody id="studentsTableBody" data-empty-colspan="{{ credit_numbers|length|add:3 }}">
-            {% for s in students %}
-            <tr>
-                {# 🔹 ФИО студента #}
-                <td class="col-fio">
-                    <div style="font-weight:600;color:#1e293b;">{{ s.full_name }}</div>
-                    <div style="font-size:11px;color:#64748b;margin-top:2px;">{{ s.group_number }}</div>
-                </td>
+    {% for s in students %}
+    <tr>
+        {# 🔹 ФИО студента #}
+        <td class="col-fio">
+            <div style="font-weight:600;color:#1e293b;">{{ s.full_name }}</div>
+            <div style="font-size:11px;color:#64748b;margin-top:2px;">{{ s.group_number }}</div>
+        </td>
 
-                {# 🔹 Зачёты #}
-                {% for c in s.credits %}
-                <td>
-                    {% if c.icon != '—' %}
-                    <div style="position:relative;display:inline-block;"
-                         onmouseenter="showCreditTooltip(this, '{{ s.id }}', 'c', '{{ c.num }}')"
-                         onmouseleave="hideCreditTooltip('{{ s.id }}', 'c', '{{ c.num }}')">
-                        <span class="indicator {{ c.status }}">{{ c.icon }}</span>
-                        <div id="tooltip-c-{{ s.id }}-{{ c.num }}" class="credit-tooltip">
-                            <div style="font-weight:600;margin-bottom:6px;border-bottom:1px solid #334155;padding-bottom:4px;">
-                                Зачёт №{{ c.num }} — Попытки:
-                            </div>
-                            {% if c.attempts %}
-                                {% for att in c.attempts %}
-                                <div style="padding:3px 0;border-bottom:1px solid #334155;">
-                                    <strong>№{{ att.num }}</strong> {{ att.icon }}<br>
-                                    <span style="color:#94a3b8;">{{ att.type }} • {{ att.date }}</span>
-                                </div>
-                                {% endfor %}
-                            {% else %}
-                                <div style="color:#94a3b8;">Нет данных</div>
-                            {% endif %}
-                        </div>
+        {# 🔹 Зачёты — ЭТОГО НЕ ХВАТАЛО! #}
+        {% for c in s.credits %}
+        <td>
+            {% if c.icon != '—' %}
+            <div style="position:relative;display:inline-block;"
+                 onmouseenter="showCreditTooltip(this, '{{ s.id }}', 'c', '{{ c.num }}')"
+                 onmouseleave="hideCreditTooltip('{{ s.id }}', 'c', '{{ c.num }}')">
+                <span class="indicator {{ c.status }}">{{ c.icon }}</span>
+                <div id="tooltip-c-{{ s.id }}-{{ c.num }}" class="credit-tooltip">
+                    <div style="font-weight:600;margin-bottom:6px;border-bottom:1px solid #334155;padding-bottom:4px;">
+                        Зачёт №{{ c.num }} — Попытки:
                     </div>
+                    {% if c.attempts %}
+                        {% for att in c.attempts %}
+                        <div style="padding:3px 0;border-bottom:1px solid #334155;">
+                            <strong>№{{ att.num }}</strong> {{ att.icon }}<br>
+                            <span style="color:#94a3b8;">{{ att.type }} • {{ att.date }}</span>
+                        </div>
+                        {% endfor %}
                     {% else %}
-                    <span class="indicator none">—</span>
+                        <div style="color:#94a3b8;">Нет данных</div>
                     {% endif %}
-                </td>
-                {% endfor %}
+                </div>
+            </div>
+            {% else %}
+            <span class="indicator none">—</span>
+            {% endif %}
+        </td>
+        {% endfor %}
 
-                {# 🔹 Экзамены #}
-                {% for e in s.exams %}
-                <td class="cell-exam">
-                    {% if e.icon != '—' %}
-                    <div style="position:relative;display:inline-block;"
-                         onmouseenter="showCreditTooltip(this, '{{ s.id }}', 'e', '{{ e.num }}')"
-                         onmouseleave="hideCreditTooltip('{{ s.id }}', 'e', '{{ e.num }}')">
-                        <span class="indicator {{ e.status }}">{{ e.icon }}</span>
-                        <div id="tooltip-e-{{ s.id }}-{{ e.num }}" class="credit-tooltip">
-                            <div style="font-weight:600;margin-bottom:6px;border-bottom:1px solid #334155;padding-bottom:4px;">
-                                🎓 Экзамен №{{ e.num }} — Попытки:
-                            </div>
-                            {% if e.attempts %}
-                                {% for att in e.attempts %}
-                                <div style="padding:3px 0;border-bottom:1px solid #334155;">
-                                    <strong>№{{ att.num }}</strong> {{ att.icon }}<br>
-                                    <span style="color:#94a3b8;">{{ att.type }} • {{ att.date }}</span>
-                                </div>
-                                {% endfor %}
-                            {% else %}
-                                <div style="color:#94a3b8;">Нет данных</div>
-                            {% endif %}
-                        </div>
+        {# 🔹 Экзамены #}
+        {% for e in s.exams %}
+        <td class="cell-exam">
+            {% if e.icon != '—' %}
+            <div style="position:relative;display:inline-block;"
+                 onmouseenter="showCreditTooltip(this, '{{ s.id }}', 'e', '{{ e.num }}')"
+                 onmouseleave="hideCreditTooltip('{{ s.id }}', 'e', '{{ e.num }}')">
+                <span class="indicator {{ e.status }}">{{ e.icon }}</span>
+                <div id="tooltip-e-{{ s.id }}-{{ e.num }}" class="credit-tooltip">
+                    <div style="font-weight:600;margin-bottom:6px;border-bottom:1px solid #334155;padding-bottom:4px;">
+                        🎓 Экзамен №{{ e.num }} — Попытки:
                     </div>
+                    {% if e.attempts %}
+                        {% for att in e.attempts %}
+                        <div style="padding:3px 0;border-bottom:1px solid #334155;">
+                            <strong>№{{ att.num }}</strong> {{ att.icon }}<br>
+                            <span style="color:#94a3b8;">{{ att.type }} • {{ att.date }}</span>
+                        </div>
+                        {% endfor %}
                     {% else %}
-                    <span class="indicator none">—</span>
+                        <div style="color:#94a3b8;">Нет данных</div>
                     {% endif %}
-                </td>
-                {% endfor %}
-            </tr>
-            {% empty %}
-            <tr>
-                <td colspan="{% widthratio credit_numbers|length|add:exam_numbers|length|add:1 1 1 %}" style="padding:30px;text-align:center;color:#64748b;">
-                     Учащиеся не найдены
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
+                </div>
+            </div>
+            {% else %}
+            <span class="indicator none">—</span>
+            {% endif %}
+        </td>
+        {% endfor %}
+    </tr>
+    {% empty %}
+    <tr>
+        <td colspan="{% widthratio credit_numbers|length|add:exam_numbers|length|add:1 1 1 %}" style="padding:30px;text-align:center;color:#64748b;">
+             Учащиеся не найдены
+        </td>
+    </tr>
+    {% endfor %}
+</tbody>
     </table>
 </div>
 

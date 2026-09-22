@@ -697,87 +697,92 @@ def paid_service_delete(request, pk):
 
 @login_required
 def credit_list(request):
-    """Список тем зачётов с формой добавления"""
-    if request.method == 'POST':
+    """Список тем с формой добавления"""
+    if request.method == 'POST' and 'topic' in request.POST:
         category_id = request.POST.get('category')
         topic = request.POST.get('topic', '').strip()
-        number_str = request.POST.get('number', '').strip()
-        is_exam_str = request.POST.get('is_exam', 'False')
-        is_exam = is_exam_str == 'True'
+        number = request.POST.get('number')
+        credit_type = request.POST.get('credit_type', 'credit')
 
-        if not category_id:
-            messages.error(request, '⚠️ Выберите категорию')
-        elif not topic:
-            messages.error(request, '⚠️ Введите тему')
-        elif not number_str:
-            messages.error(request, '⚠️ Введите номер')
-        else:
+        if category_id and topic and number:
             try:
-                number = int(number_str)
                 category = GroupCategory.objects.get(pk=category_id)
 
-                if Credit.objects.filter(category=category, number=number).exists():
-                    messages.error(request, f'⚠️ Запись №{number} уже существует для категории {category.code}!')
+                # ✅ ИСПРАВЛЕНО: проверяем уникальность по тройке (категория + тип + номер)
+                if Credit.objects.filter(
+                        category=category,
+                        credit_type=credit_type,
+                        number=int(number)
+                ).exists():
+                    type_display = dict(Credit.TYPE_CHOICES).get(credit_type, 'Запись')
+                    messages.error(request, f'️ {type_display} №{number} уже существует для категории {category.code}!')
                 else:
                     Credit.objects.create(
                         category=category,
-                        number=number,
+                        number=int(number),
                         topic=topic,
-                        is_exam=is_exam
+                        credit_type=credit_type
                     )
-                    item_type = 'Экзамен' if is_exam else 'Зачёт'
-                    messages.success(request, f'✅ {item_type} №{number} добавлен для категории {category.code}!')
+                    type_display = dict(Credit.TYPE_CHOICES).get(credit_type, 'Запись')
+                    messages.success(request, f'✅ {type_display} №{number} добавлен для категории {category.code}!')
             except GroupCategory.DoesNotExist:
-                messages.error(request, '⚠️ Категория не найдена')
-            except ValueError:
+                messages.error(request, '️ Категория не найдена')
+            except (ValueError, TypeError):
                 messages.error(request, '⚠️ Номер должен быть числом')
-
+        else:
+            messages.error(request, '⚠️ Заполните все поля')
         return redirect('reference:credit_list')
 
-    credits = Credit.objects.select_related('category').all().order_by('category__code', 'number')
+    credits = Credit.objects.select_related('category').all().order_by(
+        'category__code', 'credit_type', 'number'
+    )
     categories = GroupCategory.objects.all().order_by('code')
 
     context = {
         'credits': credits,
         'categories': categories,
-        'title': '📚 Темы зачётов'
+        'title': '📚 Темы проверок'
     }
     return render(request, 'reference/credit_list.html', context)
 
 
 @login_required
 def credit_edit(request, credit_id):
-    """Редактирование темы зачёта (через модальное окно)"""
+    """Редактирование темы (через модальное окно)"""
     credit = get_object_or_404(Credit, pk=credit_id)
 
     if request.method == 'POST':
         category_id = request.POST.get('category')
-        number_str = request.POST.get('number', '').strip()
+        number = request.POST.get('number')
         topic = request.POST.get('topic', '').strip()
-        is_exam_str = request.POST.get('is_exam', 'False')
-        is_exam = is_exam_str == 'True'
+        credit_type = request.POST.get('credit_type', 'credit')
 
-        if not category_id or not number_str or not topic:
-            messages.error(request, '⚠️ Заполните все обязательные поля')
-        else:
+        if category_id and topic and number:
             try:
-                number = int(number_str)
                 category = GroupCategory.objects.get(pk=category_id)
 
-                if Credit.objects.filter(category=category, number=number).exclude(pk=credit_id).exists():
-                    messages.error(request, f'⚠️ Запись №{number} уже существует для категории {category.code}!')
+                # ✅ ИСПРАВЛЕНО: проверяем уникальность по тройке (категория + тип + номер)
+                if Credit.objects.filter(
+                        category=category,
+                        credit_type=credit_type,
+                        number=int(number)
+                ).exclude(pk=credit_id).exists():
+                    type_display = dict(Credit.TYPE_CHOICES).get(credit_type, 'Запись')
+                    messages.error(request,
+                                   f'⚠️ {type_display} №{number} уже существует для категории {category.code}!')
                 else:
                     credit.category = category
-                    credit.number = number
+                    credit.number = int(number)
                     credit.topic = topic
-                    credit.is_exam = is_exam
+                    credit.credit_type = credit_type
                     credit.save()
                     messages.success(request, f'✅ Запись №{number} обновлена!')
             except GroupCategory.DoesNotExist:
                 messages.error(request, '⚠️ Категория не найдена')
-            except ValueError:
+            except (ValueError, TypeError):
                 messages.error(request, '⚠️ Номер должен быть числом')
-
+        else:
+            messages.error(request, '⚠️ Заполните все поля')
         return redirect('reference:credit_list')
 
     # GET — возвращаем JSON для заполнения модального окна
@@ -786,7 +791,7 @@ def credit_edit(request, credit_id):
         'category_id': credit.category_id,
         'number': credit.number,
         'topic': credit.topic,
-        'is_exam': credit.is_exam  # Django автоматически превратит это в JS true/false
+        'credit_type': credit.credit_type
     })
 
 @login_required
