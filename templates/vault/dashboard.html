@@ -221,31 +221,38 @@
     <main class="main-content">
 
         <!-- 🔹 ОСНОВНЫЕ РАЗДЕЛЫ -->
-        <div class="section-title">📋 Основные разделы</div>
-        <div class="cards-grid">
-            <a href="{% url 'groups:dashboard' %}" class="card primary">
-                <span class="icon">👥</span>
-                <span class="title">Группы</span>
-                <span class="count">{{ groups_count|default:0 }}</span>
-            </a>
+<div class="section-title"> Основные разделы</div>
+<div class="cards-grid">
+    <a href="{% url 'groups:dashboard' %}" class="card primary">
+        <span class="icon">👥</span>
+        <span class="title">Группы</span>
+        <span class="count">{{ groups_count|default:0 }}</span>
+    </a>
 
-            <a href="{% url 'students:dashboard' %}" class="card primary">
-                <span class="icon">🎓</span>
-                <span class="title">Учащиеся</span>
-                <span class="count">{{ students_count|default:0 }}</span>
-            </a>
+    <a href="{% url 'students:dashboard' %}" class="card primary">
+        <span class="icon">🎓</span>
+        <span class="title">Учащиеся</span>
+        <span class="count">{{ students_count|default:0 }}</span>
+    </a>
 
-            <a href="{% url 'groups:credits_exams' %}" class="card primary">
-                <span class="icon">✅</span>
-                <span class="title">Зачёты и экзамены</span>
-                <span class="count">📊</span>
-            </a>
+    <a href="{% url 'groups:credits_exams' %}" class="card primary">
+        <span class="icon">✅</span>
+        <span class="title">Зачёты и экзамены</span>
+        <span class="count"></span>
+    </a>
 
-            <a href="{% url 'master_plan:dashboard' %}" class="card primary">
-                <span class="icon">🗺️</span>
-                <span class="title">Генеральный план</span>
-            </a>
-        </div>
+    <a href="{% url 'master_plan:dashboard' %}" class="card primary">
+        <span class="icon">🗺️</span>
+        <span class="title">Генеральный план</span>
+    </a>
+
+    <!-- 🔹 НОВОЕ: Диспетчерская -->
+    <a href="{% url 'dispatcher:dashboard' %}" class="card primary">
+        <span class="icon">🚗</span>
+        <span class="title">Диспетчерская</span>
+        <span class="count">{{ today_route_sheets_count|default:0 }}</span>
+    </a>
+</div>
 
         <!-- 🔹 СПРАВОЧНИКИ (Сворачиваемый раздел) -->
         <div class="section-title collapsible-header" id="ref-toggle">

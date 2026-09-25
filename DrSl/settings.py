@@ -43,7 +43,8 @@ INSTALLED_APPS = [
     'reference',
     'reports',
     'cars',
-    'master_plan',  # 🗺️ Генеральный план
+    'master_plan',
+    'dispatcher',
     'DrSl',
 ]
 

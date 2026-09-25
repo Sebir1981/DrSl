@@ -13,10 +13,21 @@ class MasterPoutsForm(forms.ModelForm):
         label="Категории"
     )
 
+    # 🔹 Поле пола — используем RadioSelect для удобства
+    gender = forms.ChoiceField(
+        choices=MasterPouts.GENDER_CHOICES,
+        widget=forms.RadioSelect(attrs={
+            'class': 'gender-radio-group'
+        }),
+        required=False,
+        label="Пол",
+        initial='male'
+    )
+
     class Meta:
         model = MasterPouts
         fields = [
-            'last_name', 'first_name', 'patronymic',
+            'last_name', 'first_name', 'patronymic', 'gender',
             'passport_number', 'birth_date',
             'license_number', 'license_category', 'license_expiry',
             'medical_cert_number', 'medical_cert_expiry',

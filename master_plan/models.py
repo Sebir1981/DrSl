@@ -3,6 +3,8 @@ from django.db import models
 from django.db.models import Sum, F
 from django.contrib.auth.models import User
 from django.utils import timezone
+from students.models import Student
+from masters.models import MasterPouts
 
 
 class MasterPlanGroup(models.Model):
@@ -41,7 +43,7 @@ class MasterPlanGroup(models.Model):
         blank=True
     )
     status = models.CharField(
-        "Статус",  # 🔥 Исправлено: было "Ситуация"
+        "Статус",
         max_length=20,
         choices=STATUS_CHOICES,
         default='recruiting'
@@ -60,7 +62,14 @@ class MasterPlanGroup(models.Model):
     class Meta:
         verbose_name = "Группа в плане"
         verbose_name_plural = "Группы в плане"
-        ordering = ['created_at']  # 🔥 Порядок добавления, а не по номеру
+        ordering = ['created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['group'],
+                condition=models.Q(is_archived=False),
+                name='unique_active_plan_group_per_group'
+            ),
+        ]
 
     def __str__(self):
         return f"{self.group.group_number} ({self.get_status_display()})"
@@ -82,7 +91,6 @@ class MasterPlanGroup(models.Model):
     def driven_hours(self):
         """
         Выкатано часов — сумма driving_hours_completed по всем студентам группы.
-        Работает корректно, когда у студентов заполнено driving_hours_completed.
         """
         result = self.group.students.aggregate(
             total=Sum('driving_hours_completed')
@@ -91,9 +99,7 @@ class MasterPlanGroup(models.Model):
 
     @property
     def driven_students_count(self):
-        """
-        Количество студентов, которые полностью выкатали свои часы.
-        """
+        """Количество студентов, полностью выкатавших свои часы."""
         return self.group.students.filter(
             driving_hours_required__gt=0,
             driving_hours_completed__gte=F('driving_hours_required')
@@ -129,7 +135,7 @@ class MasterPlanGroup(models.Model):
         return 'normal'
 
     # =========================================================
-    # 🔹 НОВЫЙ МЕТОД: Пересчёт completed_count для всех распределений
+    # 🔹 Пересчёт completed_count для всех распределений
     # =========================================================
     def recalculate_distribution_completed(self):
         """
@@ -143,12 +149,10 @@ class MasterPlanGroup(models.Model):
             distributions.update(completed_count=0)
             return
 
-        # Получаем реально выкатанных студентов в этой группе
         driven_students = self.driven_students_count
 
         for dist in distributions:
             if dist.students_count > 0:
-                # Пропорциональное распределение
                 ratio = dist.students_count / total_distributed
                 dist.completed_count = round(driven_students * ratio)
                 dist.save(update_fields=['completed_count'])
@@ -171,6 +175,16 @@ class MasterPlanDistribution(models.Model):
     students_count = models.IntegerField("Количество человек", default=0)
     completed_count = models.IntegerField("Выкатано человек", default=0)
 
+    # 🔥 Флаг: распределение создано автоматически из платных услуг
+    auto_assigned = models.BooleanField(
+        "Автораспределение из услуг",
+        default=False,
+        help_text=(
+            "True, если все студенты этого распределения назначены "
+            "автоматически из платных услуг"
+        )
+    )
+
     class Meta:
         verbose_name = "Распределение"
         verbose_name_plural = "Распределения"
@@ -178,3 +192,125 @@ class MasterPlanDistribution(models.Model):
 
     def __str__(self):
         return f"{self.master} → {self.plan_group.group.group_number}: {self.students_count}"
+
+
+class StudentMasterAssignment(models.Model):
+    """
+    Построчная привязка: какой студент к какому мастеру назначен
+    в рамках конкретной группы генерального плана.
+    """
+    student = models.ForeignKey(
+        Student,
+        on_delete=models.CASCADE,
+        related_name='master_assignments',
+        verbose_name='Студент'
+    )
+    plan_group = models.ForeignKey(
+        'MasterPlanGroup',
+        on_delete=models.CASCADE,
+        related_name='student_assignments',
+        verbose_name='Группа в плане'
+    )
+    master = models.ForeignKey(
+        MasterPouts,
+        on_delete=models.CASCADE,
+        related_name='student_assignments',
+        verbose_name='Мастер'
+    )
+    assigned_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name='Дата назначения'
+    )
+
+    # 🔥 Флаг: назначение сделано автоматически из платной услуги
+    is_auto = models.BooleanField(
+        "Назначен автоматически",
+        default=False,
+        help_text="True, если назначение сделано из платной услуги"
+    )
+
+    class Meta:
+        verbose_name = 'Назначение студента мастеру'
+        verbose_name_plural = 'Назначения студентов мастерам'
+        unique_together = ('student', 'plan_group')
+        indexes = [
+            models.Index(fields=['plan_group', 'master']),
+            models.Index(fields=['student']),
+        ]
+
+    def __str__(self):
+        return f"{self.student} → {self.master} ({self.plan_group})"
+
+class StudentReassignmentLog(models.Model):
+    """
+    Журнал перераспределений студентов между мастерами.
+    Используется для отчётов: кто, когда, кого, от кого к кому и почему.
+    """
+    REASON_CHOICES = [
+        ('auto_service', 'Автоназначение из услуг'),
+        ('manual', 'Первое назначение вручную'),
+        ('reassign', 'Перераспределить'),
+        ('student_request', 'По требованию учащегося'),
+        ('master_request', 'По требованию мастера'),
+    ]
+
+    student = models.ForeignKey(
+        'students.Student',
+        on_delete=models.CASCADE,
+        related_name='reassignment_logs',
+        verbose_name='Студент'
+    )
+    plan_group = models.ForeignKey(
+        'MasterPlanGroup',
+        on_delete=models.CASCADE,
+        related_name='reassignment_logs',
+        verbose_name='Группа в плане'
+    )
+    from_master = models.ForeignKey(
+        'masters.MasterPouts',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='reassignments_from',
+        verbose_name='От мастера'
+    )
+    to_master = models.ForeignKey(
+        'masters.MasterPouts',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='reassignments_to',
+        verbose_name='К мастеру'
+    )
+    reason = models.CharField(
+        'Причина',
+        max_length=32,
+        choices=REASON_CHOICES,
+        default='reassign'
+    )
+    comment = models.TextField(
+        'Комментарий',
+        blank=True, default=''
+    )
+    created_by = models.ForeignKey(
+        'auth.User',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='reassignments_created',
+        verbose_name='Кто выполнил'
+    )
+    created_at = models.DateTimeField(
+        'Дата',
+        auto_now_add=True
+    )
+
+    class Meta:
+        verbose_name = 'Перераспределение студента'
+        verbose_name_plural = 'Журнал перераспределений'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['plan_group', '-created_at']),
+            models.Index(fields=['student', '-created_at']),
+            models.Index(fields=['reason']),
+        ]
+
+    def __str__(self):
+        return f"{self.student} : {self.from_master} → {self.to_master} ({self.get_reason_display()})"

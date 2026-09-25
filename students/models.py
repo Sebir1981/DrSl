@@ -73,9 +73,9 @@ class Student(models.Model):
     )
 
     GEARBOX_CHOICES = [
-        ('', '— Не выбрано —'),
-        ('manual', ' Механическая'),
-        ('auto', '🤖 Автоматическая'),
+        ('manual', 'Механическая'),
+        ('auto', 'Автоматическая'),
+        ('electric', 'Электромобиль'),
     ]
     gearbox_type = models.CharField(
         "Тип КПП",

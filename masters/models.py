@@ -28,6 +28,20 @@ class MasterPouts(models.Model):
     last_name = models.CharField("Фамилия", max_length=100)
     first_name = models.CharField("Имя", max_length=100)
     patronymic = models.CharField("Отчество", max_length=100, blank=True)
+
+    # === 1.1. Пол ===
+    GENDER_CHOICES = [
+        ('male', 'Мужской'),
+        ('female', 'Женский'),
+    ]
+    gender = models.CharField(
+        "Пол",
+        max_length=10,
+        choices=GENDER_CHOICES,
+        blank=True,
+        default='male'
+    )
+
     # === 2. Паспорт и дата рождения ===
     passport_number = models.CharField(
         "№ паспорта", max_length=20,
@@ -119,8 +133,15 @@ class MasterPouts(models.Model):
         parts = [self.last_name, self.first_name, self.patronymic]
         return ' '.join(p for p in parts if p).strip()
 
+    @property
+    def short_name(self):
+        """Возвращает короткое ФИО: Фамилия И.О."""
+        initials = f"{self.first_name[:1]}." if self.first_name else ""
+        patronymic_init = f"{self.patronymic[:1]}." if self.patronymic else ""
+        return f"{self.last_name} {initials}{patronymic_init}".strip()
+
     def __str__(self):
-        return f"{self.full_name} ({self.license_category})"
+        return self.short_name
 
     @property
     def is_license_valid(self):

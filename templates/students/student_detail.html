@@ -278,12 +278,25 @@
     position: fixed; top: 0; left: 0; right: 0; bottom: 0;
     background: transparent; z-index: 999; display: none;
 }
+.reason-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+}
+.reason-badge.reason-auto_service   { background: #dbeafe; color: #1e40af; }
+.reason-badge.reason-manual         { background: #e0e7ff; color: #3730a3; }
+.reason-badge.reason-reassign       { background: #dbeafe; color: #1e40af; }
+.reason-badge.reason-student_request{ background: #fef3c7; color: #92400e; }
+.reason-badge.reason-master_request { background: #fce7f3; color: #9d174d; }
 
 @media (max-width: 1200px) {
     .card-row { grid-template-columns: 1fr; }
     .progress-grid { grid-template-columns: 1fr; }
     .credits-grid-compact { grid-template-columns: repeat(3, 1fr); }
 }
+
 </style>
 {% endblock %}
 
@@ -342,8 +355,12 @@
                 <span class="info-label">Тип КПП:</span>
                 <span class="info-value">
                     {% if student.gearbox_type %}
-                        <span class="badge {% if student.gearbox_type == 'manual' %}badge-warning{% else %}badge-primary{% endif %}">
-                            {% if student.gearbox_type == 'manual' %}🔧 Механическая{% else %}🤖 Автоматическая{% endif %}
+                        <span class="badge {% if student.gearbox_type == 'manual' %}badge-warning{% elif student.gearbox_type == 'auto' %}badge-primary{% elif student.gearbox_type == 'electric' %}badge-success{% else %}badge-primary{% endif %}">
+                            {% if student.gearbox_type == 'manual' %}🔧 Механическая
+                            {% elif student.gearbox_type == 'auto' %}🤖 Автоматическая
+                            {% elif student.gearbox_type == 'electric' %}⚡ Электромобиль
+                            {% else %}— Не выбрано —
+                            {% endif %}
                         </span>
                     {% else %}
                         <span class="empty">— Не выбрано —</span>
@@ -418,54 +435,161 @@
         </div>
     </div>
 
-    <!-- 🔹 ВТОРОЙ РЯД: Платные услуги -->
-    <div class="card-container" style="margin-bottom: 20px;">
-        <div class="card-title">
-             Платные услуги
-            <button type="button" onclick="saveServices()" class="btn-save-services" style="margin-left: auto;">
-                💾 Сохранить
-            </button>
-        </div>
-        <div class="services-grid">
-            {% for service in all_services %}
-            <div class="service-item" data-service-id="{{ service.id }}" data-service-name="{{ service.name }}">
-                <div class="toggle-switch" id="toggle-{{ service.id }}" onclick="toggleService({{ service.id }}, '{{ service.name }}')"></div>
+   <!-- 🔹 ВТОРОЙ РЯД: Платные услуги -->
+<div class="card-container" style="margin-bottom: 20px;">
+    <div class="card-title">
+        Платные услуги
+        <button type="button" onclick="saveServices()" class="btn-save-services" style="margin-left: auto;">
+            💾 Сохранить
+        </button>
+    </div>
+    <div class="services-grid">
+        {% for service in all_services %}
+            {% with key=service.id|stringformat:"s" %}
+            {% with is_active=student_services|get_item:key %}
+            {% with values=student_service_values|get_item:key %}
+            <div class="service-item {% if is_active %}active{% endif %}"
+                 data-service-id="{{ service.id }}"
+                 data-service-name="{{ service.name }}">
+
+                <div class="toggle-switch {% if is_active %}active{% endif %}"
+                     id="toggle-{{ service.id }}"
+                     onclick="toggleService({{ service.id }}, '{{ service.name }}')"></div>
+
                 <span class="service-name">{{ service.name }}</span>
 
                 {% if service.name == 'Марка автомобиля' %}
-                    <select class="service-select" id="select-car-{{ service.id }}" onchange="updateServiceValue({{ service.id }}, 'car_brand', this.value)" disabled>
+                    <select class="service-select"
+                            id="select-car-{{ service.id }}"
+                            onchange="updateServiceValue({{ service.id }}, 'car_brand', this.value)"
+                            {% if not is_active %}disabled{% endif %}>
                         <option value="">— Выберите марку —</option>
-                        {% for brand in car_brands %}<option value="{{ brand }}">{{ brand }}</option>{% empty %}<option value="" disabled>Автопарк пуст</option>{% endfor %}
+                        {% for brand in car_brands %}
+                            <option value="{{ brand }}"
+                                {% if values.car_brand == brand %}selected{% endif %}>
+                                {{ brand }}
+                            </option>
+                        {% empty %}
+                            <option value="" disabled>Автопарк пуст</option>
+                        {% endfor %}
                     </select>
                 {% endif %}
 
                 {% if service.name == 'Мастер по вождению' %}
-                    <select class="service-select" id="select-master-{{ service.id }}" onchange="updateServiceValue({{ service.id }}, 'master', this.value)" disabled>
+                    <select class="service-select"
+                            id="select-master-{{ service.id }}"
+                            onchange="updateServiceValue({{ service.id }}, 'master', this.value)"
+                            {% if not is_active %}disabled{% endif %}>
                         <option value="">— Выберите мастера —</option>
-                        {% for master in masters %}<option value="{{ master.id }}">{{ master.last_name }} {{ master.first_name|slice:":1" }}.</option>{% endfor %}
+                        {% for master in masters %}
+                            <option value="{{ master.id }}"
+                                {% if values.master == master.id|stringformat:"s" %}selected{% endif %}>
+                                {{ master.last_name }} {{ master.first_name|slice:":1" }}.
+                            </option>
+                        {% endfor %}
                     </select>
                 {% endif %}
 
                 {% if service.name == 'Пол мастера' %}
-                    <select class="service-select" id="select-gender-{{ service.id }}" onchange="updateServiceValue({{ service.id }}, 'gender', this.value)" disabled>
+                    <select class="service-select"
+                            id="select-gender-{{ service.id }}"
+                            onchange="updateServiceValue({{ service.id }}, 'gender', this.value)"
+                            {% if not is_active %}disabled{% endif %}>
                         <option value="">— Выберите пол —</option>
-                        <option value="male">Мужской</option>
-                        <option value="female">Женский</option>
+                        <option value="male" {% if values.gender == 'male' %}selected{% endif %}>Мужской</option>
+                        <option value="female" {% if values.gender == 'female' %}selected{% endif %}>Женский</option>
                     </select>
                 {% endif %}
 
                 {% if service.name == 'Преподаватель' %}
-                    <select class="service-select" id="select-teacher-{{ service.id }}" onchange="updateServiceValue({{ service.id }}, 'teacher', this.value)" disabled>
+                    <select class="service-select"
+                            id="select-teacher-{{ service.id }}"
+                            onchange="updateServiceValue({{ service.id }}, 'teacher', this.value)"
+                            {% if not is_active %}disabled{% endif %}>
                         <option value="">— Выберите преподавателя —</option>
-                        {% for teacher in teachers %}<option value="{{ teacher.id }}">{{ teacher.last_name }} {{ teacher.first_name|slice:":1" }}.</option>{% endfor %}
+                        {% for teacher in teachers %}
+                            <option value="{{ teacher.id }}"
+                                {% if values.teacher == teacher.id|stringformat:"s" %}selected{% endif %}>
+                                {{ teacher.last_name }} {{ teacher.first_name|slice:":1" }}.
+                            </option>
+                        {% endfor %}
                     </select>
                 {% endif %}
             </div>
-            {% empty %}
+            {% endwith %}
+            {% endwith %}
+            {% endwith %}
+        {% empty %}
             <div style="color: #94a3b8; font-style: italic; grid-column: 1/-1;">Платные услуги не настроены</div>
-            {% endfor %}
-        </div>
+        {% endfor %}
     </div>
+</div>
+
+    <!-- =================================================================== -->
+    <!-- 🔹 ИСТОРИЯ ПЕРЕРАСПРЕДЕЛЕНИЙ -->
+    <!-- =================================================================== -->
+    {% if reassignment_history %}
+    <div class="detail-section reassignment-history-section"
+         style="margin:20px 0;padding:16px;background:#f8fafc;border-radius:10px;border-left:4px solid #4facfe;">
+
+        <h3 style="margin:0 0 12px 0;font-size:16px;color:#1e293b;">
+            🔄 История закрепления за мастерами
+            <span style="font-weight:400;color:#94a3b8;font-size:13px;">
+                ({{ reassignment_history|length }})
+            </span>
+        </h3>
+
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+            <thead>
+                <tr style="background:#e2e8f0;">
+                    <th style="padding:8px 10px;text-align:left;color:#475569;font-weight:600;">Дата</th>
+                    <th style="padding:8px 10px;text-align:left;color:#475569;font-weight:600;">От мастера</th>
+                    <th style="padding:8px 10px;text-align:left;color:#475569;font-weight:600;">К мастеру</th>
+                    <th style="padding:8px 10px;text-align:left;color:#475569;font-weight:600;">Причина</th>
+                    <th style="padding:8px 10px;text-align:left;color:#475569;font-weight:600;">Кто</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in reassignment_history %}
+                <tr style="border-bottom:1px solid #e2e8f0;">
+                    <td style="padding:8px 10px;color:#64748b;white-space:nowrap;">
+                        {{ log.created_at|date:"d.m.Y H:i" }}
+                    </td>
+                    <td style="padding:8px 10px;color:#1e293b;">
+                        {% if log.from_master %}
+                            {{ log.from_master.short_name }}
+                        {% else %}
+                            <span style="color:#94a3b8;">—</span>
+                        {% endif %}
+                    </td>
+                    <td style="padding:8px 10px;color:#1e293b;font-weight:600;">
+                        {% if log.to_master %}
+                            {{ log.to_master.short_name }}
+                        {% else %}
+                            <span style="color:#94a3b8;">—</span>
+                        {% endif %}
+                    </td>
+                    <td style="padding:8px 10px;">
+                        <span class="reason-badge reason-{{ log.reason }}">{{ log.get_reason_display }}</span>
+                        {% if log.comment %}
+                            <div style="margin-top:4px;color:#64748b;font-size:11px;font-style:italic;">
+                                {{ log.comment }}
+                            </div>
+                        {% endif %}
+                    </td>
+                    <td style="padding:8px 10px;color:#64748b;font-size:12px;">
+                        {% if log.created_by %}
+                            {{ log.created_by.get_full_name|default:log.created_by.username }}
+                        {% else %}
+                            —
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
 
     <!-- 🔹 ТРЕТИЙ РЯД: Прогресс обучения (Ровно 3 колонки) -->
     <div class="progress-section">
@@ -623,10 +747,21 @@
 </div> <!-- Конец student-card -->
 
 <script>
-// 🔹 Toggle для платных услуг
+// =============================================================================
+// 🔹 ПЛАТНЫЕ УСЛУГИ
+// =============================================================================
+
+/**
+ * Включение/выключение услуги.
+ * При включении — активируется select (если есть).
+ * При выключении — select очищается и блокируется.
+ */
 function toggleService(serviceId, serviceName) {
     const toggle = document.getElementById('toggle-' + serviceId);
+    if (!toggle) return;
     const item = toggle.closest('.service-item');
+    if (!item) return;
+
     const isActive = toggle.classList.contains('active');
     const selectField = item.querySelector('.service-select');
 
@@ -644,40 +779,93 @@ function toggleService(serviceId, serviceName) {
     }
 }
 
+/**
+ * Обновляет значение поля услуги в data-атрибутах элемента.
+ */
 function updateServiceValue(serviceId, fieldType, value) {
     const item = document.querySelector(`[data-service-id="${serviceId}"]`);
     if (item) item.dataset[`value_${fieldType}`] = value;
 }
 
+/**
+ * Формирует объект values для услуги на основе текущего значения select.
+ * Ключ — это id селекта минус префикс "select-{serviceName}-".
+ * Например: "select-мастер-по-вождению-master" → "master"
+ */
+function collectServiceValues(item) {
+    const values = {};
+    const selectFields = item.querySelectorAll('.service-select');
+    selectFields.forEach(selectField => {
+        if (!selectField.value) return;
+
+        let fieldType = selectField.dataset.fieldType;
+        if (!fieldType) {
+            const id = selectField.id;
+            // "select-car-3" → "car_brand"
+            if (id.startsWith('select-car-')) {
+                fieldType = 'car_brand';
+            } else if (id.startsWith('select-master-')) {
+                fieldType = 'master';
+            } else {
+                // fallback — по serviceName
+                const prefixPattern = new RegExp(
+                    `^select-${item.dataset.serviceName.toLowerCase().replace(/ /g, '-')}-`
+                );
+                fieldType = id.replace(prefixPattern, '');
+            }
+        }
+        values[fieldType] = selectField.value;
+    });
+    return values;
+}
+
+/**
+ * Сохраняет платные услуги через API.
+ * Обрабатывает ответ с конфликтом мастера и марки авто.
+ */
 function saveServices() {
     const servicesData = [];
+
     document.querySelectorAll('.service-item').forEach(item => {
         const toggle = item.querySelector('.toggle-switch');
-        if (toggle && toggle.classList.contains('active')) {
-            const serviceData = {
-                service_id: parseInt(item.dataset.serviceId),
-                service_name: item.dataset.serviceName,
-                enabled: true,
-                values: {}
-            };
-            const selectField = item.querySelector('.service-select');
-            if (selectField && selectField.value) {
-                const fieldType = selectField.id.replace(`select-${item.dataset.serviceName.toLowerCase().replace(/ /g, '-')}-`, '');
-                serviceData.values[fieldType] = selectField.value;
-            }
-            servicesData.push(serviceData);
-        }
+        if (!toggle || !toggle.classList.contains('active')) return;
+
+        const serviceId = parseInt(item.dataset.serviceId);
+        const serviceName = item.dataset.serviceName;
+
+        servicesData.push({
+            service_id: serviceId,
+            service_name: serviceName,
+            enabled: true,
+            values: collectServiceValues(item)
+        });
     });
 
-    fetch('{% url "students:save_services" student.id %}', {
+    const url = '{% url "students:save_services" student.id %}';
+    const csrfToken = '{{ csrf_token }}';
+
+    fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        },
         body: JSON.stringify({ services: servicesData })
     })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) alert('✅ Платные услуги сохранены!');
-        else alert('❌ Ошибка: ' + (data.error || 'Неизвестная ошибка'));
+    .then(response => response.json().then(data => ({ ok: response.ok, data })))
+    .then(({ ok, data }) => {
+        if (data.success) {
+            alert('✅ Платные услуги сохранены!');
+            return;
+        }
+
+        // 🔥 Конфликт мастера и марки авто
+        if (data.conflict) {
+            alert('⚠️ Конфликт услуг:\n\n' + data.error);
+            return;
+        }
+
+        alert('❌ Ошибка: ' + (data.error || 'Неизвестная ошибка'));
     })
     .catch(error => {
         console.error('Error:', error);
@@ -685,9 +873,14 @@ function saveServices() {
     });
 }
 
-// 🔹 Dropdown menu
+
+// =============================================================================
+// 🔹 DROPDOWN МЕНЮ (действия в карточке)
+// =============================================================================
+
 function toggleDropdown() {
     const dropdown = document.getElementById('actionsDropdown');
+    if (!dropdown) return;
     dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
 }
 
@@ -697,7 +890,11 @@ document.addEventListener('click', function(e) {
     if (!button && dropdown) dropdown.style.display = 'none';
 });
 
-// 🔹 Функции для показа/скрытия tooltip'ов зачётов
+
+// =============================================================================
+// 🔹 TOOLTIP'Ы ЗАЧЁТОВ
+// =============================================================================
+
 function showCreditTooltip(event, creditNumber) {
     const tooltip = document.getElementById('tooltip-' + creditNumber);
     if (!tooltip) return;
@@ -705,6 +902,7 @@ function showCreditTooltip(event, creditNumber) {
     const element = event.currentTarget;
     if (!element) return;
 
+    // Измеряем размеры тултипа, не показывая его
     tooltip.style.visibility = 'hidden';
     tooltip.classList.add('show');
     const tooltipHeight = tooltip.offsetHeight;
@@ -717,20 +915,24 @@ function showCreditTooltip(event, creditNumber) {
     const viewportHeight = window.innerHeight;
     const margin = 10;
 
+    // Горизонтальное позиционирование
     let left = rect.left + (rect.width / 2) - (tooltipWidth / 2);
     if (left < margin) left = margin;
     if (left + tooltipWidth > viewportWidth - margin) {
         left = viewportWidth - tooltipWidth - margin;
     }
 
+    // Вертикальное — по умолчанию над элементом
     let top = rect.top - tooltipHeight - 10;
     let arrowClass = 'arrow-bottom';
 
+    // Если не влезает сверху — показываем снизу
     if (top < margin) {
         top = rect.bottom + 10;
         arrowClass = 'arrow-top';
     }
 
+    // Если и снизу не влезает — прижимаем к низу viewport
     if (top + tooltipHeight > viewportHeight - margin) {
         top = viewportHeight - tooltipHeight - margin;
         if (top < margin) top = margin;
@@ -744,8 +946,7 @@ function showCreditTooltip(event, creditNumber) {
 }
 
 function hideCreditTooltip() {
-    const tooltips = document.querySelectorAll('.tooltip');
-    tooltips.forEach(t => t.classList.remove('show'));
+    document.querySelectorAll('.tooltip').forEach(t => t.classList.remove('show'));
     const overlay = document.getElementById('tooltipOverlay');
     if (overlay) overlay.style.display = 'none';
 }
@@ -757,5 +958,16 @@ document.addEventListener('keydown', function(e) {
 window.addEventListener('scroll', function() {
     hideCreditTooltip();
 }, { passive: true });
+
+
+// =============================================================================
+// 🔹 ЭКСПОРТ В window (для onclick в HTML)
+// =============================================================================
+window.toggleService = toggleService;
+window.updateServiceValue = updateServiceValue;
+window.saveServices = saveServices;
+window.toggleDropdown = toggleDropdown;
+window.showCreditTooltip = showCreditTooltip;
+window.hideCreditTooltip = hideCreditTooltip;
 </script>
 {% endblock %}

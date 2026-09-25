@@ -5,6 +5,7 @@ from django.contrib import messages
 from django.http import JsonResponse
 from django.conf import settings
 from cryptography.fernet import Fernet, InvalidToken
+from django.utils import timezone
 
 from .models import VaultEntry, VaultPermission
 from .forms import AddVaultEntryForm
@@ -16,6 +17,9 @@ from classrooms.models import Classroom
 from teachers.models import Teacher
 from masters.models import Master
 from reference.models import PaidService
+from dispatcher.models import RouteSheet
+
+
 
 # =========================================================
 #  НАСТРОЙКИ ДОСТУПА
@@ -29,6 +33,7 @@ MANAGE_ROLES = {'admin', 'director', 'secretary'}
 # =========================================================
 @login_required
 def dashboard(request):
+    today = timezone.now().date()
     """Статистика хранилища"""
     context = {
         'groups_count': Group.objects.count(),
@@ -37,6 +42,7 @@ def dashboard(request):
         'teachers_count': Teacher.objects.count(),
         'masters_count': Master.objects.count(),
         'paid_services_count': PaidService.objects.count(),
+        'today_route_sheets_count': RouteSheet.objects.filter(date=today).count(),
     }
     return render(request, 'vault/dashboard.html', context)
 

@@ -14,7 +14,7 @@
 <div class="master-plan-container">
 
     <!-- =================================================================== -->
-    <!-- 🔹 БЛОК 1: НАЗВАНИЯ СТОЛБЦОВ (ЛЕВАЯ КОЛОНКА) -->
+    <!-- 🔹 БЛОК 1: НАЗВАНИЯ СТОЛБЦОВ -->
     <!-- =================================================================== -->
     <div class="plan-header-column labels-column">
         <div class="labels-scroll-container">
@@ -32,12 +32,12 @@
     </div>
 
     <!-- =================================================================== -->
-    <!-- 🔹 БЛОК 2: ДАННЫЕ ГРУПП (ЦЕНТРАЛЬНАЯ ВЕРХНЯЯ ЧАСТЬ) -->
+    <!-- 🔹 БЛОК 2: ДАННЫЕ ГРУПП -->
     <!-- =================================================================== -->
     <div class="plan-header-column values-column">
         <div class="values-scroll-container">
             {% for plan_group in plan_groups %}
-                        <div class="header-value-row"
+            <div class="header-value-row"
                  data-plan-group-id="{{ plan_group.pk }}"
                  data-total-students="{{ plan_group.total_students }}"
                  data-driven-students="{{ plan_group.driven_students_count|default:0 }}">
@@ -78,7 +78,7 @@
     </div>
 
     <!-- =================================================================== -->
-    <!-- 🔹 БЛОК 3: ОБЩАЯ СТАТИСТИКА (ПРАВАЯ ВЕРХНЯЯ ЧАСТЬ) -->
+    <!-- 🔹 БЛОК 3: ОБЩАЯ СТАТИСТИКА -->
     <!-- =================================================================== -->
     <div class="plan-header-column stats-column-header">
         <div style="display: flex; justify-content: center; margin-bottom: 16px;">
@@ -106,7 +106,7 @@
     </div>
 
     <!-- =================================================================== -->
-    <!-- 🔹 БЛОК 4: СПИСОК МАСТЕРОВ (ЛЕВАЯ НИЖНЯЯ ЧАСТЬ) -->
+    <!-- 🔹 БЛОК 4: СПИСОК МАСТЕРОВ -->
     <!-- =================================================================== -->
     <div class="masters-column">
         <h3>Мастера ПОУТС</h3>
@@ -123,7 +123,7 @@
     </div>
 
     <!-- =================================================================== -->
-    <!-- 🔹 БЛОК 5: МАТРИЦА РАСПРЕДЕЛЕНИЯ (ЦЕНТРАЛЬНАЯ НИЖНЯЯ ЧАСТЬ) -->
+    <!-- 🔹 БЛОК 5: МАТРИЦА РАСПРЕДЕЛЕНИЯ -->
     <!-- =================================================================== -->
     <div class="groups-column">
         <div class="groups-header"><h3>📋 Распределение по мастерам</h3></div>
@@ -133,8 +133,10 @@
                 <div class="matrix-header-group"
                      data-plan-group-id="{{ plan_group.pk }}"
                      data-total-students="{{ plan_group.total_students }}"
+                     data-distributed-students="{{ plan_group.distributed_count|default:0 }}"
                      data-driven-students="{{ plan_group.driven_students_count|default:0 }}"
-                     data-hours-per-student="{{ plan_group.hours_per_student }}">
+                     data-hours-per-student="{{ plan_group.hours_per_student }}"
+                     {% if plan_group.is_fully_distributed %}data-is-fully-distributed="1"{% endif %}>
                     <div class="group-header-compact">
                         <span class="group-number-compact">{{ plan_group.group.group_number }}</span>
                         <span class="group-students-compact">{{ plan_group.total_students }} чел.</span>
@@ -147,7 +149,10 @@
             {% for row in matrix_rows %}
             <div class="matrix-row" data-master-id="{{ row.master.pk }}">
                 {% for cell in row.cells %}
-                <div class="matrix-cell" data-plan-group-id="{{ cell.plan_group.pk }}">
+                <div class="matrix-cell {% if cell.auto_assigned %}matrix-cell-auto{% endif %}"
+                     data-plan-group-id="{{ cell.plan_group.pk }}"
+                     data-master-id="{{ row.master.pk }}"
+                     {% if cell.plan_group.is_fully_distributed %}data-locked="1"{% endif %}>
                     <div class="matrix-cell-content">
                         {% if cell.dist %}
                             <input type="number" min="0" class="matrix-input-manual"
@@ -155,13 +160,32 @@
                                    data-master-id="{{ row.master.pk }}"
                                    data-plan-group-id="{{ cell.plan_group.pk }}"
                                    onchange="updateDistribution(this)"
-                                   title="Количество студентов (вручную)">
-                            <div class="matrix-input-auto" title="Выкатано (авто)">{{ cell.dist.completed_count }}</div>
+                                   {% if cell.plan_group.is_fully_distributed %}disabled{% endif %}>
+
+                            <div class="matrix-input-auto" title="Выкатано (авто)">
+                                {{ cell.dist.completed_count }}
+                            </div>
+
+                            {% if cell.auto_assigned %}
+                                <span class="auto-badge" title="Из платной услуги">🔒</span>
+                            {% endif %}
+
+                            {% if cell.dist.students_count > 0 %}
+                                <button type="button"
+                                        class="cell-expand-btn"
+                                        data-plan-group-id="{{ cell.plan_group.pk }}"
+                                        data-master-id="{{ row.master.pk }}"
+                                        onclick="openCellStudentsModal(this)"
+                                        title="Показать студентов">
+                                    👥
+                                </button>
+                            {% endif %}
                         {% else %}
                             <input type="number" min="0" class="matrix-input-manual" value="0"
                                    data-master-id="{{ row.master.pk }}"
                                    data-plan-group-id="{{ cell.plan_group.pk }}"
                                    onchange="updateDistribution(this)"
+                                   {% if cell.plan_group.is_fully_distributed %}disabled{% endif %}
                                    title="Количество студентов (вручную)">
                             <div class="matrix-input-auto" title="Выкатано (авто)">0</div>
                         {% endif %}
@@ -176,39 +200,39 @@
     </div>
 
     <!-- =================================================================== -->
-<!-- 🔹 БЛОК 6: СТАТИСТИКА ПО МАСТЕРАМ (ПРАВАЯ НИЖНЯЯ ЧАСТЬ) -->
-<!-- =================================================================== -->
-<div class="stats-column">
-
-   <!-- 🔥 НЕПОДВИЖНАЯ ЧАСТЬ С КНОПКОЙ И РАЗДЕЛИТЕЛЕМ -->
-    <div class="stats-header-actions">
-        <button type="button" class="btn btn-primary btn-distribute" onclick="handleDistributeClick()">
-            ⚖️ Распределить
-        </button>
-    </div>
-
-    <!-- ПРОКРУЧИВАЕМАЯ ЧАСТЬ -->
-    <div class="stats-scroll-container">
-        {% for stat in masters_stats %}
-        <div class="master-stat-item" data-master-id="{{ stat.master.pk }}">
-            <div class="stat-compact-row">
-                <span class="stat-compact-value" data-stat-field="students" title="Количество учеников">{{ stat.total_students }}</span>
-                <span class="stat-compact-separator">|</span>
-                <span class="stat-compact-value" data-stat-field="total_hours" title="Всего часов">{{ stat.total_hours|floatformat:0 }}</span>
-                <span class="stat-compact-separator">|</span>
-                <span class="stat-compact-value" data-stat-field="driven_hours" title="Выкатано часов">{{ stat.driven_hours|floatformat:0 }}</span>
-                <span class="stat-compact-separator">|</span>
-                <span class="stat-compact-value" data-stat-field="remaining_hours" title="Осталось часов">{{ stat.remaining_hours|floatformat:0 }}</span>
-            </div>
+    <!-- 🔹 БЛОК 6: СТАТИСТИКА ПО МАСТЕРАМ -->
+    <!-- =================================================================== -->
+    <div class="stats-column">
+        <div class="stats-header-actions" style="padding: 0 16px 16px 16px; border-bottom: 1px solid #e2e8f0; margin-bottom: 16px;">
+            <button class="btn btn-primary" onclick="autoOpenDistributionModal()" style="width: 100%; justify-content: center; padding: 10px;">
+                ⚖️ Распределить учащихся
+            </button>
         </div>
-        {% empty %}
-        <div style="color: #94a3b8; text-align: center; padding: 20px; font-size: 12px;">Нет данных</div>
-        {% endfor %}
+
+        <div class="stats-scroll-container">
+            {% for stat in masters_stats %}
+            <div class="master-stat-item"
+                 data-master-id="{{ stat.master.pk }}"
+                 data-master-name="{{ stat.master.short_name }}"
+                 data-groups="{% for g in stat.groups_breakdown %}{{ g.group_number }}:{{ g.students_count }}{% if not forloop.last %};{% endif %}{% endfor %}">
+                <div class="stat-compact-row">
+                    <span class="stat-compact-value" data-stat-field="students" title="Количество учеников">{{ stat.total_students }}</span>
+                    <span class="stat-compact-separator">|</span>
+                    <span class="stat-compact-value" data-stat-field="total_hours" title="Всего часов">{{ stat.total_hours|floatformat:0 }}</span>
+                    <span class="stat-compact-separator">|</span>
+                    <span class="stat-compact-value" data-stat-field="driven_hours" title="Выкатано часов">{{ stat.driven_hours|floatformat:0 }}</span>
+                    <span class="stat-compact-separator">|</span>
+                    <span class="stat-compact-value" data-stat-field="remaining_hours" title="Осталось часов">{{ stat.remaining_hours|floatformat:0 }}</span>
+                </div>
+            </div>
+            {% empty %}
+            <div style="color: #94a3b8; text-align: center; padding: 20px; font-size: 12px;">Нет данных</div>
+            {% endfor %}
+        </div>
     </div>
-</div>
 
     <!-- =================================================================== -->
-    <!-- 🔹 МОДАЛЬНОЕ ОКНО: ДОБАВЛЕНИЕ ГРУППЫ -->
+    <!-- 🔹 МОДАЛЬНЫЕ ОКНА -->
     <!-- =================================================================== -->
     <div class="modal-overlay" id="addGroupModal">
         <div class="modal-content">
@@ -255,9 +279,6 @@
         </div>
     </div>
 
-    <!-- =================================================================== -->
-    <!-- 🔹 МОДАЛЬНОЕ ОКНО: ВЫБОР ГРУППЫ ДЛЯ РЕДАКТИРОВАНИЯ -->
-    <!-- =================================================================== -->
     <div class="modal-overlay" id="selectEditModal">
         <div class="modal-content" style="max-width: 450px;">
             <div class="modal-header">
@@ -284,9 +305,6 @@
         </div>
     </div>
 
-    <!-- =================================================================== -->
-    <!-- 🔹 МОДАЛЬНОЕ ОКНО: РЕДАКТИРОВАНИЕ ГРУППЫ -->
-    <!-- =================================================================== -->
     <div class="modal-overlay" id="editModal">
         <div class="modal-content">
             <div class="modal-header">
@@ -331,9 +349,6 @@
         </div>
     </div>
 
-    <!-- =================================================================== -->
-    <!-- 🔹 МОДАЛЬНОЕ ОКНО: УДАЛЕНИЕ ГРУППЫ -->
-    <!-- =================================================================== -->
     <div class="modal-overlay" id="deleteModal">
         <div class="modal-content" style="max-width: 450px;">
             <div class="modal-header">
@@ -365,13 +380,163 @@
         </div>
     </div>
 
-</div>
-{% endblock %}
+    <!-- =================================================================== -->
+    <!-- 🔹 МОДАЛЬНОЕ ОКНО: РАСПРЕДЕЛЕНИЕ УЧАЩИХСЯ -->
+    <!-- =================================================================== -->
+    <div id="distributionModal" class="modal-overlay" style="display: none;">
+        <div class="modal-content" style="max-width: 900px;">
+            <div class="modal-header">
+                <h2>📋 Распределение учащихся: <span id="modalGroupName"></span></h2>
+                <button class="modal-close" onclick="closeDistributionModal()">&times;</button>
+            </div>
 
+            <div style="max-height: 450px; overflow-y: auto; margin-bottom: 20px;">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background: #f1f5f9; position: sticky; top: 0;">
+                            <th style="padding: 10px; text-align: left; width: 20%; border-bottom: 2px solid #e2e8f0;">Учащийся</th>
+                            <th style="padding: 10px; text-align: left; width: 30%; border-bottom: 2px solid #e2e8f0;">Платные услуги</th>
+                            <th style="padding: 10px; text-align: left; width: 20%; border-bottom: 2px solid #e2e8f0;">Ограничения</th>
+                            <th style="padding: 10px; text-align: left; width: 30%; border-bottom: 2px solid #e2e8f0;">Назначенный мастер</th>
+                        </tr>
+                    </thead>
+                    <tbody id="distributionTableBody">
+                        <!-- Заполняется через JS -->
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeDistributionModal()">Отмена</button>
+                <button type="button" class="btn btn-primary" onclick="submitDistribution()">💾 Сохранить распределение</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- =================================================================== -->
+    <!-- 🔹 МОДАЛЬНОЕ ОКНО: СПИСОК УЧАЩИХСЯ ЯЧЕЙКИ -->
+    <!-- =================================================================== -->
+    <div id="cellStudentsModal" class="modal-overlay" style="display: none;">
+        <div class="modal-content" style="max-width: 640px;">
+            <div class="modal-header">
+                <h2>
+                    👥 Группа <span id="cellStudentsGroup">—</span>
+                    <span style="color:#64748b;font-weight:500;font-size:14px;">
+                        × мастер <span id="cellStudentsMaster">—</span>
+                    </span>
+                </h2>
+                <button class="modal-close" onclick="closeCellStudentsModal()">&times;</button>
+            </div>
+
+            <div id="cellStudentsBody" style="max-height: 60vh; overflow-y: auto;">
+                <!-- Заполняется через JS -->
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary"
+                        onclick="closeCellStudentsModal()">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- =================================================================== -->
+    <!-- 🔹 МОДАЛЬНОЕ ОКНО: ВЫБОР ГРУППЫ ДЛЯ ПЕРЕРАСПРЕДЕЛЕНИЯ -->
+    <!-- =================================================================== -->
+    <div id="reassignSelectGroupModal" class="modal-overlay" style="display: none;">
+        <div class="modal-content" style="max-width: 480px;">
+            <div class="modal-header">
+                <h2>🔄 Перераспределить учащихся</h2>
+                <button class="modal-close" onclick="closeReassignSelectGroup()">&times;</button>
+            </div>
+
+            <div style="padding: 8px 0 16px;">
+                <div class="form-group">
+                    <label>Выберите группу</label>
+                    <select id="reassignGroupSelect" class="form-control"
+                            style="width:100%;padding:9px 12px;border:1px solid #cbd5e1;border-radius:8px;">
+                        <option value="">-- Выберите группу --</option>
+                        {% for plan_group in plan_groups %}
+                            <option value="{{ plan_group.pk }}">
+                                {{ plan_group.group.group_number }} ({{ plan_group.total_students }} чел.)
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary"
+                        onclick="closeReassignSelectGroup()">Отмена</button>
+                <button type="button" class="btn btn-primary"
+                        id="reassignProceedBtn"
+                        onclick="proceedToReassign()" disabled>Далее →</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- =================================================================== -->
+    <!-- 🔹 МОДАЛЬНОЕ ОКНО: ПЕРЕРАСПРЕДЕЛЕНИЕ УЧАЩИХСЯ -->
+    <!-- =================================================================== -->
+    <div id="reassignModal" class="modal-overlay" style="display: none;">
+        <div class="modal-content" style="max-width: 900px;">
+            <div class="modal-header">
+                <h2>🔄 Перераспределение: <span id="reassignGroupName"></span></h2>
+                <button class="modal-close" onclick="closeReassignModal()">&times;</button>
+            </div>
+
+            <div style="display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap;">
+                <div style="flex:1 1 240px;">
+                    <label style="display:block;font-size:12px;color:#64748b;margin-bottom:4px;">
+                        Причина перераспределения
+                    </label>
+                    <select id="reassignReason" class="form-control"
+                            style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:6px;">
+                        <option value="reassign">Перераспределить</option>
+                        <option value="student_request">По требованию учащегося</option>
+                        <option value="master_request">По требованию мастера</option>
+                    </select>
+                </div>
+                <div style="flex:2 1 360px;">
+                    <label style="display:block;font-size:12px;color:#64748b;margin-bottom:4px;">
+                        Комментарий (необязательно)
+                    </label>
+                    <input type="text" id="reassignComment" maxlength="255"
+                           placeholder="Причина, детали…"
+                           style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:6px;">
+                </div>
+            </div>
+
+            <div style="max-height: 55vh; overflow-y: auto; border:1px solid #e2e8f0; border-radius:8px;">
+                <table style="width:100%;border-collapse:collapse;">
+                    <thead>
+                        <tr style="background:#f1f5f9;position:sticky;top:0;z-index:1;">
+                            <th style="padding:8px 10px;text-align:left;font-size:12px;color:#64748b;">Учащийся</th>
+                            <th style="padding:8px 10px;text-align:left;font-size:12px;color:#64748b;width:180px;">Текущий мастер</th>
+                            <th style="padding:8px 10px;text-align:left;font-size:12px;color:#64748b;width:220px;">Новый мастер</th>
+                        </tr>
+                    </thead>
+                    <tbody id="reassignTableBody">
+                        <!-- Заполняется через JS -->
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="modal-actions" style="margin-top:16px;">
+                <button type="button" class="btn btn-secondary"
+                        onclick="closeReassignModal()">Отмена</button>
+                <button type="button" class="btn btn-primary"
+                        onclick="submitReassign()">💾 Сохранить перераспределение</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 🔹 Глобальная подсказка (используется для ячеек матрицы и статистики по мастерам) -->
+    <div id="matrixCellTooltip" class="matrix-cell-tooltip" style="display:none;"></div>
+
+</div>
 {% block extra_js %}
 <script src="{% static 'js/date-mask.js' %}"></script>
 
-<!-- Конфиг для внешнего JS: сюда передаём Django-переменные -->
 <script>
     window.MASTER_PLAN_CONFIG = {
         csrfToken: '{{ csrf_token }}',
@@ -380,10 +545,16 @@
             updateGroup: '{% url "master_plan:update_group" %}',
             deleteGroup: '{% url "master_plan:delete_group" %}',
             updateDistribution: '{% url "master_plan:update_distribution" %}',
-            // __ID__ — плейсхолдер, JS заменит его на реальный id группы
             getGroupData: '{% url "master_plan:get_group_data" 0 %}'.replace('0', '__ID__'),
+            distribute: '{% url "master_plan:open_distribution_modal" 0 %}'.replace('0', '__ID__'),
+            saveDistribution: '{% url "master_plan:save_distribution" %}',
+            cellStudents: '{% url "master_plan:get_cell_students" 0 0 %}'.replace('/0/0/', '/__PG__/__M__/'),
+            reassignData: '{% url "master_plan:get_reassignment_data" 0 %}'.replace('0', '__ID__'),
+            saveReassignment: '{% url "master_plan:save_reassignment" %}',
         }
     };
 </script>
+
 <script src="{% static 'js/master_plan/dashboard.js' %}"></script>
+{% endblock %}
 {% endblock %}

@@ -171,14 +171,17 @@
 
 .groups-header h3 { margin: 0; color: #1e293b; font-size: 16px; }
 
+/* 🔥 Обёртка матрицы: убираем padding-left, чтобы не сдвигать столбцы */
 .distribution-matrix-wrapper {
     overflow-x: auto;
     overflow-y: auto;
     padding-bottom: 8px;
-    padding-left: 4px;
+    padding-left: 0;
     flex: 1;
 }
 
+/* 🔥 Заголовок матрицы: убираем padding-top/bottom,
+   добавляем margin-bottom для визуального отступа */
 .matrix-header-row {
     display: flex;
     width: max-content;
@@ -186,10 +189,10 @@
     top: 0;
     z-index: 10;
     background: white;
-    padding-top: 2px;
-    padding-bottom: 2px;
+    margin-bottom: 2px;
 }
 
+/* 🔥 Заголовок группы: padding 0 4px + flex-shrink: 0 */
 .matrix-header-group {
     width: var(--matrix-col-width);
     min-width: var(--matrix-col-width);
@@ -201,6 +204,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    padding: 0 4px;
+    flex-shrink: 0;
     transition: background 0.3s;
 }
 
@@ -213,12 +218,13 @@
     font-weight: 700;
 }
 
+/* 🔥 Убираем внутренний padding у group-header-compact,
+   он дублировал padding родителя */
 .group-header-compact {
     display: flex;
     justify-content: space-between;
     align-items: center;
     width: 100%;
-    padding: 0 4px;
     font-size: 10px;
     color: #64748b;
 }
@@ -232,6 +238,7 @@
     width: max-content;
 }
 
+/* 🔥 Ячейка: flex-shrink: 0 для выравнивания ширин */
 .matrix-cell {
     width: var(--matrix-col-width);
     min-width: var(--matrix-col-width);
@@ -245,9 +252,73 @@
     border-bottom: 1px solid #cbd5e1;
     padding: 5px;
     background: white;
+    position: relative;
+    overflow: hidden;
+    flex-shrink: 0;
 }
 
-.matrix-cell-content { display: flex; justify-content: center; align-items: center; gap: 8px; }
+.matrix-cell-content {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 4px;
+    width: 100%;
+    padding: 0 2px;
+    box-sizing: border-box;
+}
+
+/* 🔥 Автораспределение из платной услуги — визуальное выделение */
+.matrix-cell.matrix-cell-auto {
+    background: #eff6ff;
+    border-left: 3px solid #3b82f6;
+}
+
+.matrix-cell.matrix-cell-auto .matrix-input-manual {
+    background: #dbeafe;
+    color: #1e40af;
+    font-weight: 700;
+    border-color: #93c5fd;
+}
+
+.matrix-cell.matrix-cell-auto .matrix-input-manual:focus {
+    background: #ffffff;
+    color: #1e3a8a;
+    border-color: #4facfe;
+    box-shadow: 0 0 0 2px rgba(79, 172, 254, 0.25);
+}
+
+.matrix-cell.matrix-cell-auto .matrix-input-auto {
+    background: #bfdbfe;
+    color: #1e40af;
+}
+
+.matrix-cell .auto-badge {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    font-size: 9px;
+    line-height: 1;
+    pointer-events: none;
+    opacity: 0.9;
+}
+
+/* Тултип-подсказка при наведении на ячейку */
+.matrix-cell.matrix-cell-auto:hover::after {
+    content: "🔒 Автоназначение из платной услуги";
+    position: absolute;
+    bottom: calc(100% + 4px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1e293b;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    white-space: nowrap;
+    z-index: 100;
+    pointer-events: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+}
 
 .matrix-input-manual {
     width: 40px;
@@ -266,14 +337,49 @@
 }
 
 .matrix-input-auto {
-    font-size: 11px;
+    font-size: 10px;
     color: #64748b;
     font-weight: 500;
     background: #f1f5f9;
-    padding: 4px 8px;
+    padding: 3px 5px;
     border-radius: 4px;
-    min-width: 35px;
+    min-width: 26px;
     text-align: center;
+    box-sizing: border-box;
+    flex-shrink: 0;
+}
+
+.cell-expand-btn {
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: #e2e8f0;
+    color: #475569;
+    cursor: pointer;
+    font-size: 11px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background 0.15s;
+}
+
+.cell-expand-btn:hover {
+    background: #4facfe;
+    color: white;
+}
+
+.matrix-cell.matrix-cell-auto .cell-expand-btn {
+    background: #bfdbfe;
+    color: #1e40af;
+}
+
+.matrix-cell.matrix-cell-auto .cell-expand-btn:hover {
+    background: #3b82f6;
+    color: white;
 }
 
 /* =================================================================== */
@@ -436,6 +542,94 @@
 }
 .btn-text-short { display: none; }
 .btn-text-full { display: inline; }
+
+/* =================================================================== */
+/* 🔹 БЛОКИРОВКА ЯЧЕЕК РАСПРЕДЕЛЁННОЙ ГРУППЫ */
+/* =================================================================== */
+.matrix-input-manual:disabled {
+    background: #f1f5f9;
+    color: #94a3b8;
+    cursor: not-allowed;
+    border-color: #e2e8f0;
+}
+
+.matrix-cell[data-locked="1"] {
+    background: #fafbfc;
+}
+
+.matrix-cell[data-locked="1"]:hover::after {
+    content: "Группа распределена. Изменения — через «Распределение учащихся»";
+    position: absolute;
+    bottom: calc(100% + 4px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1e293b;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    white-space: nowrap;
+    z-index: 100;
+    pointer-events: none;
+}
+
+.matrix-cell-tooltip {
+    position: fixed;
+    z-index: 99999;
+    background: #1e293b;
+    color: #f8fafc;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 11px;
+    line-height: 1.4;
+    white-space: nowrap;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+    pointer-events: none;
+    transition: opacity 0.12s;
+}
+
+.matrix-cell-tooltip.visible {
+    opacity: 1;
+}
+
+.matrix-cell-tooltip .tlt-title {
+    font-weight: 700;
+    margin-bottom: 4px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #334155;
+    color: #f1f5f9;
+}
+
+.matrix-cell-tooltip .tlt-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    color: #cbd5e1;
+}
+
+.matrix-cell-tooltip .tlt-row b {
+    color: #f8fafc;
+    font-weight: 600;
+}
+
+.matrix-cell-tooltip .tlt-row.tlt-muted {
+    color: #94a3b8;
+    font-style: italic;
+}
+
+.matrix-cell-tooltip .tlt-badge {
+    display: inline-block;
+    margin-left: 4px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 9px;
+    font-weight: 600;
+}
+
+.matrix-cell-tooltip .tlt-badge.auto {
+    background: #3b82f6;
+    color: white;
+}
 
 /* =================================================================== */
 /* 🔹 МОДАЛЬНЫЕ ОКНА */

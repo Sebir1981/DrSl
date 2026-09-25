@@ -20,7 +20,7 @@ from .services import StudentStatusService
 from .models import Student
 from collections import defaultdict
 from groups.models import Group, SchedulePlan
-from master_plan.models import MasterPlanGroup
+from master_plan.models import MasterPlanGroup, StudentReassignmentLog
 from cars.models import Car
 
 # =============================================================================
@@ -124,6 +124,139 @@ def _prepare_change_history(activity_log, author_name):
                 'author': author_name
             })
     return change_history
+
+
+def _resolve_master_id(master_val):
+    """
+    Преобразует значение из услуги 'Мастер по вождению' в ID мастера.
+    Поддерживает:
+      - int / строка из цифр → ID
+      - ФИО ('Иванов И.И.' / 'Иванов') → поиск по last_name
+    """
+    if not master_val:
+        return None
+
+    s = str(master_val).strip()
+    if s.isdigit():
+        if Master.objects.filter(pk=int(s)).exists():
+            return int(s)
+        return None
+
+    last_name = s.split()[0] if s.split() else s
+    m = Master.objects.filter(last_name__iexact=last_name).first()
+    if m:
+        return m.id
+    m = Master.objects.filter(last_name__icontains=last_name).first()
+    if m:
+        return m.id
+    return None
+
+
+def _extract_master_id_from_values(values):
+    """Извлекает ID мастера из values платной услуги."""
+    if not values:
+        return None
+
+    candidate = None
+    for key in ('master', 'master_id', 'master-id'):
+        if key in values and values[key]:
+            candidate = values[key]
+            break
+
+    if candidate is None:
+        for key, val in values.items():
+            if isinstance(key, str) and key.startswith('select-master-') and val:
+                candidate = val
+                break
+
+    if candidate is None:
+        for key, val in values.items():
+            if isinstance(key, str) and 'master' in key.lower() and val:
+                candidate = val
+                break
+
+    if candidate is None:
+        return None
+
+    return _resolve_master_id(candidate)
+
+
+def _extract_car_brand_from_values(values):
+    """Извлекает марку автомобиля из values платной услуги."""
+    if not values:
+        return None
+
+    for key in ('car_brand', 'brand', 'car-brand'):
+        if key in values and values[key]:
+            return values[key]
+
+    for key, val in values.items():
+        if not isinstance(key, str) or not val:
+            continue
+        low = key.lower()
+        if low.startswith('select-brand-') or low.startswith('select-car-'):
+            return val
+
+    for key, val in values.items():
+        if not isinstance(key, str) or not val:
+            continue
+        low = key.lower()
+        if 'brand' in low or 'car' in low or 'марк' in low:
+            return val
+
+    return None
+
+def _extract_gender_from_values(values):
+    """Извлекает пол мастера из values платной услуги."""
+    if not values:
+        return None
+
+    for key in ('gender', 'master_gender', 'sex'):
+        if key in values and values[key]:
+            val = str(values[key]).lower()
+            if val in ('male', 'female'):
+                return val
+
+    for key, val in values.items():
+        if not isinstance(key, str) or not val:
+            continue
+        low = key.lower()
+        if 'gender' in low or 'sex' in low:
+            v = str(val).lower()
+            if v in ('male', 'female'):
+                return v
+
+    return None
+
+def _validate_master_brand_compatibility(master_id, car_brand):
+    """
+    Проверяет, что у мастера есть машина с указанной маркой.
+    У MasterPouts ОДНА машина (FK `car`), не M2M.
+    """
+    if not master_id or not car_brand:
+        return True, None
+
+    master = Master.objects.filter(pk=int(master_id)).first()
+    if not master:
+        return True, None
+
+    # У мастера нет машины
+    if not master.car:
+        return False, (
+            f'Мастер {master.last_name} {master.first_name} '
+            f'не имеет закреплённого автомобиля. '
+            f'Назначьте машину или выберите другого мастера.'
+        )
+
+    master_make = (master.car.make or '').strip().lower()
+    if master_make != car_brand.strip().lower():
+        return False, (
+            f'Мастер {master.last_name} закреплён за маркой '
+            f'«{master.car.make}», а услуга требует «{car_brand}». '
+            f'Выберите другого мастера или измените марку.'
+        )
+
+    return True, None
 
 
 # =============================================================================
@@ -327,15 +460,27 @@ def student_detail(request, student_id):
         else:
             theory_exams.append(exam_data)
 
-    # 🔹 Платные услуги
+    # 🔹 Платные услуги — собираем состояние (включено + значения)
     all_services = PaidService.objects.all()
-    student_services = {}
+    student_services = {}  # service_id -> True (включено)
+    student_service_values = {}  # service_id -> {field_type: value}
+
     if student.activity_log:
         for entry in student.activity_log:
             if entry.get('type') == 'service_added':
-                service_id = entry.get('details', {}).get('service_id')
-                if service_id:
-                    student_services[service_id] = True
+                details = entry.get('details', {})
+                service_id = details.get('service_id')
+                if not service_id:
+                    continue
+
+                # Флаг: услуга была включена
+                student_services[service_id] = True
+
+                # Значения: словарь вида {'master': '6'} или {'car_brand': 'Hyundai'}
+                values = details.get('values', {})
+                if values:
+                    # Объединяем: если несколько записей по одной услуге — берём последнюю
+                    student_service_values.setdefault(service_id, {}).update(values)
 
     car_brands = Car.objects.values_list('make', flat=True).distinct().order_by('make')
     today = timezone.now().date()
@@ -415,7 +560,6 @@ def student_detail(request, student_id):
 
     theory_distributed = min(theory_distributed, theory_total)
     theory_remaining = max(0.0, theory_total - theory_distributed)
-    # 🔹 Форматируем с ТОЧКОЙ для CSS (чтобы не было 20,6%)
     theory_percent = f"{(theory_distributed / theory_total * 100):.1f}" if theory_total > 0 else "0.0"
 
     # 🔹 2. Расчёт часов ПРАКТИКИ
@@ -480,8 +624,14 @@ def student_detail(request, student_id):
             'extra': extra_info,
         })
 
-    # Сортируем по дате (новые сверху)
     history_timeline.sort(key=lambda x: x['date_raw'], reverse=True)
+
+    reassignment_history = (
+        StudentReassignmentLog.objects
+        .filter(student=student)
+        .select_related('from_master', 'to_master', 'created_by', 'plan_group__group')
+        .order_by('-created_at')
+    )
 
     context = {
         'student': student,
@@ -506,7 +656,9 @@ def student_detail(request, student_id):
         'practice_driven': round(practice_driven, 1),
         'practice_remaining': round(practice_remaining, 1),
         'practice_percent': practice_percent,
-        'history_timeline': history_timeline,  # ← НОВЫЙ КОНТЕКСТ ДЛЯ ИСТОРИИ
+        'history_timeline': history_timeline,
+        'reassignment_history': reassignment_history,
+        'student_service_values': student_service_values,
     }
     return render(request, 'students/student_detail.html', context)
 
@@ -576,7 +728,6 @@ def student_refusal(request, student_id):
             comment = form.cleaned_data.get('comment', '')
             parsed_date = _parse_date_from_request(request, 'refusal_date') or TODAY
 
-            # 🔹 Запоминаем группу перед очисткой
             old_group = student.group.group_number if student.group else '—'
 
             service = StudentStatusService(student)
@@ -591,7 +742,6 @@ def student_refusal(request, student_id):
                 comment=comment
             )
 
-            # 🔹 УБИРАЕМ СТУДЕНТА ИЗ ГРУППЫ
             student.group = None
             student.save(update_fields=['group'])
 
@@ -668,7 +818,6 @@ def student_dismissal(request, student_id):
             comment = form.cleaned_data.get('comment', '')
             parsed_date = _parse_date_from_request(request, 'event_date') or TODAY
 
-            # 🔹 Запоминаем группу перед очисткой
             old_group = student.group.group_number if student.group else '—'
 
             service = StudentStatusService(student)
@@ -684,7 +833,6 @@ def student_dismissal(request, student_id):
                 comment=comment
             )
 
-            # 🔹 УБИРАЕМ СТУДЕНТА ИЗ ГРУППЫ
             student.group = None
             student.save(update_fields=['group'])
 
@@ -931,7 +1079,7 @@ def get_students_api(request):
 
 
 # =============================================================================
-# ✅ 12. Выбор платных услуг
+# ✅ 12. Обновление значения платной услуги
 # =============================================================================
 @login_required
 @require_http_methods(["POST"])
@@ -1009,11 +1157,20 @@ def toggle_service(request, student_id):
 
 
 # =============================================================================
-# ✅ 14. Сохранение всех платных услуг для студента
+# ✅ 14. Сохранение всех платных услуг с проверкой совместимости
 # =============================================================================
 @login_required
 @require_http_methods(["POST"])
 def save_services(request, student_id):
+    """
+    Сохраняет все платные услуги студента.
+
+    🔥 Проверки совместимости:
+      - Если указан «Мастер по вождению» и «Марка автомобиля» —
+        мастер ОБЯЗАН иметь машину этой марки.
+      - Если марка не совпадает — возвращаем 400 с описанием конфликта,
+        НЕ сохраняем.
+    """
     student = get_object_or_404(Student, pk=student_id)
 
     try:
@@ -1022,23 +1179,100 @@ def save_services(request, student_id):
 
         from reference.models import PaidService
 
-        current_log = student.activity_log or []
-        current_log = [entry for entry in current_log if entry.get('type') not in ['service_added', 'service_removed']]
+        # 🔥 1. Сначала соберём финальные значения услуг
+        #     (не пишем в БД, пока не прошли все проверки)
+        final_master_id = None
+        final_car_brand = None
+        final_master_gender = None
+        prepared_entries = []
 
         for service_data in services:
             service_id = service_data.get('service_id')
             service_name = service_data.get('service_name')
             values = service_data.get('values', {})
 
+            # Извлекаем мастера / марку
+            if service_name == 'Мастер по вождению':
+                final_master_id = _extract_master_id_from_values(values)
+            elif service_name == 'Марка автомобиля':
+                final_car_brand = _extract_car_brand_from_values(values)
+            elif service_name == 'Пол мастера':
+                final_master_gender = _extract_gender_from_values(values)
+
+            prepared_entries.append({
+                'service_id': service_id,
+                'service_name': service_name,
+                'values': values,
+            })
+
+        # 🔥 2. Проверяем совместимость мастера и марки
+        ok, err = _validate_master_brand_compatibility(final_master_id, final_car_brand)
+        if not ok:
+            return JsonResponse({
+                'success': False,
+                'error': err,
+                'conflict': True,
+                'master_id': final_master_id,
+                'car_brand': final_car_brand,
+            }, status=400)
+
+        # 🔥 2б. Если указан мастер и пол — проверяем, что пол мастера совпадает
+        if final_master_id and final_master_gender:
+            master = Master.objects.filter(pk=int(final_master_id)).first()
+            if master and master.gender and master.gender != final_master_gender:
+                return JsonResponse({
+                    'success': False,
+                    'error': (
+                        f'Мастер {master.last_name} {master.first_name} '
+                        f'не соответствует полу из услуги. '
+                        f'Выберите другого мастера или уберите «Пол мастера».'
+                    ),
+                    'conflict': True,
+                    'master_id': final_master_id,
+                    'master_gender': final_master_gender,
+                }, status=400)
+
+        # 🔥 2в. Если указан мастер и у студента задана коробка —
+        #        проверяем, что КПП машины мастера совпадает
+        if final_master_id and student.gearbox_type:
+            GEARBOX_MAP = {
+                'manual': 'MT',
+                'auto': 'AT',
+                'electric': 'ET',
+            }
+            required_transmission = GEARBOX_MAP.get(student.gearbox_type.lower())
+            master = Master.objects.filter(pk=int(final_master_id)).first()
+            if (required_transmission and master and master.car
+                    and master.car.transmission != required_transmission):
+                return JsonResponse({
+                    'success': False,
+                    'error': (
+                        f'Мастер {master.last_name} {master.first_name} '
+                        f'закреплён за машиной с КПП «{master.car.get_transmission_display()}», '
+                        f'а учащемуся нужна «{student.get_gearbox_type_display()}». '
+                        f'Выберите другого мастера.'
+                    ),
+                    'conflict': True,
+                    'master_id': final_master_id,
+                }, status=400)
+
+        # 🔥 3. Все проверки прошли — сохраняем услуги
+        current_log = student.activity_log or []
+        current_log = [
+            entry for entry in current_log
+            if entry.get('type') not in ['service_added', 'service_removed']
+        ]
+
+        for entry in prepared_entries:
             log_entry = {
                 'type': 'service_added',
                 'date': timezone.now().date().isoformat(),
-                'title': f"Добавлена услуга: {service_name}",
+                'title': f"Добавлена услуга: {entry['service_name']}",
                 'details': {
-                    'service_id': service_id,
-                    'service_name': service_name,
+                    'service_id': entry['service_id'],
+                    'service_name': entry['service_name'],
                     'enabled': True,
-                    'values': values
+                    'values': entry['values'],
                 }
             }
             current_log.append(log_entry)
@@ -1046,7 +1280,7 @@ def save_services(request, student_id):
         student.activity_log = current_log
         student.save(update_fields=['activity_log'])
 
-        return JsonResponse({'success': True, 'count': len(services)})
+        return JsonResponse({'success': True, 'count': len(prepared_entries)})
 
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=400)

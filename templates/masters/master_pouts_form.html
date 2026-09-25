@@ -22,7 +22,9 @@
 .btn-cancel { padding: 12px 32px; background: #e2e8f0; color: #475569; border: none; border-radius: 8px; font-weight: 600; font-size: 15px; cursor: pointer; text-decoration: none; }
 .errorlist { list-style: none; padding: 0; margin: 0; }
 .errorlist li { color: #dc2626; font-size: 12px; }
-    .category-checkboxes-grid {
+
+/* Стили для чекбоксов категорий */
+.category-checkboxes-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     gap: 10px;
@@ -31,7 +33,6 @@
     border: 2px solid #e2e8f0;
     border-radius: 8px;
 }
-
 .category-checkbox-item {
     display: flex;
     align-items: center;
@@ -44,27 +45,32 @@
     transition: all 0.2s;
     font-size: 13px;
 }
-
-.category-checkbox-item:hover {
-    border-color: #3b82f6;
-    background: #eff6ff;
-}
-
+.category-checkbox-item:hover { border-color: #3b82f6; background: #eff6ff; }
 .category-checkbox-item input[type="checkbox"] {
+    width: 18px; height: 18px; accent-color: #3b82f6; cursor: pointer;
+}
+.category-checkbox-item input[type="checkbox"]:checked + span { font-weight: 600; color: #1e293b; }
+.category-checkbox-item:has(input:checked) { border-color: #3b82f6; background: #eff6ff; }
+
+/* 🔹 НОВЫЕ СТИЛИ ДЛЯ ПОЛЯ "ПОЛ" */
+.gender-radio-group {
+    display: flex;
+    gap: 24px;
+    margin-top: 4px;
+}
+.gender-radio-group label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    color: #334155;
+}
+.gender-radio-group input[type="radio"] {
     width: 18px;
     height: 18px;
     accent-color: #3b82f6;
     cursor: pointer;
-}
-
-.category-checkbox-item input[type="checkbox"]:checked + span {
-    font-weight: 600;
-    color: #1e293b;
-}
-
-.category-checkbox-item:has(input:checked) {
-    border-color: #3b82f6;
-    background: #eff6ff;
 }
 </style>
 
@@ -78,24 +84,40 @@
         {% csrf_token %}
 
         <div class="form-section">
-            <div class="section-title"> Основные данные</div>
+            <div class="section-title">👤 Основные данные</div>
             <div class="form-grid">
                 <div class="form-group">
-    <label class="form-label">Фамилия *</label>
-    {{ form.last_name }}
-    {% if form.last_name.errors %}<ul class="errorlist">{% for error in form.last_name.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
-</div>
-<div class="form-group">
-    <label class="form-label">Имя *</label>
-    {{ form.first_name }}
-    {% if form.first_name.errors %}<ul class="errorlist">{% for error in form.first_name.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
-</div>
-<div class="form-group">
-    <label class="form-label">Отчество</label>
-    {{ form.patronymic }}
-    {% if form.patronymic.errors %}<ul class="errorlist">{% for error in form.patronymic.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
-</div>
-                <div class="form-group">                    
+                    <label class="form-label">Фамилия *</label>
+                    {{ form.last_name }}
+                    {% if form.last_name.errors %}<ul class="errorlist">{% for error in form.last_name.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Имя *</label>
+                    {{ form.first_name }}
+                    {% if form.first_name.errors %}<ul class="errorlist">{% for error in form.first_name.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Отчество</label>
+                    {{ form.patronymic }}
+                    {% if form.patronymic.errors %}<ul class="errorlist">{% for error in form.patronymic.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                </div>
+
+                <!-- 🔹 НОВОЕ ПОЛЕ: ПОЛ -->
+                <div class="form-group">
+                    <label class="form-label">Пол</label>
+                    <div class="gender-radio-group">
+                        {% for radio in form.gender %}
+                            <label>
+                                {{ radio.tag }}
+                                <span>{{ radio.choice_label }}</span>
+                            </label>
+                        {% endfor %}
+                    </div>
+                    {% if form.gender.errors %}<ul class="errorlist">{% for error in form.gender.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                </div>
+                <!-- КОНЕЦ НОВОГО ПОЛЯ -->
+
+                <div class="form-group">
                     <label class="form-label">№ паспорта *</label>
                     {{ form.passport_number }}
                     {% if form.passport_number.errors %}<ul class="errorlist">{% for error in form.passport_number.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
@@ -135,6 +157,7 @@
                 </div>
             </div>
         </div>
+
         <div class="form-section">
             <div class="section-title">🏥 Медицинская справка</div>
             <div class="form-grid">
@@ -152,7 +175,7 @@
         </div>
 
         <div class="form-section">
-            <div class="section-title">📜 Свидетельства о повышение квалификации</div>
+            <div class="section-title">📜 Свидетельства о повышении квалификации</div>
             <div class="form-grid">
                 <div class="form-group">
                     <label class="form-label">№ свидетельства</label>
@@ -205,57 +228,37 @@
 <!-- 🔹 Принудительная инициализация масок на этой странице -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // 1. Маска дат — принудительно применяем ко всем полям с датами
-    const dateFieldNames = [
-        'birth_date',
-        'license_expiry',
-        'medical_cert_expiry',
-        'qualification_cert_expiry'
-    ];
-
+    // 1. Маска дат
+    const dateFieldNames = ['birth_date', 'license_expiry', 'medical_cert_expiry', 'qualification_cert_expiry'];
     dateFieldNames.forEach(function(fieldName) {
         const input = document.querySelector('input[name="' + fieldName + '"]');
         if (input) {
-            // Гарантированно добавляем атрибут
             input.setAttribute('data-date-input', 'true');
             input.type = 'text';
             input.placeholder = 'дд.мм.гггг';
             input.setAttribute('autocomplete', 'off');
             input.setAttribute('inputmode', 'numeric');
 
-            // Если маска ещё не применена — применяем вручную
             if (!input.dataset.maskApplied) {
                 input.dataset.maskApplied = '1';
-
-                // Преобразуем YYYY-MM-DD в DD.MM.YYYY при загрузке
                 let val = input.value.trim();
                 if (val && /^\d{4}-\d{2}-\d{2}$/.test(val)) {
                     const [y, m, d] = val.split('-');
                     input.value = d + '.' + m + '.' + y;
                 }
-
-                // Блокировка не-цифр
                 input.addEventListener('keydown', function(e) {
                     const allowed = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab', 'Home', 'End'];
                     if (allowed.includes(e.key)) return;
-                    if (!/^\d$/.test(e.key) && e.key !== '.' && e.key !== '/') {
-                        e.preventDefault();
-                    }
+                    if (!/^\d$/.test(e.key) && e.key !== '.' && e.key !== '/') e.preventDefault();
                 });
-
-                // Автомаска при вводе
                 input.addEventListener('input', function(e) {
                     let raw = e.target.value.replace(/\D/g, '').slice(0, 8);
                     let formatted = '';
                     if (raw.length > 0) formatted += raw.slice(0, 2);
                     if (raw.length > 2) formatted += '.' + raw.slice(2, 4);
                     if (raw.length > 4) formatted += '.' + raw.slice(4, 8);
-                    if (e.target.value !== formatted) {
-                        e.target.value = formatted;
-                    }
+                    if (e.target.value !== formatted) e.target.value = formatted;
                 });
-
-                // Нормализация года при потере фокуса
                 input.addEventListener('blur', function(e) {
                     const parts = e.target.value.trim().split('.');
                     if (parts.length === 3 && parts[2].length === 2) {
@@ -268,54 +271,36 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // 2. Маска телефона — принудительно
+    // 2. Маска телефона
     const phoneInput = document.querySelector('input[name="phone"]');
     if (phoneInput) {
         phoneInput.setAttribute('data-phone-input', 'true');
         phoneInput.setAttribute('autocomplete', 'off');
-
         if (!phoneInput.dataset.phoneMaskApplied) {
             phoneInput.dataset.phoneMaskApplied = '1';
-
             phoneInput.addEventListener('input', function(e) {
                 let value = e.target.value.replace(/\D/g, '');
-
-                // Если начинается с 375, оставляем
-                if (value.startsWith('375')) {
-                    value = value.slice(0, 12);
-                } else if (value.startsWith('8')) {
-                    value = '375' + value.slice(1, 10);
-                } else {
-                    value = '375' + value.slice(0, 9);
-                }
+                if (value.startsWith('375')) value = value.slice(0, 12);
+                else if (value.startsWith('8')) value = '375' + value.slice(1, 10);
+                else value = '375' + value.slice(0, 9);
 
                 let formatted = '+375';
                 if (value.length > 3) formatted += ' (' + value.slice(3, 5);
                 if (value.length > 5) formatted += ') ' + value.slice(5, 8);
                 if (value.length > 8) formatted += '-' + value.slice(8, 10);
                 if (value.length > 10) formatted += '-' + value.slice(10, 12);
-
-                if (e.target.value !== formatted) {
-                    e.target.value = formatted;
-                }
+                if (e.target.value !== formatted) e.target.value = formatted;
             });
-
-            phoneInput.addEventListener('focus', function(e) {
-                if (!e.target.value) e.target.value = '+375 (';
-            });
-
-            phoneInput.addEventListener('blur', function(e) {
-                if (e.target.value === '+375 (') e.target.value = '';
-            });
+            phoneInput.addEventListener('focus', function(e) { if (!e.target.value) e.target.value = '+375 ('; });
+            phoneInput.addEventListener('blur', function(e) { if (e.target.value === '+375 (') e.target.value = ''; });
         }
     }
 
-    // 3. Маска для топливной карты (только 9 цифр)
+    // 3. Маска для топливной карты
     const fuelInput = document.querySelector('input[name="fuel_card_number"]');
     if (fuelInput) {
         fuelInput.setAttribute('inputmode', 'numeric');
         fuelInput.setAttribute('maxlength', '9');
-
         fuelInput.addEventListener('input', function(e) {
             e.target.value = e.target.value.replace(/\D/g, '').slice(0, 9);
         });

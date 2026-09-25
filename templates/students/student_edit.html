@@ -241,6 +241,7 @@
                         <option value="">— Не выбрано —</option>
                         <option value="manual" {% if student.gearbox_type == 'manual' %}selected{% endif %}>🔧 Механическая</option>
                         <option value="auto" {% if student.gearbox_type == 'auto' %}selected{% endif %}>🤖 Автоматическая</option>
+                        <option value="electric" {% if student.gearbox_type == 'electric' %}selected{% endif %}>⚡ Электромобиль</option>
                     </select>
                 </div>
                 <div class="form-group">
