@@ -5,8 +5,9 @@ app_name = 'dispatcher'
 
 urlpatterns = [
     path('', views.dispatcher_dashboard, name='dashboard'),
-    path('route-sheets/', views.route_sheet_list, name='route_sheet_list'),
-    path('route-sheets/add/', views.route_sheet_add, name='route_sheet_add'),
-    path('route-sheets/<int:pk>/edit/', views.route_sheet_edit, name='route_sheet_edit'),
-    path('route-sheets/<int:pk>/delete/', views.route_sheet_delete, name='route_sheet_delete'),
+    path('individual-books/create/', views.individual_book_form, name='individual_book_create'),
+    path('individual-books/<int:pk>/edit/', views.individual_book_form, name='individual_book_edit'),
+    path('api/student-search/', views.student_search_api, name='student_search_api'),
+    path('individual-books/<int:pk>/delete/', views.individual_book_delete, name='individual_book_delete'),
+    path('api/book-search/', views.book_search_api, name='book_search_api'),
 ]

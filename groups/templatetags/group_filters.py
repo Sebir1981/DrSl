@@ -1,4 +1,4 @@
-# groups/templatetags/custom_filters.py
+# groups/templatetags/group_filters.py
 from django import template
 
 register = template.Library()

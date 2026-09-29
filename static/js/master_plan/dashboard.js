@@ -5,6 +5,9 @@
  *
  * Зависимости:
  *   window.MASTER_PLAN_CONFIG — объект с csrfToken и url-ами (задаётся в dashboard.html)
+ *
+ * Формат data-groups у .master-stat-item:
+ *   "группа:студентов:план_ч:выкатано_ч;группа:..."
  */
 
 (function () {
@@ -47,6 +50,23 @@
         const el = document.getElementById(id);
         if (el) el.value = value;
     };
+
+    function escapeHtmlName(s) {
+        if (s == null) return '';
+        return String(s)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    // ✅ Устойчивый парсер чисел с запятой как десятичным разделителем (Django L10N)
+    function parseNum(s) {
+        if (s == null) return 0;
+        const cleaned = String(s).trim().replace(',', '.');
+        return parseFloat(cleaned) || 0;
+    }
 
     function buildCellStudentsUrl(planGroupId, masterId) {
         return URL_CELL_STUDENTS
@@ -103,12 +123,13 @@
                     const input = cell.querySelector('.matrix-input-manual');
                     const studentsCount = parseInt(input?.value) || 0;
 
+                    // ✅ Часы берём из data-driven-hours (НЕ из текста ячейки!)
                     const autoDiv = cell.querySelector('.matrix-input-auto');
-                    const completedCount = parseInt(autoDiv?.textContent) || 0;
+                    const drivenHoursForCell = parseNum(autoDiv?.dataset.drivenHours);
 
                     totalStudents += studentsCount;
                     totalHours += studentsCount * hoursPerStudent;
-                    drivenHours += completedCount * hoursPerStudent;
+                    drivenHours += drivenHoursForCell;
                 });
 
             const remainingHours = Math.max(0, totalHours - drivenHours);
@@ -260,8 +281,14 @@
                         }
 
                         const autoField = cell.querySelector('.matrix-input-auto');
-                        if (autoField && data.completed_count !== undefined) {
-                            autoField.textContent = data.completed_count;
+                        if (autoField) {
+                            if (data.driven_hours !== undefined) {
+                                autoField.dataset.drivenHours = data.driven_hours;
+                            }
+                            if (data.driven_students !== undefined) {
+                                autoField.dataset.drivenStudents = data.driven_students;
+                                autoField.textContent = data.driven_students;
+                            }
                         }
 
                         const key = `${planGroupId}:${masterId}`;
@@ -378,7 +405,7 @@
     }
 
     // =======================================================================
-    // 🔹 ГЛОБАЛЬНЫЙ TOOLTIP
+    // 🔹 ГЛОБАЛЬНЫЙ TOOLTIP (мелкие title-подсказки)
     // =======================================================================
     function initGlobalTooltip() {
         const tooltip = document.createElement('div');
@@ -450,15 +477,11 @@
     }
 
     // =======================================================================
-    // 🔹 TOOLTIP: ЯЧЕЙКА МАТРИЦЫ (список ФИО)
+    // 🔹 TOOLTIP: ЯЧЕЙКА МАТРИЦЫ (список ФИО + часы)
     // =======================================================================
 
     let matrixTooltipTimeout = null;
 
-    /**
-     * Показывает подсказку над ячейкой матрицы со списком ФИО студентов,
-     * назначенных этому мастеру в этой группе.
-     */
     function showMatrixCellTooltip(cell) {
         const tooltip = document.getElementById('matrixCellTooltip');
         if (!tooltip) return;
@@ -483,12 +506,10 @@
 
         const isAuto = cell.classList.contains('matrix-cell-auto');
 
-        // Собираем базовую часть подсказки
-        let html = `<div class="tlt-title">Группа ${groupNumber}`;
+        let html = `<div class="tlt-title">Группа ${escapeHtmlName(groupNumber)}`;
         if (isAuto) html += ` <span class="tlt-badge auto">🔒 авто</span>`;
         html += `</div>`;
 
-        // Если ничего не распределено — короткая подсказка
         if (distributedCount <= 0) {
             html += `<div class="tlt-row tlt-muted"><span>Не распределено</span></div>`;
             tooltip.innerHTML = html;
@@ -496,7 +517,6 @@
             return;
         }
 
-        // Показываем заглушку «Загрузка…», затем тянем список студентов
         html += `<div class="tlt-row"><span>Распределено:</span><b>${distributedCount} из ${totalStudents} студ.</b></div>`;
         html += `<div class="tlt-row tlt-muted" style="font-style:italic;"><span>Загрузка…</span></div>`;
         tooltip.innerHTML = html;
@@ -504,19 +524,17 @@
 
         const cacheKey = `${planGroupId}:${masterId}`;
 
-        // Если есть кэш — сразу рендерим
         if (cellStudentsCache[cacheKey]) {
             renderMatrixTooltipStudents(tooltip, cellStudentsCache[cacheKey], groupNumber, totalStudents, distributedCount, isAuto);
             positionMatrixTooltip(tooltip, cell);
             return;
         }
 
-        // Иначе — fetch
         fetch(buildCellStudentsUrl(planGroupId, masterId))
             .then(r => r.json())
             .then(data => {
                 if (!data.success) {
-                    tooltip.innerHTML = `<div class="tlt-title">Группа ${groupNumber}</div>` +
+                    tooltip.innerHTML = `<div class="tlt-title">Группа ${escapeHtmlName(groupNumber)}</div>` +
                         `<div class="tlt-row tlt-muted"><span>Ошибка загрузки</span></div>`;
                     positionMatrixTooltip(tooltip, cell);
                     return;
@@ -527,22 +545,17 @@
             })
             .catch(err => {
                 console.error('Fetch cell students error:', err);
-                tooltip.innerHTML = `<div class="tlt-title">Группа ${groupNumber}</div>` +
+                tooltip.innerHTML = `<div class="tlt-title">Группа ${escapeHtmlName(groupNumber)}</div>` +
                     `<div class="tlt-row tlt-muted"><span>Ошибка сети</span></div>`;
                 positionMatrixTooltip(tooltip, cell);
             });
     }
 
-        /**
-     * Рендерит список студентов в тултип ячейки:
-     *   ФИО • Всего • Выкатано • Осталось
-     */
     function renderMatrixTooltipStudents(tooltip, data, groupNumber, totalStudents, distributedCount, isAuto) {
-        let html = `<div class="tlt-title">Группа ${groupNumber}`;
+        let html = `<div class="tlt-title">Группа ${escapeHtmlName(groupNumber)}`;
         if (isAuto) html += ` <span class="tlt-badge auto">🔒 авто</span>`;
         html += `</div>`;
 
-        // Строка итогов по ячейке
         html += `<div class="tlt-row"><span>Распределено:</span><b>${distributedCount} из ${totalStudents} студ.</b></div>`;
 
         if (!data.students || data.students.length === 0) {
@@ -551,7 +564,6 @@
             const MAX_ROWS = 15;
             const shown = data.students.slice(0, MAX_ROWS);
 
-            // Заголовок «шапки» таблицы
             html += `<div class="tlt-row tlt-header" style="border-top:1px solid #334155;padding-top:4px;margin-top:4px;font-size:10px;color:#94a3b8;">`;
             html += `<span>Учащийся</span>`;
             html += `<span style="display:flex;gap:8px;">`;
@@ -573,7 +585,7 @@
                 const rest = Math.round(s.hours_remaining);
 
                 html += `<div class="tlt-row tlt-student-row">`;
-                html += `<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${initials}${autoBadge}</span>`;
+                html += `<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtmlName(initials)}${autoBadge}</span>`;
                 html += `<span style="display:flex;gap:8px;font-variant-numeric:tabular-nums;flex-shrink:0;">`;
                 html += `<span style="min-width:32px;text-align:right;color:#cbd5e1;">${total}</span>`;
                 html += `<span style="min-width:32px;text-align:right;color:#86efac;font-weight:600;">${done}</span>`;
@@ -590,9 +602,6 @@
         tooltip.innerHTML = html;
     }
 
-    /**
-     * Позиционирует тултип рядом с ячейкой.
-     */
     function positionMatrixTooltip(tooltip, cell) {
         tooltip.style.display = 'block';
         tooltip.style.opacity = '0';
@@ -607,12 +616,10 @@
         const margin = 8;
         const offset = 8;
 
-        // Горизонталь — по центру ячейки
         let left = rect.left + (rect.width / 2) - (tltW / 2);
         if (left < margin) left = margin;
         if (left + tltW > vw - margin) left = vw - tltW - margin;
 
-        // Вертикаль — над ячейкой, если влезает; иначе под
         let top = rect.top - tltH - offset;
         if (top < margin) top = rect.bottom + offset;
         if (top + tltH > vh - margin) top = vh - tltH - margin;
@@ -651,7 +658,7 @@
     }
 
     // =======================================================================
-    // 🔹 TOOLTIP: СТАТИСТИКА ПО МАСТЕРАМ
+    // 🔹 TOOLTIP: СТАТИСТИКА ПО МАСТЕРАМ (разбивка по группам + часы)
     // =======================================================================
 
     let masterTooltipTimeout = null;
@@ -663,32 +670,71 @@
         const masterName = statRow.dataset.masterName || '—';
         const groupsRaw = statRow.dataset.groups || '';
 
+        // ✅ Формат: "группа:студ:план:выкат", десятичный разделитель — запятая
         const groups = groupsRaw
             .split(';')
             .filter(s => s.length > 0)
             .map(s => {
-                const parts = s.split(':');
+                const p = s.split(':');
                 return {
-                    number: parts[0] || '—',
-                    count: parseInt(parts[1]) || 0,
+                    number: p[0] || '—',
+                    count: parseInt(p[1]) || 0,
+                    plan: parseNum(p[2]),
+                    driven: parseNum(p[3]),
                 };
             });
 
-        let html = `<div class="tlt-title">${masterName}</div>`;
+        let html = `<div class="tlt-title">${escapeHtmlName(masterName)}</div>`;
 
         if (groups.length === 0) {
-            html += `<div class="tlt-row tlt-muted"><span>Нет данных</span></div>`;
+            html += `<div class="tlt-row tlt-muted"><span>Нет закреплённых групп</span></div>`;
         } else {
-            let total = 0;
+            let totalStudents = 0;
+            let totalPlan = 0;
+            let totalDriven = 0;
+
+            // Шапка таблицы
+            html += `<div class="tlt-row tlt-header" style="font-size:10px;color:#94a3b8;border-bottom:1px solid #334155;padding-bottom:3px;margin-bottom:3px;">`;
+            html += `<span style="flex:1;">Группа</span>`;
+            html += `<span style="display:flex;gap:10px;font-variant-numeric:tabular-nums;">`;
+            html += `<span style="min-width:36px;text-align:right;" title="Студентов">Студ.</span>`;
+            html += `<span style="min-width:46px;text-align:right;" title="План часов">План</span>`;
+            html += `<span style="min-width:46px;text-align:right;" title="Выкатано часов">Вык.</span>`;
+            html += `</span></div>`;
+
             groups.forEach(g => {
-                total += g.count;
-                const value = g.count > 0
-                    ? `<b>${g.count} студ.</b>`
+                totalStudents += g.count;
+                totalPlan += g.plan;
+                totalDriven += g.driven;
+
+                const cntTxt = g.count > 0
+                    ? `<b>${g.count}</b>`
                     : `<span class="tlt-muted">—</span>`;
-                html += `<div class="tlt-row"><span>Группа ${g.number}:</span>${value}</div>`;
+                const planTxt = g.plan > 0
+                    ? `<span style="color:#93c5fd;">${g.plan.toFixed(1)}</span>`
+                    : `<span class="tlt-muted">0</span>`;
+                const driveTxt = g.driven > 0
+                    ? `<span style="color:#86efac;font-weight:600;">${g.driven.toFixed(1)}</span>`
+                    : `<span class="tlt-muted">0</span>`;
+
+                html += `<div class="tlt-row">`;
+                html += `<span style="flex:1;">Гр. ${escapeHtmlName(g.number)}</span>`;
+                html += `<span style="display:flex;gap:10px;font-variant-numeric:tabular-nums;flex-shrink:0;">`;
+                html += `<span style="min-width:36px;text-align:right;">${cntTxt}</span>`;
+                html += `<span style="min-width:46px;text-align:right;">${planTxt}</span>`;
+                html += `<span style="min-width:46px;text-align:right;">${driveTxt}</span>`;
+                html += `</span>`;
+                html += `</div>`;
             });
-            html += `<div class="tlt-row" style="border-top:1px solid #334155;padding-top:4px;margin-top:4px;">` +
-                    `<span>Всего:</span><b>${total} студ.</b></div>`;
+
+            // Итого
+            html += `<div class="tlt-row" style="border-top:1px solid #334155;margin-top:4px;padding-top:4px;font-weight:700;">`;
+            html += `<span style="flex:1;">Итого</span>`;
+            html += `<span style="display:flex;gap:10px;font-variant-numeric:tabular-nums;flex-shrink:0;">`;
+            html += `<span style="min-width:36px;text-align:right;">${totalStudents}</span>`;
+            html += `<span style="min-width:46px;text-align:right;color:#93c5fd;">${totalPlan.toFixed(1)}</span>`;
+            html += `<span style="min-width:46px;text-align:right;color:#86efac;">${totalDriven.toFixed(1)}</span>`;
+            html += `</span></div>`;
         }
 
         tooltip.innerHTML = html;
@@ -963,8 +1009,8 @@
                 for (let j = 0; j < student.services.length; j++) {
                     const svc = student.services[j];
                     html += '<div style="margin-bottom:4px;padding:4px 8px;background:#f0f9ff;border-radius:4px;border-left:3px solid #0ea5e9;">';
-                    html += '<strong style="color:#0369a1;font-size:12px;">' + svc.name + '</strong><br>';
-                    html += '<span style="color:#64748b;font-size:11px;">' + svc.values + '</span></div>';
+                    html += '<strong style="color:#0369a1;font-size:12px;">' + escapeHtmlName(svc.name) + '</strong><br>';
+                    html += '<span style="color:#64748b;font-size:11px;">' + escapeHtmlName(svc.values) + '</span></div>';
                 }
                 tdServices.innerHTML = html;
             } else {
@@ -981,18 +1027,18 @@
             let limitsHtml = '';
 
             if (student.car_brand) {
-                limitsHtml += '🚗 Марка: <strong>' + student.car_brand + '</strong>';
+                limitsHtml += '🚗 Марка: <strong>' + escapeHtmlName(student.car_brand) + '</strong>';
             }
 
             if (student.brand_warning) {
                 limitsHtml += (limitsHtml ? '<br>' : '') +
                     '<span style="display:inline-block;margin-top:4px;padding:4px 8px;' +
                     'background:#fef2f2;color:#dc2626;border-radius:4px;' +
-                    'font-weight:600;font-size:11px;">⚠️ ' + student.brand_warning + '</span>';
+                    'font-weight:600;font-size:11px;">⚠️ ' + escapeHtmlName(student.brand_warning) + '</span>';
             } else if (student.car_brand && student.brand_masters && student.brand_masters.length > 0) {
                 limitsHtml += (limitsHtml ? '<br>' : '') +
                     '<span style="color:#16a34a;font-size:11px;">✅ Доступны мастера: ' +
-                    student.brand_masters.join(', ') + '</span>';
+                    escapeHtmlName(student.brand_masters.join(', ')) + '</span>';
             }
 
             if (student.is_locked) {
@@ -1284,7 +1330,7 @@
                 <tr style="background:${rowBg};border-bottom:1px solid #e2e8f0;">
                     <td style="padding:10px;font-size:12px;color:#94a3b8;">${idx + 1}</td>
                     <td style="padding:10px;font-size:13px;font-weight:600;color:#1e293b;">
-                        ${s.full_name}${autoBadge}
+                        ${escapeHtmlName(s.full_name)}${autoBadge}
                     </td>
                     <td style="padding:10px;text-align:right;font-size:13px;font-weight:600;color:#16a34a;">
                         ${Math.round(s.hours_completed)}
@@ -1523,10 +1569,7 @@
             }
         });
 
-        // Подсказки на ячейках матрицы (список ФИО)
         bindMatrixCellTooltips();
-
-        // Подсказки на статистике по мастерам (разбивка по группам)
         bindMasterStatsTooltips();
     }
 

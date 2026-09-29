@@ -1,19 +1,22 @@
 # students/views.py
 import json
-import random
 import re
 from datetime import datetime
+
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils import timezone
-from django.db.models import Q
+from django.db.models import Q, Sum
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST, require_http_methods
 from django.template.loader import render_to_string
 from django.conf import settings
 
-from .forms import DismissalForm, RefusalForm, SuspensionForm, ContractExtensionForm, StudentPublicAddForm
+from .forms import (
+    DismissalForm, RefusalForm, SuspensionForm,
+    ContractExtensionForm, StudentPublicAddForm,
+)
 from teachers.models import Teacher
 from masters.models import Master
 from .services import StudentStatusService
@@ -40,15 +43,15 @@ def _parse_date_from_request(request, field_name, default_date=None):
     if not raw:
         return default_date
     try:
-        import datetime
+        import datetime as dt
         day, month, year = map(int, raw.split('.'))
-        return datetime.date(year, month, day)
+        return dt.date(year, month, day)
     except (ValueError, AttributeError):
         return default_date
 
 
 def _parse_int_or_none(request, field_name):
-    """Парсит ID из запроса, возвращает int или None"""
+    """Парсит ID из запроса, возвращает int или None."""
     val = request.POST.get(field_name, '').strip()
     if val and val.isdigit():
         return int(val)
@@ -79,7 +82,7 @@ def _prepare_credits_data(activity_log):
                     'icon': details.get('result_icon', '—'),
                     'status': details.get('result', ''),
                     'attempt_num': details.get('attempt_number', 0),
-                    'type': details.get('attempt_type', '')
+                    'type': details.get('attempt_type', ''),
                 })
         attempts.sort(key=lambda x: x['attempt_num'])
 
@@ -95,7 +98,7 @@ def _prepare_credits_data(activity_log):
             'num': num,
             'attempts': attempts,
             'display_icon': display_icon,
-            'display_status': display_status
+            'display_status': display_status,
         })
     return credits_data
 
@@ -113,7 +116,7 @@ def _prepare_change_history(activity_log, author_name):
                 'field': 'Группа',
                 'old': details.get('from_group', '—'),
                 'new': details.get('to_group', '—'),
-                'author': author_name
+                'author': author_name,
             })
         elif etype == 'teacher_change':
             change_history.append({
@@ -121,7 +124,7 @@ def _prepare_change_history(activity_log, author_name):
                 'field': 'Преподаватель',
                 'old': details.get('from', '—'),
                 'new': details.get('to', '—'),
-                'author': author_name
+                'author': author_name,
             })
     return change_history
 
@@ -206,6 +209,7 @@ def _extract_car_brand_from_values(values):
 
     return None
 
+
 def _extract_gender_from_values(values):
     """Извлекает пол мастера из values платной услуги."""
     if not values:
@@ -228,6 +232,7 @@ def _extract_gender_from_values(values):
 
     return None
 
+
 def _validate_master_brand_compatibility(master_id, car_brand):
     """
     Проверяет, что у мастера есть машина с указанной маркой.
@@ -240,7 +245,6 @@ def _validate_master_brand_compatibility(master_id, car_brand):
     if not master:
         return True, None
 
-    # У мастера нет машины
     if not master.car:
         return False, (
             f'Мастер {master.last_name} {master.first_name} '
@@ -419,7 +423,7 @@ def student_detail(request, student_id):
         attempt_type = 'paid' if 'Тип: paid' in comment else 'free'
         return {'attempt_num': attempt_num, 'attempt_type': attempt_type}
 
-    # 1. Все ЗАЧЁТЫ студента (строго credit_type='credit')
+    # 1. Все ЗАЧЁТЫ студента
     credit_results = CreditResult.objects.filter(
         student=student,
         credit__credit_type='credit'
@@ -435,7 +439,7 @@ def student_detail(request, student_id):
             'attempt_num': parsed['attempt_num'],
         })
 
-    # 2. Все ЭКЗАМЕНЫ студента (строго credit_type='exam')
+    # 2. Все ЭКЗАМЕНЫ студента
     exam_results_qs = CreditResult.objects.filter(
         student=student,
         credit__credit_type='exam'
@@ -460,10 +464,10 @@ def student_detail(request, student_id):
         else:
             theory_exams.append(exam_data)
 
-    # 🔹 Платные услуги — собираем состояние (включено + значения)
+    # 🔹 Платные услуги
     all_services = PaidService.objects.all()
-    student_services = {}  # service_id -> True (включено)
-    student_service_values = {}  # service_id -> {field_type: value}
+    student_services = {}
+    student_service_values = {}
 
     if student.activity_log:
         for entry in student.activity_log:
@@ -472,20 +476,17 @@ def student_detail(request, student_id):
                 service_id = details.get('service_id')
                 if not service_id:
                     continue
-
-                # Флаг: услуга была включена
                 student_services[service_id] = True
-
-                # Значения: словарь вида {'master': '6'} или {'car_brand': 'Hyundai'}
                 values = details.get('values', {})
                 if values:
-                    # Объединяем: если несколько записей по одной услуге — берём последнюю
                     student_service_values.setdefault(service_id, {}).update(values)
 
     car_brands = Car.objects.values_list('make', flat=True).distinct().order_by('make')
     today = timezone.now().date()
 
+    # ---------------------------------------------------------------------
     # 🔹 1. Расчёт часов ТЕОРИИ
+    # ---------------------------------------------------------------------
     theory_total = 0.0
     theory_distributed = 0.0
 
@@ -562,20 +563,50 @@ def student_detail(request, student_id):
     theory_remaining = max(0.0, theory_total - theory_distributed)
     theory_percent = f"{(theory_distributed / theory_total * 100):.1f}" if theory_total > 0 else "0.0"
 
-    # 🔹 2. Расчёт часов ПРАКТИКИ
-    practice_total = 0.0
-    practice_driven = 0.0
+    # ---------------------------------------------------------------------
+    # 🔹 2. Расчёт часов ПРАКТИКИ — из реальных выкатанных часов
+    # ---------------------------------------------------------------------
+    from dispatcher.models import BookEntry
 
+    # План: сумма часов всех упражнений справочника (без разделов),
+    # ограниченная категорией группы студента
+    from reference.models import PracticeExercise
+
+    planned_qs = PracticeExercise.objects.exclude(
+        exercise_number__regex=r'^\d+$'   # без разделов
+    )
+    if student.group_id and getattr(student.group, 'category_id', None):
+        planned_qs = planned_qs.filter(category_id=student.group.category_id)
+
+    practice_total = round(float(
+        planned_qs.aggregate(total=Sum('hours')).get('total') or 0
+    ), 1)
+
+    # Если у группы есть MasterPlanGroup с hours_per_student — используем его
     if student.group:
-        master_plan = MasterPlanGroup.objects.filter(group=student.group, is_archived=False).first()
-        if master_plan:
+        master_plan = MasterPlanGroup.objects.filter(
+            group=student.group, is_archived=False
+        ).first()
+        if master_plan and master_plan.hours_per_student:
             practice_total = float(master_plan.hours_per_student)
-            practice_driven = min(random.randint(0, 50), practice_total)
 
-    practice_remaining = max(0.0, practice_total - practice_driven)
-    practice_percent = f"{(practice_driven / practice_total * 100):.1f}" if practice_total > 0 else "0.0"
+    # Выкатано: реальная сумма из BookEntry книги студента
+    practice_driven = round(float(
+        BookEntry.objects
+        .filter(book__student=student)
+        .aggregate(total=Sum('duration_hours_cache'))
+        .get('total') or 0
+    ), 1)
 
+    practice_remaining = round(max(0.0, practice_total - practice_driven), 1)
+    practice_percent = (
+        f"{(practice_driven / practice_total * 100):.1f}"
+        if practice_total > 0 else "0.0"
+    )
+
+    # ---------------------------------------------------------------------
     # 🔹 3. Формирование ОБЩЕЙ ИСТОРИИ (Таймлайн)
+    # ---------------------------------------------------------------------
     history_timeline = []
     EVENT_ICONS = {
         'enrollment': '🎓', 'transfer': '🔄', 'credit_result': '📝',
@@ -653,8 +684,8 @@ def student_detail(request, student_id):
         'theory_remaining': round(theory_remaining, 1),
         'theory_percent': theory_percent,
         'practice_total': round(practice_total, 1),
-        'practice_driven': round(practice_driven, 1),
-        'practice_remaining': round(practice_remaining, 1),
+        'practice_driven': practice_driven,          # ← реальные выкатанные часы
+        'practice_remaining': practice_remaining,
         'practice_percent': practice_percent,
         'history_timeline': history_timeline,
         'reassignment_history': reassignment_history,
@@ -694,7 +725,7 @@ def transfer_student(request, student_id):
             details={
                 'from_group': old_group_number,
                 'to_group_id': target_group.id,
-                'to_group': target_group.group_number
+                'to_group': target_group.group_number,
             }
         )
 
@@ -709,12 +740,12 @@ def transfer_student(request, student_id):
     return render(request, TEMPLATE_TRANSFER_STUDENT, {
         'student': student,
         'groups': groups,
-        'today': TODAY
+        'today': TODAY,
     })
 
 
 # =============================================================================
-# ✅ 5. Отказ от обучения (с исключением из группы)
+# ✅ 5. Отказ от обучения
 # =============================================================================
 @login_required
 @require_http_methods(["GET", "POST"])
@@ -735,18 +766,18 @@ def student_refusal(request, student_id):
                 event_type='refusal',
                 created_by=request.user,
                 event_date=parsed_date,
-                details={
-                    'comment': comment,
-                    'from_group': old_group
-                },
-                comment=comment
+                details={'comment': comment, 'from_group': old_group},
+                comment=comment,
             )
 
             student.group = None
             student.save(update_fields=['group'])
 
-            messages.success(request,
-                             f"✅ Зафиксирован отказ: {student.last_name} {student.first_name}. Исключён из группы {old_group}.")
+            messages.success(
+                request,
+                f"✅ Зафиксирован отказ: {student.last_name} {student.first_name}. "
+                f"Исключён из группы {old_group}."
+            )
             return redirect(REDIRECT_STUDENT_DETAIL, student_id=student.id)
         else:
             for field, errors in form.errors.items():
@@ -758,7 +789,7 @@ def student_refusal(request, student_id):
     return render(request, 'students/student_refusal.html', {
         'student': student,
         'form': form,
-        'title': 'Отказ от обучения'
+        'title': 'Отказ от обучения',
     })
 
 
@@ -787,7 +818,7 @@ def student_suspension(request, student_id):
                 created_by=request.user,
                 event_date=suspension_start,
                 details=details,
-                comment=comment
+                comment=comment,
             )
 
             messages.success(request, f"✅ Обучение приостановлено: {student.last_name} {student.first_name}")
@@ -798,12 +829,12 @@ def student_suspension(request, student_id):
     return render(request, 'students/student_suspension.html', {
         'student': student,
         'form': form,
-        'title': 'Приостановка обучения'
+        'title': 'Приостановка обучения',
     })
 
 
 # =============================================================================
-# ✅ 7. Отчисление учащегося (с исключением из группы)
+# ✅ 7. Отчисление учащегося
 # =============================================================================
 @login_required
 @require_http_methods(["GET", "POST"])
@@ -828,9 +859,9 @@ def student_dismissal(request, student_id):
                 details={
                     'order_number': order_number if order_number else '—',
                     'comment': comment,
-                    'from_group': old_group
+                    'from_group': old_group,
                 },
-                comment=comment
+                comment=comment,
             )
 
             student.group = None
@@ -838,7 +869,9 @@ def student_dismissal(request, student_id):
 
             messages.success(
                 request,
-                f"✅ {student.last_name} {student.first_name} отчислен. Приказ №{order_number if order_number else '—'}. Исключён из группы {old_group}."
+                f"✅ {student.last_name} {student.first_name} отчислен. "
+                f"Приказ №{order_number if order_number else '—'}. "
+                f"Исключён из группы {old_group}."
             )
             return redirect(REDIRECT_STUDENT_DETAIL, student_id=student.id)
         else:
@@ -851,7 +884,7 @@ def student_dismissal(request, student_id):
     return render(request, 'students/student_dismissal.html', {
         'student': student,
         'form': form,
-        'title': 'Отчисление учащегося'
+        'title': 'Отчисление учащегося',
     })
 
 
@@ -883,9 +916,9 @@ def contract_extension(request, student_id):
                     'new_start_date': new_start_date.strftime('%d.%m.%Y'),
                     'new_end_date': new_end_date.strftime('%d.%m.%Y'),
                     'is_paid': 'Платное' if is_paid else 'Бесплатное',
-                    'comment': comment
+                    'comment': comment,
                 },
-                comment=comment
+                comment=comment,
             )
 
             messages.success(request, f'✅ Договор продлён! Новый номер: {new_contract_number}')
@@ -937,7 +970,7 @@ def _handle_group_change(student, new_group_id, old_group_id, request):
                 details={
                     'from_group': old_group_number,
                     'to_group_id': target_group.id,
-                    'to_group': target_group.group_number
+                    'to_group': target_group.group_number,
                 }
             )
             return True
@@ -1072,7 +1105,7 @@ def get_students_api(request):
 
         suggestions_list.append({
             'id': s.id,
-            'suggestion_text': display_text
+            'suggestion_text': display_text,
         })
 
     return JsonResponse({'rows': rows_html, 'suggestions': suggestions_list})
@@ -1103,7 +1136,7 @@ def update_service_value(request, student_id):
                 'service_id': service.id,
                 'service_name': service.name,
                 'field_type': field_type,
-                'value': value
+                'value': value,
             }
         }
 
@@ -1141,7 +1174,7 @@ def toggle_service(request, student_id):
             'details': {
                 'service_id': service.id,
                 'service_name': service.name,
-                'enabled': enabled
+                'enabled': enabled,
             }
         }
 
@@ -1166,10 +1199,9 @@ def save_services(request, student_id):
     Сохраняет все платные услуги студента.
 
     🔥 Проверки совместимости:
-      - Если указан «Мастер по вождению» и «Марка автомобиля» —
-        мастер ОБЯЗАН иметь машину этой марки.
-      - Если марка не совпадает — возвращаем 400 с описанием конфликта,
-        НЕ сохраняем.
+      - Мастер + Марка автомобиля: мастер обязан иметь машину этой марки.
+      - Мастер + Пол мастера: пол мастера совпадает.
+      - Мастер + КПП: коробка машины мастера совпадает с пожеланием.
     """
     student = get_object_or_404(Student, pk=student_id)
 
@@ -1179,8 +1211,7 @@ def save_services(request, student_id):
 
         from reference.models import PaidService
 
-        # 🔥 1. Сначала соберём финальные значения услуг
-        #     (не пишем в БД, пока не прошли все проверки)
+        # 1. Собираем финальные значения
         final_master_id = None
         final_car_brand = None
         final_master_gender = None
@@ -1191,7 +1222,6 @@ def save_services(request, student_id):
             service_name = service_data.get('service_name')
             values = service_data.get('values', {})
 
-            # Извлекаем мастера / марку
             if service_name == 'Мастер по вождению':
                 final_master_id = _extract_master_id_from_values(values)
             elif service_name == 'Марка автомобиля':
@@ -1205,7 +1235,7 @@ def save_services(request, student_id):
                 'values': values,
             })
 
-        # 🔥 2. Проверяем совместимость мастера и марки
+        # 2. Проверка мастер + марка
         ok, err = _validate_master_brand_compatibility(final_master_id, final_car_brand)
         if not ok:
             return JsonResponse({
@@ -1216,7 +1246,7 @@ def save_services(request, student_id):
                 'car_brand': final_car_brand,
             }, status=400)
 
-        # 🔥 2б. Если указан мастер и пол — проверяем, что пол мастера совпадает
+        # 2б. Проверка мастер + пол
         if final_master_id and final_master_gender:
             master = Master.objects.filter(pk=int(final_master_id)).first()
             if master and master.gender and master.gender != final_master_gender:
@@ -1232,8 +1262,7 @@ def save_services(request, student_id):
                     'master_gender': final_master_gender,
                 }, status=400)
 
-        # 🔥 2в. Если указан мастер и у студента задана коробка —
-        #        проверяем, что КПП машины мастера совпадает
+        # 2в. Проверка мастер + КПП
         if final_master_id and student.gearbox_type:
             GEARBOX_MAP = {
                 'manual': 'MT',
@@ -1256,7 +1285,7 @@ def save_services(request, student_id):
                     'master_id': final_master_id,
                 }, status=400)
 
-        # 🔥 3. Все проверки прошли — сохраняем услуги
+        # 3. Все проверки прошли — сохраняем
         current_log = student.activity_log or []
         current_log = [
             entry for entry in current_log

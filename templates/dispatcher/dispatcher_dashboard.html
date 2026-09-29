@@ -5,316 +5,284 @@
 
 {% block extra_css %}
 <style>
-.dispatcher-container {
-    max-width: 1400px;
-    margin: 0 auto;
-    padding: 20px;
-}
+.dispatcher-container { width: 100%; max-width: none; margin: 0; padding: 20px; box-sizing: border-box; }
+.dispatcher-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+.dispatcher-title { font-size: 28px; font-weight: 700; color: white; margin: 0; }
 
-/* 🔹 Заголовок */
-.dispatcher-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 24px;
-}
-
-.dispatcher-title {
-    font-size: 28px;
-    font-weight: 700;
-    color: white;
-    margin: 0;
-}
-
-/* 🔹 Сетка статистики */
-.stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 20px;
-    margin-bottom: 24px;
-}
-
-.stat-card {
-    background: white;
-    border-radius: 12px;
-    padding: 20px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    transition: transform 0.2s;
-}
-
-.stat-card:hover {
-    transform: translateY(-2px);
-}
-
-.stat-icon {
-    width: 56px;
-    height: 56px;
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 28px;
-    flex-shrink: 0;
-}
-
+/* Статистика */
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; margin-bottom: 24px; }
+.stat-card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); display: flex; align-items: center; gap: 16px; }
+.stat-icon { width: 56px; height: 56px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 28px; flex-shrink: 0; }
 .stat-icon.blue { background: #dbeafe; }
 .stat-icon.green { background: #dcfce7; }
 .stat-icon.yellow { background: #fef3c7; }
-.stat-icon.red { background: #fee2e2; }
+.stat-icon.purple { background: #e9d5ff; }
+.stat-info { flex: 1; }
+.stat-value { font-size: 28px; font-weight: 700; color: #1e293b; line-height: 1; margin-bottom: 4px; }
+.stat-label { font-size: 13px; color: #64748b; }
 
-.stat-info {
-    flex: 1;
-}
+/* Сетка */
+.dashboard-grid { display: grid; grid-template-columns: 1fr; gap: 20px; margin-bottom: 24px; }
+@media (max-width: 1200px) { .dashboard-grid { grid-template-columns: 1fr; } }
 
-.stat-value {
-    font-size: 28px;
-    font-weight: 700;
-    color: #1e293b;
-    line-height: 1;
-    margin-bottom: 4px;
-}
+/* Карточки */
+.section-card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+.section-title { font-size: 16px; font-weight: 700; color: #1e293b; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 2px solid #f1f5f9; display: flex; align-items: center; gap: 8px; }
 
-.stat-label {
-    font-size: 13px;
-    color: #64748b;
-}
+/* Поиск */
+.search-bar { background: white; border-radius: 12px; padding: 16px 20px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+.search-row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+.search-group { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 180px; }
+.search-label { font-size: 12px; font-weight: 600; color: #64748b; }
+.search-input, .search-select { padding: 10px 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; background: white; }
+.search-input:focus, .search-select:focus { outline: none; border-color: #3b82f6; }
 
-/* 🔹 Двухколоночная сетка */
-.dashboard-grid {
-    display: grid;
-    grid-template-columns: 2fr 1fr;
-    gap: 20px;
-    margin-bottom: 24px;
-}
+/* Списки */
+.book-list { display: flex; flex-direction: column; gap: 10px; max-height: 600px; overflow-y: auto; }
+.book-item { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; background: #f8fafc; border-radius: 8px; border-left: 4px solid #8b5cf6; transition: all 0.2s; text-decoration: none; color: inherit; }
+.book-item:hover { background: #f1f5f9; transform: translateX(2px); box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+.book-item.rs { border-left-color: #3b82f6; }
+.book-info { flex: 1; }
+.book-name { font-weight: 600; color: #1e293b; font-size: 14px; margin-bottom: 4px; }
+.book-details { font-size: 12px; color: #64748b; display: flex; gap: 12px; flex-wrap: wrap; }
+.book-stats { display: flex; gap: 12px; align-items: center; }
+.book-stat { text-align: center; padding: 4px 10px; background: white; border-radius: 6px; border: 1px solid #e2e8f0; }
+.book-stat-value { font-size: 14px; font-weight: 700; color: #3b82f6; }
+.book-stat-label { font-size: 10px; color: #64748b; }
 
-@media (max-width: 1200px) {
-    .dashboard-grid {
-        grid-template-columns: 1fr;
-    }
-}
-
-/* 🔹 Карточки секций */
-.section-card {
-    background: white;
-    border-radius: 12px;
-    padding: 20px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-}
-
-.section-title {
-    font-size: 16px;
-    font-weight: 700;
-    color: #1e293b;
-    margin-bottom: 16px;
-    padding-bottom: 12px;
-    border-bottom: 2px solid #f1f5f9;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-/* 🔹 Список путевых листов */
-.route-sheet-list {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    max-height: 500px;
-    overflow-y: auto;
-}
-
-.route-sheet-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px 16px;
-    background: #f8fafc;
-    border-radius: 8px;
-    border-left: 4px solid #3b82f6;
-    transition: all 0.2s;
-}
-
-.route-sheet-item:hover {
-    background: #f1f5f9;
-    transform: translateX(2px);
-}
-
-.route-sheet-item.status-completed { border-left-color: #10b981; }
-.route-sheet-item.status-in_progress { border-left-color: #f59e0b; }
-.route-sheet-item.status-cancelled { border-left-color: #ef4444; }
-
-.route-sheet-info {
-    flex: 1;
-}
-
-.route-sheet-master {
-    font-weight: 600;
-    color: #1e293b;
-    font-size: 14px;
-    margin-bottom: 4px;
-}
-
-.route-sheet-details {
-    font-size: 12px;
-    color: #64748b;
-    display: flex;
-    gap: 12px;
-    flex-wrap: wrap;
-}
-
-.route-sheet-actions {
-    display: flex;
-    gap: 6px;
-}
-
-/*  Бейджи статусов */
-.badge {
-    display: inline-block;
-    padding: 4px 10px;
-    border-radius: 6px;
-    font-size: 11px;
-    font-weight: 600;
-}
-
+/* Бейджи */
+.badge { display: inline-block; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; }
+.badge-purple { background: #e9d5ff; color: #6b21a8; }
 .badge-planned { background: #dbeafe; color: #1e40af; }
 .badge-in_progress { background: #fef3c7; color: #92400e; }
 .badge-completed { background: #dcfce7; color: #166534; }
 .badge-cancelled { background: #fee2e2; color: #991b1b; }
 
-/* 🔹 Быстрые действия */
-.quick-actions {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
+/* Кнопки */
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 10px 20px; border: none; border-radius: 8px; font-weight: 600; font-size: 14px; cursor: pointer; text-decoration: none; transition: all 0.2s; }
+.btn-primary { background: #3b82f6; color: white; }
+.btn-primary:hover { background: #2563eb; }
+.btn-purple { background: #8b5cf6; color: white; }
+.btn-purple:hover { background: #7c3aed; }
+.btn-secondary { background: #e2e8f0; color: #475569; }
+.btn-secondary:hover { background: #cbd5e1; }
+.btn-danger { background: #ef4444; color: white; }
+.btn-danger:hover { background: #dc2626; }
+.btn-danger:disabled { background: #fca5a5; cursor: not-allowed; opacity: 0.7; }
 
-.quick-action-btn {
-    display: flex;
+/* Пустое состояние */
+.empty-state { text-align: center; padding: 40px 20px; color: #94a3b8; }
+.empty-state-icon { font-size: 48px; margin-bottom: 12px; }
+
+/* Скроллбар */
+.book-list::-webkit-scrollbar { width: 6px; }
+.book-list::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 3px; }
+.book-list::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+
+/* =================================================================== */
+/* 🔹 Плавающая кнопка «Удалить» */
+/* =================================================================== */
+.fab-delete {
+    display: inline-flex;
     align-items: center;
-    gap: 12px;
-    padding: 14px 16px;
-    background: #f8fafc;
-    border: 2px solid #e2e8f0;
-    border-radius: 8px;
-    text-decoration: none;
-    color: #1e293b;
-    font-weight: 600;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 12px 24px;
+    background: #ef4444;
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-weight: 700;
     font-size: 14px;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.25);
     transition: all 0.2s;
+    margin-left: auto;    /* ← прижимает кнопку вправо */
+    margin-top: 8px;
+    margin-bottom: 24px;
 }
 
-.quick-action-btn:hover {
-    border-color: #3b82f6;
-    background: #eff6ff;
-    transform: translateX(2px);
+/* Обёртка для выравнивания по правому краю, если кнопка не во flex-контейнере */
+.fab-delete-wrapper {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 8px;
 }
 
-.quick-action-icon {
-    width: 36px;
-    height: 36px;
-    border-radius: 8px;
-    background: white;
+.fab-delete:hover {
+    background: #dc2626;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.35);
+}
+.fab-delete:active { transform: translateY(0); }
+
+/* =================================================================== */
+/* 🔹 Модалка удаления */
+/* =================================================================== */
+.del-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.55);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 18px;
+    z-index: 2000;
+    padding: 20px;
 }
-
-/* 🔹 Кнопки */
-.btn {
-    display: inline-flex;
+.del-modal-content {
+    background: white;
+    border-radius: 14px;
+    padding: 24px;
+    width: 100%;
+    max-width: 720px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.35);
+    animation: delModalIn 0.2s ease;
+}
+@keyframes delModalIn {
+    from { opacity: 0; transform: scale(0.96); }
+    to { opacity: 1; transform: scale(1); }
+}
+.del-modal-header {
+    display: flex;
+    justify-content: space-between;
     align-items: center;
-    gap: 6px;
-    padding: 10px 20px;
-    border: none;
+    margin-bottom: 16px;
+    padding-bottom: 14px;
+    border-bottom: 2px solid #f1f5f9;
+}
+.del-modal-header h2 { font-size: 18px; font-weight: 700; color: #1e293b; margin: 0; }
+.del-modal-close { background: none; border: none; font-size: 28px; cursor: pointer; color: #64748b; line-height: 1; padding: 0 6px; }
+.del-modal-close:hover { color: #dc2626; }
+
+/* Предупреждения */
+.del-warning {
+    background: #fef3c7;
+    border-left: 4px solid #f59e0b;
+    padding: 12px 16px;
     border-radius: 8px;
-    font-weight: 600;
+    color: #92400e;
+    font-size: 13px;
+    line-height: 1.5;
+    margin-bottom: 16px;
+}
+.del-warning-danger {
+    background: #fee2e2;
+    border-left-color: #dc2626;
+    color: #991b1b;
+}
+
+/* Фильтры */
+.del-filters { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+@media (max-width: 600px) { .del-filters { grid-template-columns: 1fr; } }
+.del-filter-group { display: flex; flex-direction: column; gap: 4px; }
+.del-filter-group label { font-size: 12px; font-weight: 600; color: #475569; }
+.del-input {
+    padding: 9px 12px;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
     font-size: 14px;
+    background: white;
+    width: 100%;
+    box-sizing: border-box;
+}
+.del-input:focus { outline: none; border-color: #3b82f6; }
+
+/* Результаты поиска */
+.del-results {
+    max-height: 320px;
+    overflow-y: auto;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 8px;
+    margin-bottom: 16px;
+    min-height: 100px;
+}
+.del-empty { text-align: center; padding: 40px 20px; color: #94a3b8; font-size: 13px; }
+.del-result-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 14px;
+    border-radius: 8px;
     cursor: pointer;
-    text-decoration: none;
-    transition: all 0.2s;
+    transition: all 0.15s;
+    border: 1px solid transparent;
+    margin-bottom: 6px;
+}
+.del-result-item:hover { background: #fef2f2; border-color: #fecaca; }
+.del-result-info { flex: 1; min-width: 0; }
+.del-result-name { font-weight: 700; color: #1e293b; font-size: 14px; margin-bottom: 4px; }
+.del-result-details { font-size: 12px; color: #64748b; display: flex; gap: 12px; flex-wrap: wrap; }
+.del-result-badge { background: #fee2e2; color: #991b1b; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+
+/* Кнопки модалки */
+.del-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px solid #f1f5f9;
 }
 
-.btn-primary {
-    background: #3b82f6;
-    color: white;
+/* Карточка подтверждения */
+.del-confirm-card {
+    background: #f8fafc;
+    border-radius: 10px;
+    padding: 16px 20px;
+    border: 1px solid #e2e8f0;
 }
+.del-confirm-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px dashed #e2e8f0;
+    font-size: 14px;
+}
+.del-confirm-row:last-child { border-bottom: none; }
+.del-confirm-label { color: #64748b; font-weight: 500; }
+.del-confirm-value { color: #1e293b; font-weight: 600; text-align: right; }
 
-.btn-primary:hover {
-    background: #2563eb;
-    transform: translateY(-1px);
-}
-
-.btn-success {
-    background: #10b981;
-    color: white;
-}
-
-.btn-success:hover {
-    background: #059669;
-}
-
-.btn-sm {
-    padding: 6px 12px;
-    font-size: 12px;
-}
-
-/* 🔹 Пустое состояние */
-.empty-state {
-    text-align: center;
-    padding: 40px 20px;
-    color: #94a3b8;
-}
-
-.empty-state-icon {
-    font-size: 48px;
-    margin-bottom: 12px;
-}
-
-/* 🔹 Скроллбар */
-.route-sheet-list::-webkit-scrollbar {
-    width: 6px;
-}
-
-.route-sheet-list::-webkit-scrollbar-track {
-    background: #f1f5f9;
-    border-radius: 3px;
-}
-
-.route-sheet-list::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
-    border-radius: 3px;
-}
+.del-checkbox { margin: 16px 0; font-size: 13px; color: #475569; }
+.del-checkbox label { display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+.del-checkbox input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; accent-color: #dc2626; }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="dispatcher-container">
 
-    <!-- 🔹 Заголовок -->
+    <!-- Заголовок -->
     <div class="dispatcher-header">
         <h1 class="dispatcher-title">🚗 Диспетчерская</h1>
-        <a href="{% url 'dispatcher:route_sheet_add' %}" class="btn btn-success">
-            ➕ Новый путевой лист
+        <a href="{% url 'dispatcher:individual_book_create' %}" class="btn btn-purple">
+            📗 Новая индивидуальная книжка
         </a>
     </div>
 
-    <!-- 🔹 Статистика -->
+    <!-- Статистика -->
     <div class="stats-grid">
         <div class="stat-card">
-            <div class="stat-icon blue">📋</div>
+            <div class="stat-icon purple">📗</div>
             <div class="stat-info">
-                <div class="stat-value">{{ today_count|default:0 }}</div>
-                <div class="stat-label">Путевых листов сегодня</div>
+                <div class="stat-value">{{ books_count|default:0 }}</div>
+                <div class="stat-label">Всего книжек</div>
             </div>
         </div>
         <div class="stat-card">
-            <div class="stat-icon yellow">📅</div>
+            <div class="stat-icon blue">👥</div>
             <div class="stat-info">
-                <div class="stat-value">{{ planned_count|default:0 }}</div>
-                <div class="stat-label">Запланировано</div>
+                <div class="stat-value">{{ active_books_count|default:0 }}</div>
+                <div class="stat-label">Активных учащихся</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon yellow">📋</div>
+            <div class="stat-info">
+                <div class="stat-value">{{ today_count|default:0 }}</div>
+                <div class="stat-label">Путевых листов сегодня</div>
             </div>
         </div>
         <div class="stat-card">
@@ -324,143 +292,503 @@
                 <div class="stat-label">Завершено сегодня</div>
             </div>
         </div>
-        <div class="stat-card">
-            <div class="stat-icon red">🚗</div>
-            <div class="stat-info">
-                <div class="stat-value">{{ active_masters_count|default:0 }}</div>
-                <div class="stat-label">Мастеров на линии</div>
-            </div>
-        </div>
     </div>
 
-    <!-- 🔹 Основной контент -->
+    <!-- Поиск и фильтры -->
+    <form method="GET" class="search-bar">
+        <div class="search-row">
+            <div class="search-group" style="flex: 2;">
+                <label class="search-label">🔍 Поиск по ФИО учащегося</label>
+                <input type="text" name="q" value="{{ query }}" class="search-input" placeholder="Введите фамилию или имя...">
+            </div>
+            <div class="search-group">
+                <label class="search-label">👥 Группа</label>
+                <select name="group" class="search-select">
+                    <option value="">Все группы</option>
+                    {% for group in groups %}
+                    <option value="{{ group.id }}" {% if group_filter == group.id|stringformat:"d" %}selected{% endif %}>
+                        {{ group.group_number }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="search-group">
+                <label class="search-label">🚗 Категория</label>
+                <select name="category" class="search-select">
+                    <option value="">Все категории</option>
+                    {% for cat in categories %}
+                    <option value="{{ cat.code }}" {% if category_filter == cat.code %}selected{% endif %}>
+                        {{ cat.code }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="search-group">
+                <label class="search-label">👨‍ Мастер ПОВ</label>
+                <select name="master" class="search-select">
+                    <option value="">Все мастера</option>
+                    {% for master in masters %}
+                    <option value="{{ master.id }}" {% if master_filter == master.id|stringformat:"d" %}selected{% endif %}>
+                        {{ master.short_name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="search-group" style="flex: 0; min-width: auto;">
+                <button type="submit" class="btn btn-primary">Найти</button>
+            </div>
+            {% if query or group_filter or category_filter or master_filter %}
+            <div class="search-group" style="flex: 0; min-width: auto;">
+                <a href="{% url 'dispatcher:dashboard' %}" class="btn btn-secondary">Сбросить</a>
+            </div>
+            {% endif %}
+        </div>
+    </form>
+
+    <!-- Основной контент -->
     <div class="dashboard-grid">
-
-        <!-- Левая колонка: Сегодняшние путевые листы -->
         <div class="section-card">
-            <div class="section-title">📋 Путевые листы на сегодня</div>
+            <div class="section-title">
+                📗 Индивидуальные книжки обучения управлению механическим транспортным средством.
+                {% if books.count %}
+                <span class="badge badge-purple" style="margin-left: auto;">{{ books.count }}</span>
+                {% endif %}
+            </div>
 
-            {% if today_route_sheets %}
-            <div class="route-sheet-list">
-                {% for rs in today_route_sheets %}
-                <div class="route-sheet-item status-{{ rs.status }}">
-                    <div class="route-sheet-info">
-                        <div class="route-sheet-master">
-                            {{ rs.master }}
-                            {% if rs.car %}
-                                <span style="color: #64748b; font-weight: normal;">• {{ rs.car }}</span>
-                            {% endif %}
-                        </div>
-                        <div class="route-sheet-details">
-                            {% if rs.start_time %}
-                                <span>🕐 {{ rs.start_time|time:"H:i" }} — {{ rs.end_time|time:"H:i"|default:"—" }}</span>
-                            {% endif %}
-                            {% if rs.duration_hours %}
-                                <span>⏱️ {{ rs.duration_hours }} ч.</span>
-                            {% endif %}
-                            {% if rs.students.count > 0 %}
-                                <span>👥 {{ rs.students.count }} студ.</span>
-                            {% endif %}
+            {% if books %}
+            <div class="book-list">
+                {% for book in books %}
+                <a href="{% url 'dispatcher:individual_book_edit' book.pk %}" class="book-item">
+                    <div class="book-info">
+                        <div class="book-name">{{ book.student.full_name }}</div>
+                        <div class="book-details">
+                            {% if book.group %}<span>👥 {{ book.group.group_number }}</span>{% endif %}
+                            {% if book.group and book.group.category %}<span>🚗 {{ book.group.category.code }}</span>{% endif %}
+                            {% if book.master %}<span>👨‍🏫 {{ book.master.short_name }}</span>{% endif %}
+                            {% if book.car %}<span>🚘 {{ book.car }}</span>{% endif %}
                         </div>
                     </div>
-                    <div style="display: flex; align-items: center; gap: 12px;">
-                        <span class="badge badge-{{ rs.status }}">
-                            {{ rs.get_status_display }}
-                        </span>
-                        <div class="route-sheet-actions">
-                            <a href="{% url 'dispatcher:route_sheet_edit' rs.pk %}" class="btn btn-primary btn-sm" title="Редактировать">
-                                ✏️
-                            </a>
+                    <div class="book-stats">
+                        <div class="book-stat">
+                            <div class="book-stat-value">{{ book.entries.count }}</div>
+                            <div class="book-stat-label">записей</div>
+                        </div>
+                        <div class="book-stat">
+                            <div class="book-stat-value">{{ book.total_hours }}</div>
+                            <div class="book-stat-label">часов</div>
                         </div>
                     </div>
-                </div>
+                </a>
                 {% endfor %}
             </div>
             {% else %}
             <div class="empty-state">
-                <div class="empty-state-icon"></div>
-                <div>Сегодня путевых листов нет</div>
-                <a href="{% url 'dispatcher:route_sheet_add' %}" class="btn btn-primary" style="margin-top: 16px;">
-                     Создать первый
+                <div class="empty-state-icon">📭</div>
+                <div>
+                    {% if query or group_filter or category_filter or master_filter %}
+                        Книжки не найдены по заданным фильтрам
+                    {% else %}
+                        Индивидуальных книжек пока нет
+                    {% endif %}
+                </div>
+                <a href="{% url 'dispatcher:individual_book_create' %}" class="btn btn-purple" style="margin-top: 16px;">
+                    📗 Создать первую
                 </a>
             </div>
             {% endif %}
         </div>
-
-        <!-- Правая колонка: Быстрые действия -->
-        <div class="section-card">
-            <div class="section-title">⚡ Быстрые действия</div>
-
-            <div class="quick-actions">
-                <a href="{% url 'dispatcher:route_sheet_add' %}" class="quick-action-btn">
-                    <div class="quick-action-icon"></div>
-                    <span>Новый путевой лист</span>
-                </a>
-
-                <a href="{% url 'dispatcher:route_sheet_list' %}" class="quick-action-btn">
-                    <div class="quick-action-icon">📋</div>
-                    <span>Все путевые листы</span>
-                </a>
-
-                <a href="{% url 'dispatcher:route_sheet_list' %}?status=planned" class="quick-action-btn">
-                    <div class="quick-action-icon">📅</div>
-                    <span>Запланированные</span>
-                </a>
-
-                <a href="{% url 'dispatcher:route_sheet_list' %}?status=in_progress" class="quick-action-btn">
-                    <div class="quick-action-icon">🚗</div>
-                    <span>В процессе</span>
-                </a>
-
-                <a href="{% url 'dispatcher:route_sheet_list' %}?status=completed&date_from={{ today|date:'Y-m-d' }}" class="quick-action-btn">
-                    <div class="quick-action-icon">✅</div>
-                    <span>Завершённые сегодня</span>
-                </a>
-            </div>
-        </div>
-
     </div>
 
-    <!-- 🔹 Ближайшие запланированные -->
-    <div class="section-card">
-        <div class="section-title">📅 Ближайшие запланированные</div>
+    <!-- =================================================================== -->
+    <!-- 🔹 КНОПКА «УДАЛИТЬ» -->
+    <!-- =================================================================== -->
 
-        {% if upcoming_route_sheets %}
-        <div class="route-sheet-list">
-            {% for rs in upcoming_route_sheets %}
-            <div class="route-sheet-item status-{{ rs.status }}">
-                <div class="route-sheet-info">
-                    <div class="route-sheet-master">
-                        {{ rs.master }}
-                        {% if rs.car %}
-                            <span style="color: #64748b; font-weight: normal;">• {{ rs.car }}</span>
-                        {% endif %}
+    <div class="fab-delete-wrapper">
+        <button type="button"
+                class="fab-delete"
+                id="fabDeleteBtn"
+                title="Удалить книжку">
+            🗑️ Удалить
+        </button>
+    </div>
+
+    <!-- =================================================================== -->
+    <!-- 🔹 МОДАЛКА: ПОИСК КНИЖКИ ДЛЯ УДАЛЕНИЯ -->
+    <!-- =================================================================== -->
+    <div id="deleteBookModal" class="del-modal-overlay" style="display:none;">
+        <div class="del-modal-content">
+            <div class="del-modal-header">
+                <h2>🗑️ Удаление индивидуальной книжки</h2>
+                <button type="button" class="del-modal-close" id="delModalCloseBtn">&times;</button>
+            </div>
+
+            <!-- Шаг 1: поиск -->
+            <div id="deleteSearchStep">
+                <div class="del-warning">
+                    ⚠️ <strong>Внимание!</strong> Удаление книжки <b>необратимо</b>.
+                    Все записи книги, часы и данные будут потеряны. Действие нельзя отменить.
+                </div>
+
+                <div class="del-filters">
+                    <div class="del-filter-group">
+                        <label>👥 Группа</label>
+                        <select id="delFilterGroup" class="del-input">
+                            <option value="">Все группы</option>
+                            {% for group in groups %}
+                            <option value="{{ group.id }}">{{ group.group_number }}</option>
+                            {% endfor %}
+                        </select>
                     </div>
-                    <div class="route-sheet-details">
-                        <span> {{ rs.date|date:"d.m.Y" }}</span>
-                        {% if rs.start_time %}
-                            <span>🕐 {{ rs.start_time|time:"H:i" }} — {{ rs.end_time|time:"H:i"|default:"—" }}</span>
-                        {% endif %}
+                    <div class="del-filter-group">
+                        <label>👨‍🏫 Мастер ПОВ</label>
+                        <select id="delFilterMaster" class="del-input">
+                            <option value="">Все мастера</option>
+                            {% for master in masters %}
+                            <option value="{{ master.id }}">{{ master.short_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="del-filter-group">
+                        <label>👤 ФИО учащегося</label>
+                        <input type="text"
+                               id="delFilterName"
+                               class="del-input"
+                               placeholder="Начните вводить ФИО..."
+                               autocomplete="off">
                     </div>
                 </div>
-                <div style="display: flex; align-items: center; gap: 12px;">
-                    <span class="badge badge-{{ rs.status }}">
-                        {{ rs.get_status_display }}
-                    </span>
-                    <a href="{% url 'dispatcher:route_sheet_edit' rs.pk %}" class="btn btn-primary btn-sm">
-                        ✏️
-                    </a>
+
+                <div id="delSearchResults" class="del-results">
+                    <div class="del-empty">Задайте фильтры или введите ФИО</div>
+                </div>
+
+                <div class="del-modal-actions">
+                    <button type="button" class="btn btn-secondary" id="delCancelBtn">Отмена</button>
+                    <button type="button" class="btn btn-primary" id="delSearchBtn">🔍 Найти</button>
                 </div>
             </div>
-            {% endfor %}
+
+            <!-- Шаг 2: подтверждение -->
+            <div id="deleteConfirmStep" style="display:none;">
+                <div class="del-warning del-warning-danger">
+                    ⚠️ Вы собираетесь <strong>безвозвратно удалить</strong> книжку:
+                </div>
+
+                <div class="del-confirm-card">
+                    <div class="del-confirm-row">
+                        <span class="del-confirm-label">👤 ФИО:</span>
+                        <span class="del-confirm-value" id="confirmStudentName">—</span>
+                    </div>
+                    <div class="del-confirm-row">
+                        <span class="del-confirm-label">👥 Группа:</span>
+                        <span class="del-confirm-value" id="confirmGroup">—</span>
+                    </div>
+                    <div class="del-confirm-row">
+                        <span class="del-confirm-label">👨‍🏫 Мастер:</span>
+                        <span class="del-confirm-value" id="confirmMaster">—</span>
+                    </div>
+                    <div class="del-confirm-row">
+                        <span class="del-confirm-label">📋 Записей:</span>
+                        <span class="del-confirm-value" id="confirmEntries">—</span>
+                    </div>
+                </div>
+
+                <div class="del-warning del-warning-danger" style="margin-top:14px;">
+                    Это действие <b>нельзя отменить</b>. Все выкатанные часы и записи по этому учащемуся исчезнут
+                    из отчётов и генерального плана.
+                </div>
+
+                <div class="del-checkbox">
+                    <label>
+                        <input type="checkbox" id="confirmUnderstand">
+                        Я понимаю, что действие необратимо
+                    </label>
+                </div>
+
+                <div class="del-modal-actions">
+                    <button type="button" class="btn btn-secondary" id="backToSearchBtn">← Назад</button>
+                    <button type="button" class="btn btn-danger" id="confirmDeleteBookBtn" disabled>
+                        🗑️ Удалить навсегда
+                    </button>
+                </div>
+            </div>
+
+            <!-- Шаг 3: результат -->
+            <div id="deleteResultStep" style="display:none;">
+                <div id="deleteResultContent"></div>
+                <div class="del-modal-actions">
+                    <button type="button" class="btn btn-primary" id="closeAndReloadBtn">Закрыть</button>
+                </div>
+            </div>
         </div>
-        {% else %}
-        <div class="empty-state">
-            <div class="empty-state-icon"></div>
-            <div>Нет запланированных путевых листов</div>
-        </div>
-        {% endif %}
     </div>
 
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    'use strict';
+
+    // =========================================================================
+    // 🔹 КОНСТАНТЫ — прямые URL, без url , чтобы не падать при отсутствии маршрутов
+    // =========================================================================
+    const URL_BOOK_SEARCH = '/dispatcher/api/book-search/';
+    const URL_BOOK_DELETE_TPL = '/dispatcher/individual-books/__ID__/delete/';
+    const CSRF_TOKEN = '{{ csrf_token }}';
+
+    let _pendingDeleteId = null;
+    let _pendingDeleteData = null;
+    let _searchTimer = null;
+
+    // =========================================================================
+    // 🔹 УТИЛИТЫ
+    // =========================================================================
+    function $(id) { return document.getElementById(id); }
+
+    // =========================================================================
+    // 🔹 МОДАЛКА — ОТКРЫТИЕ / ЗАКРЫТИЕ
+    // =========================================================================
+    function openDeleteBookModal() {
+        $('deleteSearchStep').style.display = 'block';
+        $('deleteConfirmStep').style.display = 'none';
+        $('deleteResultStep').style.display = 'none';
+        $('deleteBookModal').style.display = 'flex';
+
+        _pendingDeleteId = null;
+        _pendingDeleteData = null;
+
+        $('delFilterGroup').value = '';
+        $('delFilterMaster').value = '';
+        $('delFilterName').value = '';
+        $('delSearchResults').innerHTML =
+            '<div class="del-empty">Задайте фильтры или введите ФИО</div>';
+        $('confirmUnderstand').checked = false;
+        toggleConfirmButton();
+    }
+
+    function closeDeleteBookModal() {
+        $('deleteBookModal').style.display = 'none';
+    }
+
+    function closeAndReload() {
+        closeDeleteBookModal();
+        window.location.reload();
+    }
+
+    // =========================================================================
+    // 🔹 ПОИСК КНИЖЕК
+    // =========================================================================
+    function loadBookSearchResults() {
+        const q = $('delFilterName').value.trim();
+        const group = $('delFilterGroup').value;
+        const master = $('delFilterMaster').value;
+
+        let url = URL_BOOK_SEARCH + '?';
+        if (q) url += 'q=' + encodeURIComponent(q) + '&';
+        if (group) url += 'group=' + group + '&';
+        if (master) url += 'master=' + master;
+
+        const box = $('delSearchResults');
+        box.innerHTML = '<div class="del-empty">Загрузка…</div>';
+
+        fetch(url)
+            .then(r => r.json())
+            .then(data => {
+                const list = data.results || [];
+                if (!list.length) {
+                    box.innerHTML = '<div class="del-empty">Книжек не найдено</div>';
+                    return;
+                }
+                box.innerHTML = '';
+                list.forEach(item => {
+                    const div = document.createElement('div');
+                    div.className = 'del-result-item';
+                    div.innerHTML = `
+                        <div class="del-result-info">
+                            <div class="del-result-name">${escapeHtml(item.student_name)}</div>
+                            <div class="del-result-details">
+                                ${item.group ? `<span>👥 ${escapeHtml(item.group)}</span>` : ''}
+                                ${item.category ? `<span>🚗 ${escapeHtml(item.category)}</span>` : ''}
+                                ${item.master ? `<span>👨‍🏫 ${escapeHtml(item.master)}</span>` : ''}
+                                <span>📋 ${item.entries_count} записей</span>
+                            </div>
+                        </div>
+                        <span class="del-result-badge">Выбрать</span>
+                    `;
+                    div.addEventListener('click', () => selectBookForDelete(item));
+                    box.appendChild(div);
+                });
+            })
+            .catch(err => {
+                console.error('[book-search] error:', err);
+                box.innerHTML = '<div class="del-empty">Ошибка загрузки</div>';
+            });
+    }
+
+    function escapeHtml(s) {
+        if (s == null) return '';
+        return String(s)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    // =========================================================================
+    // 🔹 ВЫБОР КНИЖКИ
+    // =========================================================================
+    function selectBookForDelete(item) {
+        _pendingDeleteId = item.id;
+        _pendingDeleteData = item;
+
+        $('confirmStudentName').textContent = item.student_name || '—';
+        $('confirmGroup').textContent = item.group || '—';
+        $('confirmMaster').textContent = item.master || '—';
+        $('confirmEntries').textContent = (item.entries_count || 0) + ' шт.';
+
+        $('deleteSearchStep').style.display = 'none';
+        $('deleteConfirmStep').style.display = 'block';
+
+        $('confirmUnderstand').checked = false;
+        toggleConfirmButton();
+    }
+
+    function backToSearch() {
+        $('deleteSearchStep').style.display = 'block';
+        $('deleteConfirmStep').style.display = 'none';
+        $('deleteResultStep').style.display = 'none';
+    }
+
+    function toggleConfirmButton() {
+        const checked = $('confirmUnderstand').checked;
+        $('confirmDeleteBookBtn').disabled = !checked;
+    }
+
+    // =========================================================================
+    // 🔹 УДАЛЕНИЕ
+    // =========================================================================
+    function performBookDelete() {
+        if (!_pendingDeleteId) {
+            console.warn('[book-delete] _pendingDeleteId is null');
+            return;
+        }
+        if (!$('confirmUnderstand').checked) return;
+
+        const btn = $('confirmDeleteBookBtn');
+        btn.disabled = true;
+        btn.textContent = 'Удаление…';
+
+        const url = URL_BOOK_DELETE_TPL.replace('__ID__', _pendingDeleteId);
+
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': CSRF_TOKEN,
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                $('deleteConfirmStep').style.display = 'none';
+                $('deleteResultStep').style.display = 'block';
+                $('deleteResultContent').innerHTML = `
+                    <div style="text-align:center; padding:30px 10px;">
+                        <div style="font-size:56px; margin-bottom:14px;">✅</div>
+                        <h3 style="color:#166534; margin-bottom:8px;">Книжка удалена</h3>
+                        <p style="color:#64748b; font-size:14px; margin:0;">
+                            ${escapeHtml(data.message || 'Успешно')}
+                        </p>
+                    </div>
+                `;
+            } else {
+                alert('❌ Ошибка: ' + (data.error || 'Неизвестная ошибка'));
+                btn.disabled = false;
+                btn.textContent = '🗑️ Удалить навсегда';
+            }
+        })
+        .catch(err => {
+            console.error('[book-delete] error:', err);
+            alert('❌ Ошибка при удалении');
+            btn.disabled = false;
+            btn.textContent = '🗑️ Удалить навсегда';
+        });
+    }
+
+    // =========================================================================
+    // 🔹 НАВЕШИВАНИЕ ОБРАБОТЧИКОВ
+    // =========================================================================
+    document.addEventListener('DOMContentLoaded', function() {
+        // Кнопка «Удалить» (FAB)
+        const fab = $('fabDeleteBtn');
+        if (fab) {
+            fab.addEventListener('click', function(e) {
+                e.preventDefault();
+                openDeleteBookModal();
+            });
+        } else {
+            console.warn('[dashboard] #fabDeleteBtn не найден в DOM');
+        }
+
+        // Закрытие модалки
+        const closeBtn = $('delModalCloseBtn');
+        if (closeBtn) closeBtn.addEventListener('click', closeDeleteBookModal);
+
+        const cancelBtn = $('delCancelBtn');
+        if (cancelBtn) cancelBtn.addEventListener('click', closeDeleteBookModal);
+
+        // Поиск
+        const searchBtn = $('delSearchBtn');
+        if (searchBtn) searchBtn.addEventListener('click', loadBookSearchResults);
+
+        // Live-поиск
+        const nameInput = $('delFilterName');
+        if (nameInput) {
+            nameInput.addEventListener('input', function() {
+                clearTimeout(_searchTimer);
+                _searchTimer = setTimeout(loadBookSearchResults, 300);
+            });
+        }
+        const gSel = $('delFilterGroup');
+        if (gSel) gSel.addEventListener('change', loadBookSearchResults);
+
+        const mSel = $('delFilterMaster');
+        if (mSel) mSel.addEventListener('change', loadBookSearchResults);
+
+        // Подтверждение
+        const understand = $('confirmUnderstand');
+        if (understand) understand.addEventListener('change', toggleConfirmButton);
+
+        const backBtn = $('backToSearchBtn');
+        if (backBtn) backBtn.addEventListener('click', backToSearch);
+
+        const confirmBtn = $('confirmDeleteBookBtn');
+        if (confirmBtn) confirmBtn.addEventListener('click', performBookDelete);
+
+        // Закрыть после успеха
+        const closeReload = $('closeAndReloadBtn');
+        if (closeReload) closeReload.addEventListener('click', closeAndReload);
+
+        // ESC — закрыть модалку
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && $('deleteBookModal').style.display === 'flex') {
+                closeDeleteBookModal();
+            }
+        });
+    });
+
+    // Экспорт в window — на случай inline-вызовов из HTML
+    window.openDeleteBookModal = openDeleteBookModal;
+    window.closeDeleteBookModal = closeDeleteBookModal;
+    window.loadBookSearchResults = loadBookSearchResults;
+    window.selectBookForDelete = selectBookForDelete;
+    window.backToSearch = backToSearch;
+    window.toggleConfirmButton = toggleConfirmButton;
+    window.performBookDelete = performBookDelete;
+    window.closeAndReload = closeAndReload;
+})();
+</script>
 {% endblock %}

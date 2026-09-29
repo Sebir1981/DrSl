@@ -12,6 +12,7 @@ from django.utils import timezone
 from django.db import transaction, IntegrityError
 from django.db.models import Sum, F, Count, Q
 from django.db.models.functions import TruncDate
+from dispatcher.models import BookEntry
 
 from .models import (
     MasterPlanGroup,
@@ -30,7 +31,6 @@ logger = logging.getLogger(__name__)
 # 🔹 КОНСТАНТЫ
 # =========================================================================
 
-# 🔥 Соответствие: Student.gearbox_type → Car.transmission
 GEARBOX_MAP = {
     'manual': 'MT',
     'auto': 'AT',
@@ -212,14 +212,100 @@ def _get_student_service_prefs(student):
 
 
 # =========================================================================
+# 🔹 РАСЧЁТ ВЫКАТАННЫХ (УЧЕНИКИ И ЧАСЫ)
+# =========================================================================
+
+def _group_driven_hours(group_id):
+    """Сумма выкатанных часов по всем книжкам группы (из BookEntry.duration_hours_cache)."""
+    from dispatcher.models import BookEntry
+
+    result = (
+        BookEntry.objects
+        .filter(book__group_id=group_id)
+        .aggregate(total=Sum('duration_hours_cache'))
+        .get('total')
+    )
+    return round(float(result or 0), 1)
+
+
+def _master_driven_hours(master_id, group_ids=None):
+    """Сумма выкатанных часов по мастеру (опционально — по группам)."""
+    from dispatcher.models import BookEntry
+
+    qs = BookEntry.objects.filter(book__master_id=master_id)
+    if group_ids:
+        qs = qs.filter(book__group_id__in=group_ids)
+
+    result = qs.aggregate(total=Sum('duration_hours_cache')).get('total')
+    return round(float(result or 0), 1)
+
+
+def _master_group_driven_hours(master_id, group_id):
+    """Сумма выкатанных часов мастером в группе — через StudentMasterAssignment."""
+    from dispatcher.models import BookEntry
+    from master_plan.models import StudentMasterAssignment
+    from django.db.models import Sum
+
+    student_ids = StudentMasterAssignment.objects.filter(
+        plan_group__group_id=group_id,
+        master_id=master_id,
+    ).values_list('student_id', flat=True)
+
+    result = BookEntry.objects.filter(
+        book__student_id__in=student_ids,
+        book__group_id=group_id,
+    ).aggregate(total=Sum('duration_hours_cache')).get('total')
+
+    return round(float(result or 0), 1)
+
+
+def _driven_students_in_group(group_id, hours_per_student):
+    """
+    Сколько учеников группы полностью выкатали вождение
+    (>= hours_per_student − 1 ч на экзамен).
+    """
+    required = float(hours_per_student or 0) - 1.0
+    if required <= 0:
+        required = 0.0
+
+    return Student.objects.filter(
+        group_id=group_id,
+        driving_hours_completed__gte=required,
+    ).count()
+
+
+def _driven_students_for_master_group(master_id, group_id, hours_per_student):
+    """
+    Сколько учеников ЭТОГО мастера в ЭТОЙ группе выкатали вождение.
+    Через StudentMasterAssignment — чтобы отнести только к этому мастеру.
+    """
+    required = float(hours_per_student or 0) - 1.0
+    if required <= 0:
+        required = 0.0
+
+    assignments = (
+        StudentMasterAssignment.objects
+        .filter(
+            plan_group__group_id=group_id,
+            master_id=master_id,
+        )
+        .select_related('student')
+    )
+
+    count = 0
+    for a in assignments:
+        completed = float(a.student.driving_hours_completed or 0)
+        if completed >= required:
+            count += 1
+    return count
+
+
+# =========================================================================
 # 🔹 АВТОРАСПРЕДЕЛЕНИЕ И ПЕРЕСЧЁТ АГРЕГАТА
 # =========================================================================
 
 def _auto_assign_masters_from_services(plan_group, created_by=None):
-    """
-    Автоматически распределяет студентов по мастерам из платных услуг.
-    Логирует первичное назначение в StudentReassignmentLog (reason='auto_service').
-    """
+    """Автоматически распределяет студентов по мастерам из платных услуг."""
     group = plan_group.group
 
     assigned_student_ids = set(
@@ -259,6 +345,9 @@ def _auto_assign_masters_from_services(plan_group, created_by=None):
                 'is_auto': True,
             },
         )
+
+        student.master = master
+        student.save(update_fields=['master'])
 
         StudentReassignmentLog.objects.create(
             student=student,
@@ -328,25 +417,42 @@ def master_plan_dashboard(request):
 
     masters = MasterPouts.objects.all().order_by('last_name', 'first_name')
 
-    active_plan_group_ids = MasterPlanGroup.objects.filter(
-        is_archived=False
-    ).values_list('group_id', flat=True)
+    # Исключаем ВСЕ группы, которые когда-либо были в плане:
+    # и активные, и архивные — их нельзя добавлять повторно
+    plan_group_ids = MasterPlanGroup.objects.values_list('group_id', flat=True)
 
     all_groups = Group.objects.filter(
         status='active'
     ).exclude(
-        pk__in=active_plan_group_ids
+        pk__in=plan_group_ids
     ).order_by('group_number')
 
+    # =====================================================================
+    # ОБЩАЯ СТАТИСТИКА — в часах и учениках
+    # =====================================================================
     total_groups = len(plan_groups)
     total_students = sum(pg.total_students for pg in plan_groups)
-    total_hours = sum(pg.total_hours for pg in plan_groups)
-    total_driven = sum(pg.driven_hours for pg in plan_groups)
-    total_remaining = sum(pg.remaining_hours for pg in plan_groups)
+    total_hours = round(sum(pg.total_hours for pg in plan_groups), 1)
 
-    # ============================================================
-    # СТАТИСТИКА ПО МАСТЕРАМ (с разбивкой по группам)
-    # ============================================================
+    # ✅ Выкатано часов — сумма по всем группам
+    total_driven_hours = round(
+        sum(pg.driven_hours for pg in plan_groups), 1
+    )
+    total_remaining_hours = round(
+        max(0.0, total_hours - total_driven_hours), 1
+    )
+
+    # ✅ Выкатано учеников — для справки
+    total_driven_students = 0
+    for pg in plan_groups:
+        total_driven_students += _driven_students_in_group(
+            pg.group_id, pg.hours_per_student
+        )
+    total_remaining_students = max(0, total_students - total_driven_students)
+
+    # =====================================================================
+    # СТАТИСТИКА ПО МАСТЕРАМ (в часах)
+    # =====================================================================
     masters_stats = []
     for master in masters:
         distributions = (
@@ -358,49 +464,58 @@ def master_plan_dashboard(request):
         master_total_students = 0
         master_total_hours = 0
         master_driven_hours = 0
-
         groups_breakdown = []
 
         for dist in distributions:
             students_count = dist.students_count
+            if students_count <= 0:
+                continue
+
             master_total_students += students_count
 
             hours_per_student = float(dist.plan_group.hours_per_student)
-            group_hours = students_count * hours_per_student
-            master_total_hours += group_hours
+            group_plan_hours = students_count * hours_per_student
+            master_total_hours += group_plan_hours
 
-            driven_students = dist.completed_count
-            master_driven_hours += driven_students * hours_per_student
+            group_id = dist.plan_group.group_id
+            cell_driven_hours = _master_group_driven_hours(master.id, group_id)
+            master_driven_hours += cell_driven_hours
+
+            gn = dist.plan_group.group.group_number
+            try:
+                sort_key = (0, int(gn))
+            except (TypeError, ValueError):
+                sort_key = (1, str(gn))
 
             groups_breakdown.append({
-                'group_number': dist.plan_group.group.group_number,
+                'group_number': gn,
                 'students_count': students_count,
+                'plan_hours': round(group_plan_hours, 1),
+                'driven_hours': cell_driven_hours,
+                'sort_key': sort_key,
             })
 
-        assigned_ids = {d.plan_group_id for d in distributions}
-        for pg in plan_groups:
-            if pg.pk not in assigned_ids:
-                groups_breakdown.append({
-                    'group_number': pg.group.group_number,
-                    'students_count': 0,
-                })
+        groups_breakdown.sort(key=lambda x: x['sort_key'])
+        for g in groups_breakdown:
+            g.pop('sort_key', None)
 
-        groups_breakdown.sort(key=lambda x: str(x['group_number']))
-
-        master_remaining_hours = max(0, master_total_hours - master_driven_hours)
+        master_driven_hours = round(master_driven_hours, 1)
+        master_remaining_hours = round(
+            max(0.0, master_total_hours - master_driven_hours), 1
+        )
 
         masters_stats.append({
             'master': master,
             'total_students': master_total_students,
-            'total_hours': master_total_hours,
+            'total_hours': round(master_total_hours, 1),
             'driven_hours': master_driven_hours,
             'remaining_hours': master_remaining_hours,
             'groups_breakdown': groups_breakdown,
         })
 
-    # ============================================================
-    # РАСПРЕДЕЛЕНИЕ И ПРИЗНАК «ПОЛНОСТЬЮ РАСПРЕДЕЛЕНА»
-    # ============================================================
+    # =====================================================================
+    # РАСПРЕДЕЛЕНИЕ + СТАТИСТИКА ПО КАЖДОЙ ГРУППЕ
+    # =====================================================================
     for pg in plan_groups:
         pg.distributed_count = (
             MasterPlanDistribution.objects
@@ -414,9 +529,16 @@ def master_plan_dashboard(request):
             and pg.distributed_count >= pg.total_students
         )
 
-    # ============================================================
+        pg.driven_students_real = _driven_students_in_group(
+            pg.group_id, pg.hours_per_student
+        )
+        pg.remaining_students_real = max(
+            0, pg.total_students - pg.driven_students_real
+        )
+
+    # =====================================================================
     # МАТРИЦА
-    # ============================================================
+    # =====================================================================
     matrix_rows = []
     for master in masters:
         dist_dict = {d.plan_group_id: d for d in master.distributions.all()}
@@ -425,11 +547,21 @@ def master_plan_dashboard(request):
         for plan_group in plan_groups:
             dist = dist_dict.get(plan_group.pk)
 
+            hours_per_student = float(plan_group.hours_per_student)
+            cell_driven_students = _driven_students_for_master_group(
+                master.id, plan_group.group_id, hours_per_student
+            )
+            cell_driven_hours = _master_group_driven_hours(
+                master.id, plan_group.group_id
+            )
+
             row['cells'].append({
                 'plan_group': plan_group,
                 'dist': dist,
                 'has_distribution': dist is not None,
                 'auto_assigned': dist.auto_assigned if dist else False,
+                'driven_students_real': cell_driven_students,
+                'driven_hours_real': cell_driven_hours,
             })
 
         matrix_rows.append(row)
@@ -442,8 +574,10 @@ def master_plan_dashboard(request):
         'total_groups': total_groups,
         'total_students': total_students,
         'total_hours': total_hours,
-        'total_driven': total_driven,
-        'total_remaining': total_remaining,
+        'total_driven_hours': total_driven_hours,
+        'total_remaining_hours': total_remaining_hours,
+        'total_driven_students': total_driven_students,
+        'total_remaining_students': total_remaining_students,
         'masters_stats': masters_stats,
         'matrix_rows': matrix_rows,
     }
@@ -553,7 +687,7 @@ def add_group_to_plan(request):
 @require_POST
 @transaction.atomic
 def update_distribution(request):
-    """Обновление агрегата распределения из матрицы (ручной input)."""
+    """Обновление агрегата распределения из матрицы."""
     master_id = request.POST.get('master_id')
     plan_group_id = request.POST.get('plan_group_id')
     students_count_str = request.POST.get('students_count', 0)
@@ -599,11 +733,14 @@ def update_distribution(request):
         }
     )
 
+    # Пересчёт архивации: все ученики выкатали порог (plan − 1 ч)
+    threshold = float(plan_group.hours_per_student) - 1.0
+    if threshold < 0:
+        threshold = 0.0
+
     fully_driven_students_count = Student.objects.filter(
         group=plan_group.group,
-        driving_hours_required__gt=0
-    ).filter(
-        driving_hours_completed__gte=F('driving_hours_required')
+        driving_hours_completed__gte=threshold,
     ).count()
 
     is_fully_completed = (
@@ -617,14 +754,23 @@ def update_distribution(request):
         plan_group.save(update_fields=['is_archived', 'status'])
         logger.info(
             f"📦 Группа {plan_group.group.group_number} автоматически заархивирована "
-            f"(все {fully_driven_students_count} студентов выкатали часы)"
+            f"(все {fully_driven_students_count} студентов выкатали вождение)"
         )
+
+    cell_driven_hours = _master_group_driven_hours(master.id, plan_group.group_id)
+    cell_driven_students = _driven_students_for_master_group(
+        master.id, plan_group.group_id, plan_group.hours_per_student
+    )
 
     return JsonResponse({
         'success': True,
         'is_archived': plan_group.is_archived,
+        'is_fully_distributed': plan_group.total_students > 0 and
+                               new_total_distributed >= plan_group.total_students,
         'completed_count': dist.completed_count,
         'fully_driven_students': fully_driven_students_count,
+        'driven_hours': cell_driven_hours,
+        'driven_students': cell_driven_students,
         'total_students': plan_group.total_students,
         'message': 'Группа полностью выкатана и отправлена в архив'
                    if is_fully_completed else 'Распределение обновлено'
@@ -819,7 +965,6 @@ def open_distribution_modal(request, plan_group_id):
         allowed_master_ids = list(base_allowed_ids)
         brand_warning = None
 
-        # 🔥 Жёсткий фильтр по марке
         if car_brand:
             allowed_masters_qs = MasterPouts.objects.filter(
                 id__in=allowed_master_ids,
@@ -836,7 +981,6 @@ def open_distribution_modal(request, plan_group_id):
                     f'Нет доступных мастеров с этой маркой для ручного выбора.'
                 )
 
-        # 🔥 Фильтр по КПП
         if s.gearbox_type:
             mapped = GEARBOX_MAP.get(s.gearbox_type.lower())
             if mapped:
@@ -850,7 +994,6 @@ def open_distribution_modal(request, plan_group_id):
                 else:
                     allowed_master_ids = []
 
-        # 🔥 Фильтр по полу мастера
         if master_gender_pref:
             gender_qs = MasterPouts.objects.filter(
                 id__in=allowed_master_ids,
@@ -862,7 +1005,6 @@ def open_distribution_modal(request, plan_group_id):
             else:
                 allowed_master_ids = []
 
-        # Предпочтительный мастер из услуг — добавляем, если он проходит фильтры
         if master_id_pref:
             pref_id = int(master_id_pref)
             pref_master = MasterPouts.objects.filter(pk=pref_id).first()
@@ -885,7 +1027,6 @@ def open_distribution_modal(request, plan_group_id):
                     allowed_master_ids.append(pref_id)
                 available_master_ids.add(pref_id)
 
-        # Список мастеров, подходящих под марку
         brand_masters_names = []
         if car_brand:
             brand_masters_names = list(
@@ -1035,6 +1176,9 @@ def save_distribution(request):
                     }
                 )
 
+                student_obj.master = new_master
+                student_obj.save(update_fields=['master'])
+
                 StudentReassignmentLog.objects.create(
                     student=student_obj,
                     plan_group=plan_group,
@@ -1054,6 +1198,9 @@ def save_distribution(request):
                         student_id=student_id_int,
                         plan_group=plan_group
                     ).delete()
+
+                    student_obj.master = None
+                    student_obj.save(update_fields=['master'])
 
                     StudentReassignmentLog.objects.create(
                         student=student_obj,
@@ -1138,7 +1285,12 @@ def get_cell_students(request, plan_group_id, master_id):
     students_data = []
     for a in assignments:
         required = float(a.student.driving_hours_required or 0)
-        completed = float(a.student.driving_hours_completed or 0)
+        completed = round(float(
+            BookEntry.objects
+            .filter(book__student=a.student)
+            .aggregate(total=Sum('duration_hours_cache'))
+            .get('total') or 0
+        ), 1)
         remaining = max(0.0, required - completed)
 
         percent = 0.0
@@ -1282,6 +1434,8 @@ def save_reassignment(request):
             if not Student.objects.filter(pk=student_id, group=plan_group.group).exists():
                 continue
 
+            student_obj = Student.objects.get(pk=student_id)
+
             current = StudentMasterAssignment.objects.filter(
                 student_id=student_id,
                 plan_group=plan_group
@@ -1297,6 +1451,10 @@ def save_reassignment(request):
                     student_id=student_id,
                     plan_group=plan_group
                 ).delete()
+
+                student_obj.master_id = None
+                student_obj.save(update_fields=['master_id'])
+
             else:
                 if not MasterPouts.objects.filter(pk=to_master_id).exists():
                     continue
@@ -1308,6 +1466,9 @@ def save_reassignment(request):
                         'is_auto': False,
                     }
                 )
+
+                student_obj.master_id = to_master_id
+                student_obj.save(update_fields=['master_id'])
 
             updated += 1
 

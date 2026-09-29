@@ -57,3 +57,4 @@ class CreditCategoryFilterForm(forms.Form):
         }),
         empty_label='Все категории'
     )
+

@@ -1,0 +1,730 @@
+{% extends "base.html" %}
+{% load static %}
+{% load group_filters %}
+
+{% block title %}{{ title }} — Автошкола{% endblock %}
+
+{% block extra_css %}
+<style>
+.book-container { max-width: 1600px; margin: 0 auto; padding: 20px; }
+.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.page-title { font-size: 28px; font-weight: 700; color: white; margin: 0; }
+.header-buttons { display: flex; gap: 12px; }
+.btn { padding: 10px 20px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; font-size: 14px; }
+.btn-back { background: #e2e8f0; color: #475569; }
+.btn-back:hover { background: #cbd5e1; }
+.btn-save { background: #10b981; color: white; }
+.btn-save:hover { background: #059669; }
+
+/* Шапка */
+.book-header { background: white; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+.header-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+@media (max-width: 1200px) { .header-grid { grid-template-columns: repeat(2, 1fr); } }
+.form-group { display: flex; flex-direction: column; gap: 4px; position: relative; }
+.form-label { font-size: 12px; font-weight: 600; color: #64748b; text-transform: uppercase; }
+.form-input { padding: 8px 12px; border: 2px solid #e2e8f0; border-radius: 6px; font-size: 14px; background: white; width: 100%; box-sizing: border-box; }
+.form-input:focus { outline: none; border-color: #3b82f6; }
+.search-wrapper { position: relative; display: flex; gap: 8px; align-items: stretch; }
+.search-wrapper .form-input { flex: 1; }
+.search-btn { padding: 8px 12px; background: #f1f5f9; border: 2px solid #e2e8f0; border-radius: 6px; cursor: pointer; color: #64748b; font-size: 16px; flex-shrink: 0; }
+.search-btn:hover { background: #e2e8f0; }
+
+/* Live-search подсказки */
+#search-suggestions {
+    position: absolute; top: 100%; left: 0; right: 0;
+    background: white; border: 1px solid #cbd5e1; border-radius: 0 0 8px 8px;
+    max-height: 380px; overflow-y: auto; z-index: 500;
+    display: none; box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+}
+#search-suggestions.active { display: block; }
+
+.live-item {
+    padding: 10px 14px;
+    cursor: pointer;
+    border-bottom: 1px solid #f1f5f9;
+    transition: background 0.12s;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+.live-item:last-child { border-bottom: none; }
+.live-item:hover,
+.live-item.highlighted { background: #eff6ff; }
+
+.live-item-main { flex: 1; min-width: 0; }
+.live-item-name {
+    font-weight: 600; color: #1e293b; font-size: 13px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.live-item-meta {
+    font-size: 11px; color: #64748b; margin-top: 2px;
+    display: flex; gap: 10px; flex-wrap: wrap;
+}
+.live-item-meta span { white-space: nowrap; }
+
+.live-item-side { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+
+.live-item-badge {
+    padding: 2px 8px; border-radius: 6px;
+    font-size: 10px; font-weight: 700; white-space: nowrap;
+}
+.live-item-badge.book { background: #fee2e2; color: #991b1b; }
+.live-item-badge.free { background: #dcfce7; color: #166534; }
+
+.live-add-btn {
+    background: #3b82f6; color: white;
+    border: none; border-radius: 6px;
+    padding: 4px 10px; font-size: 11px; font-weight: 700;
+    cursor: pointer; transition: all 0.15s;
+    white-space: nowrap;
+}
+.live-add-btn:hover { background: #2563eb; }
+.live-add-btn:active { transform: scale(0.96); }
+
+.live-empty { padding: 16px; text-align: center; color: #94a3b8; font-size: 13px; }
+.live-loading { padding: 16px; text-align: center; color: #64748b; font-size: 13px; }
+
+.live-search-hint {
+    font-size: 11px; color: #64748b; margin-top: 4px;
+    min-height: 14px;
+}
+.live-search-hint strong { color: #1e293b; }
+
+/* Сводка часов */
+.hours-summary { display: flex; gap: 24px; flex-wrap: wrap; padding: 12px 16px; background: linear-gradient(90deg,#eff6ff,#f0f9ff); border-radius: 10px; margin-bottom: 16px; border-left: 4px solid #3b82f6; }
+.hours-summary span { font-size: 14px; color: #1e293b; }
+.hours-summary strong { color: #2563eb; }
+
+/* Таблица */
+.book-table-wrapper { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); overflow-x: auto; }
+.book-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 900px; }
+.book-table th { background: #f1f5f9; padding: 10px 8px; text-align: center; font-weight: 600; color: #475569; border: 1px solid #e2e8f0; font-size: 12px; }
+.book-table td { padding: 6px; border: 1px solid #e2e8f0; vertical-align: middle; }
+
+/* Раздел */
+.section-header td {
+    padding: 14px 8px;
+    text-align: center;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    font-size: 13px;
+    font-weight: 700;
+    color: #0369a1;
+    background: linear-gradient(90deg, #e0f2fe 0%, #bae6fd 50%, #e0f2fe 100%);
+    border-top: 4px double #0284c7;
+    border-bottom: 2px solid #0284c7;
+    position: relative;
+}
+.section-hours {
+    margin-left: 12px;
+    padding: 2px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: normal;
+    text-transform: none;
+    background: #ffffffaa;
+    border-radius: 10px;
+    color: #0369a1;
+}
+
+/* Названия занятий */
+.exercise-name { text-align: left; padding: 6px 8px; font-weight: 500; color: #1e293b; white-space: nowrap; position: relative; }
+.exercise-short { cursor: help; border-bottom: 1px dotted #94a3b8; }
+.exercise-short:hover { color: #3b82f6; border-bottom-color: #3b82f6; }
+.hours-badge { display: inline-block; margin-left: 6px; padding: 1px 6px; font-size: 10px; font-weight: 600; background: #dbeafe; color: #1e40af; border-radius: 10px; }
+
+/* CSS-tooltip */
+[data-tooltip] { position: relative; }
+[data-tooltip]:hover::after {
+    content: attr(data-tooltip);
+    position: absolute; left: 0; bottom: 120%;
+    background: #1e293b; color: white; padding: 6px 10px;
+    border-radius: 6px; font-size: 12px; white-space: nowrap;
+    z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+[data-tooltip]:hover::before {
+    content: ''; position: absolute; left: 14px; bottom: 100%;
+    border: 6px solid transparent; border-top-color: #1e293b; z-index: 1000;
+}
+
+.book-table input[type="date"], .book-table input[type="time"], .book-table input[type="text"], .book-table input[type="number"] {
+    width: 100%; padding: 4px 6px; border: 1px solid transparent; border-radius: 4px; font-size: 12px; text-align: center; background: transparent; box-sizing: border-box;
+}
+.book-table input:focus { border-color: #3b82f6; background: white; outline: none; }
+.mileage-display { font-weight: 700; color: #3b82f6; text-align: center; font-size: 12px; }
+.filled-row { background: #f0fdf4; }
+
+/* Модальное окно расширенного поиска */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 10000; }
+.modal-overlay.active { display: flex; }
+.modal-content { background: white; border-radius: 12px; padding: 24px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto; }
+.modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.modal-title { font-size: 18px; font-weight: 700; }
+.modal-close { background: none; border: none; font-size: 24px; cursor: pointer; color: #64748b; }
+.search-filters { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+.filter-group { display: flex; flex-direction: column; gap: 4px; }
+.filter-label { font-size: 12px; font-weight: 600; color: #475569; }
+.filter-input { padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; width: 100%; box-sizing: border-box; }
+.search-results { max-height: 300px; overflow-y: auto; }
+.search-result-item { padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s; }
+.search-result-item:hover { background: #eff6ff; border-color: #3b82f6; }
+.search-result-name { font-weight: 600; color: #1e293b; }
+.search-result-group { font-size: 12px; color: #64748b; }
+.errorlist { list-style: none; padding: 0; margin: 0; }
+.errorlist li { color: #dc2626; font-size: 12px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="book-container">
+    <form method="POST" id="bookForm">
+        {% csrf_token %}
+
+        <!-- Заголовок -->
+        <div class="page-header">
+            <h1 class="page-title">📗 {{ title }}</h1>
+            <div class="header-buttons">
+                <a href="{% url 'dispatcher:dashboard' %}" class="btn btn-back">← Назад</a>
+                <button type="submit" class="btn btn-save">💾 Сохранить</button>
+            </div>
+        </div>
+
+        <!-- Сводка часов -->
+        {% if student_stats %}
+        <div class="hours-summary">
+            <span>🕒 Выкатано всего: <strong>{{ student_stats.total_hours }} ч</strong></span>
+            <span>📋 По плану: <strong>{{ total_planned }} ч</strong></span>
+            <span>👨‍🎓 Учащийся: <strong>{{ book.student.full_name }}</strong></span>
+        </div>
+        {% endif %}
+
+        <!-- Шапка книжки -->
+        <div class="book-header">
+            <div class="header-grid">
+
+                <!-- 1. ФИО учащегося с live-search -->
+                <div class="form-group">
+                    <label class="form-label">👤 ФИО учащегося *</label>
+                    <div class="search-wrapper">
+                        <input type="text"
+                               class="form-input"
+                               id="studentLiveSearch"
+                               placeholder="Начните вводить ФИО..."
+                               autocomplete="off"
+                               autocorrect="off"
+                               autocapitalize="off"
+                               spellcheck="false"
+                               data-live-search="true"
+                               data-target="studentSelect"
+                               data-api-url="{% url 'dispatcher:student_search_api' %}"
+                               value="{% if book %}{{ book.student.full_name }}{% endif %}">
+                        <input type="hidden" name="student" id="studentSelect"
+                               value="{% if book %}{{ book.student_id }}{% elif form.student.value %}{{ form.student.value }}{% endif %}">
+                        <button type="button" class="search-btn" onclick="openSearchModal()" title="Расширенный поиск">🔍</button>
+                        <div id="search-suggestions"></div>
+                    </div>
+                    <div id="liveSearchHint" class="live-search-hint"></div>
+                </div>
+
+                <!-- 2. Учебная группа -->
+                <div class="form-group">
+                    <label class="form-label">👥 Учебная группа</label>
+                    <select name="group" id="groupSelect" class="form-input">
+                        <option value="">Не выбрана</option>
+                        {% for group in groups %}
+                            <option value="{{ group.id }}"
+                                {% if book and book.group_id == group.id %}selected
+                                {% elif form.group.value == group.id|stringformat:"d" %}selected{% endif %}>
+                                {{ group.group_number }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- 3. Мастер ПОВ -->
+                <div class="form-group">
+                    <label class="form-label">👨‍🏫 Мастер ПОВ</label>
+                    <select name="master" id="masterSelect" class="form-input">
+                        <option value="">Не назначен</option>
+                        {% for master in masters %}
+                            <option value="{{ master.id }}"
+                                {% if book and book.master_id == master.id %}selected
+                                {% elif form.master.value == master.id|stringformat:"d" %}selected{% endif %}>
+                                {{ master.short_name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- 4. Автомобиль -->
+                <div class="form-group">
+                    <label class="form-label">🚗 Автомобиль</label>
+                    <select name="car" id="carSelect" class="form-input">
+                        <option value="">Не назначен</option>
+                        {% for car in cars %}
+                            <option value="{{ car.id }}"
+                                {% if book and book.car_id == car.id %}selected
+                                {% elif form.car.value == car.id|stringformat:"d" %}selected{% endif %}>
+                                {{ car.license_plate }} ({{ car.brand }})
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Таблица записей -->
+        <div class="book-table-wrapper">
+            <table class="book-table">
+                <thead>
+                    <tr>
+                        <th style="width: 280px;">Наименование занятия</th>
+                        <th style="width: 110px;">Дата</th>
+                        <th style="width: 110px;">№ путевого листа</th>
+                        <th colspan="2">Время занятия</th>
+                        <th colspan="2">Показания одометра</th>
+                        <th style="width: 80px;">Пробег</th>
+                    </tr>
+                    <tr>
+                        <th></th>
+                        <th></th>
+                        <th></th>
+                        <th style="width: 90px;">Начало</th>
+                        <th style="width: 90px;">Окончание</th>
+                        <th style="width: 90px;">Выезд</th>
+                        <th style="width: 90px;">Возврат</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for section in sections_data %}
+                        <tr class="section-header">
+                            <td colspan="8">
+                                {{ section.name }}
+                                {% if section.hours %}
+                                    <span class="section-hours">— {{ section.hours|floatformat:1 }} ч</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+
+                        {% for exercise in section.exercises %}
+                        {% with entry=entries_by_exercise|get_item:exercise.id %}
+                        <tr {% if entry %}class="filled-row"{% endif %}>
+                            <td class="exercise-name">
+                                <span class="exercise-short"
+                                      data-tooltip="{{ exercise.display_full }}"
+                                      title="{{ exercise.display_full }}">
+                                    {{ exercise.display_short }}
+                                </span>
+                                {% if student_stats %}
+                                    {% with stat=student_stats.by_exercise|get_item:exercise.id %}
+                                        {% if stat %}
+                                            <span class="hours-badge"
+                                                  data-tooltip="Выкатано {{ stat.done|floatformat:1 }} ч из {{ stat.planned|floatformat:1 }} ч по плану">
+                                                {{ stat.done|floatformat:1 }}/{{ stat.planned|floatformat:1 }}
+                                            </span>
+                                        {% endif %}
+                                    {% endwith %}
+                                {% endif %}
+                            </td>
+
+                            <td>
+                                <input type="date" name="date[]" class="form-input"
+                                    value="{% if entry and entry.date %}{{ entry.date|date:'Y-m-d' }}{% elif exercise.id == first_empty_exercise_id %}{{ today }}{% endif %}">
+                            </td>
+
+                            <td>
+                                <input type="text" name="route_sheet[]" class="form-input" placeholder="№"
+                                    value="{% if entry %}{{ entry.route_sheet_number }}{% endif %}">
+                            </td>
+
+                            <td>
+                                <input type="time" name="start_time[]" class="form-input"
+                                    value="{% if entry and entry.start_time %}{{ entry.start_time|time:'H:i' }}{% endif %}">
+                            </td>
+
+                            <td>
+                                <input type="time" name="end_time[]" class="form-input"
+                                    value="{% if entry and entry.end_time %}{{ entry.end_time|time:'H:i' }}{% endif %}">
+                            </td>
+
+                            <td>
+                                <input type="number" name="odometer_start[]" class="form-input odometer-input" placeholder="0"
+                                    value="{% if entry and entry.odometer_start %}{{ entry.odometer_start }}{% endif %}">
+                            </td>
+
+                            <td>
+                                <input type="number" name="odometer_end[]" class="form-input odometer-input" placeholder="0"
+                                    value="{% if entry and entry.odometer_end %}{{ entry.odometer_end }}{% endif %}">
+                            </td>
+
+                            <td>
+                                <div class="mileage-display" data-row-mileage>
+                                    {% if entry %}
+                                        {{ entry.mileage|default:0 }}
+                                    {% else %}0{% endif %}
+                                </div>
+                            </td>
+
+                            <input type="hidden" name="exercise[]" value="{{ exercise.id }}">
+                            <input type="hidden" name="exercise_name[]" value="{{ exercise.display_full }}">
+                        </tr>
+                        {% endwith %}
+                        {% endfor %}
+                    {% empty %}
+                        <tr>
+                            <td colspan="8" style="text-align: center; padding: 40px; color: #94a3b8;">
+                                Справочник упражнений пуст
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </form>
+</div>
+
+<!-- Модальное окно расширенного поиска -->
+<div class="modal-overlay" id="searchModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 class="modal-title">🔍 Расширенный поиск учащегося</h2>
+            <button type="button" class="modal-close" onclick="closeSearchModal()">×</button>
+        </div>
+
+        <div class="search-filters">
+            <div class="filter-group">
+                <label class="filter-label">ФИО</label>
+                <input type="text" id="searchName" class="filter-input" placeholder="Фамилия И.О.">
+            </div>
+            <div class="filter-group">
+                <label class="filter-label">Группа</label>
+                <select id="searchGroup" class="filter-input">
+                    <option value="">Все группы</option>
+                    {% for group in groups %}
+                    <option value="{{ group.id }}">{{ group.group_number }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filter-group">
+                <label class="filter-label">Категория</label>
+                <select id="searchCategory" class="filter-input">
+                    <option value="">Все</option>
+                    {% for cat in categories %}
+                    <option value="{{ cat.code }}">{{ cat.code }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <button type="button" class="btn btn-save" onclick="performSearch()" style="width: 100%; margin-bottom: 16px;">Найти</button>
+
+        <div class="search-results" id="searchResults">
+            <div style="text-align: center; padding: 20px; color: #94a3b8;">Введите параметры и нажмите "Найти"</div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    'use strict';
+
+    // ⚠️ Прямые URL — чтобы не зависеть от url  в JS (Django парсит шаблон целиком,
+
+    const URL_STUDENT_SEARCH = '/dispatcher/api/student-search/';
+    const CSRF_TOKEN = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+
+    const $ = (id) => document.getElementById(id);
+
+    let liveTimer = null;
+    let liveAbort = null;
+
+    // =====================================================================
+    // 🔹 LIVE-SEARCH С ФИЛЬТРАМИ
+    // =====================================================================
+
+    function initLiveSearch() {
+        const input = $('studentLiveSearch');
+        const box = $('search-suggestions');
+        const hiddenId = $('studentSelect');
+        const hint = $('liveSearchHint');
+
+        if (!input || !box) return;
+
+        // --- Ввод ---
+        input.addEventListener('input', function() {
+            clearTimeout(liveTimer);
+            const q = this.value.trim();
+
+            if (q.length === 0) {
+                box.classList.remove('active');
+                box.innerHTML = '';
+                hint.textContent = '';
+                hiddenId.value = '';
+                return;
+            }
+
+            hint.textContent = 'Поиск…';
+            liveTimer = setTimeout(() => doLiveSearch(q), 250);
+        });
+
+        input.addEventListener('focus', function() {
+            if (this.value.trim().length === 0) {
+                doLiveSearch('');
+            }
+        });
+
+        // --- Клик по подсказке ---
+        box.addEventListener('click', function(e) {
+            // «➕ Добавить» — то же, что и клик по строке
+            const addBtn = e.target.closest('.live-add-btn');
+            const item = e.target.closest('.live-item');
+            if (!item) return;
+            // если клик по кнопке или просто по строке — выбираем
+            confirmLiveSelection(item);
+        });
+
+        // --- Скрыть при клике вне ---
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.search-wrapper')) {
+                box.classList.remove('active');
+            }
+        });
+
+        // --- Клавиатура ---
+        input.addEventListener('keydown', function(e) {
+            const items = box.querySelectorAll('.live-item');
+            if (!items.length) return;
+            let idx = [...items].findIndex(i => i.classList.contains('highlighted'));
+
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (idx > -1) items[idx].classList.remove('highlighted');
+                idx = (idx + 1) % items.length;
+                items[idx].classList.add('highlighted');
+                items[idx].scrollIntoView({ block: 'nearest' });
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (idx > -1) items[idx].classList.remove('highlighted');
+                idx = (idx - 1 + items.length) % items.length;
+                items[idx].classList.add('highlighted');
+                items[idx].scrollIntoView({ block: 'nearest' });
+            } else if (e.key === 'Enter') {
+                if (idx > -1) {
+                    e.preventDefault();
+                    items[idx].click();
+                }
+            } else if (e.key === 'Escape') {
+                box.classList.remove('active');
+            }
+        });
+
+        // --- Реакция на смену фильтров ---
+        ['groupSelect', 'masterSelect'].forEach(id => {
+            const el = $(id);
+            if (el) {
+                el.addEventListener('change', function() {
+                    const q = input.value.trim();
+                    if (q) doLiveSearch(q);
+                    else doLiveSearch('');   // даже без текста — показать подходящих
+                });
+            }
+        });
+    }
+
+    // =====================================================================
+    // 🔹 ЗАПРОС К API
+    // =====================================================================
+    function doLiveSearch(q) {
+        const box = $('search-suggestions');
+        const hint = $('liveSearchHint');
+
+        // 🔥 Было: if (!q) return;  — теперь пустой q допустим и означает «все»
+        // Собираем фильтры
+        const groupId = $('groupSelect')?.value || '';
+        const masterId = $('masterSelect')?.value || '';
+
+        const params = new URLSearchParams();
+        if (q) params.append('q', q);
+        params.append('exclude_with_books', '1');
+        if (groupId) params.append('group', groupId);
+        if (masterId) params.append('master', masterId);
+
+        const url = URL_STUDENT_SEARCH + '?' + params.toString();
+        console.log('[live-search] URL:', url);
+
+        if (liveAbort) liveAbort.abort();
+        liveAbort = new AbortController();
+
+        box.classList.add('active');
+        box.innerHTML = '<div class="live-loading">⏳ Поиск…</div>';
+
+        fetch(url, { signal: liveAbort.signal })
+            .then(r => r.json())
+            .then(data => {
+                const list = data.results || [];
+                if (!list.length) {
+                    box.innerHTML = '<div class="live-empty">Ничего не найдено<br><small style="color:#94a3b8">Возможно, у всех уже есть книжки или фильтры слишком узкие</small></div>';
+                    hint.textContent = 'Ничего не найдено';
+                    return;
+                }
+
+                box.innerHTML = '';
+                list.forEach(s => {
+                    const div = document.createElement('div');
+                    div.className = 'live-item';
+                    div.dataset.id = s.id;
+                    div.dataset.name = s.full_name;
+                    div.dataset.groupId = s.group_id || '';
+                    div.dataset.masterId = s.master_id || '';
+
+                    const meta = [];
+                    if (s.group_number) meta.push(`👥 ${s.group_number}`);
+                    if (s.category) meta.push(`🚗 ${s.category}`);
+                    if (s.master) meta.push(`👨‍🏫 ${s.master}`);
+                    if (s.birth_date) meta.push(`🎂 ${s.birth_date}`);
+
+                    const badge = s.has_book
+                        ? '<span class="live-item-badge book">📗 есть книжка</span>'
+                        : '<span class="live-item-badge free">✅ свободен</span>';
+
+                    div.innerHTML = `
+                        <div class="live-item-main">
+                            <div class="live-item-name">${escapeHtml(s.full_name)}</div>
+                            <div class="live-item-meta">${meta.map(m => `<span>${escapeHtml(m)}</span>`).join('')}</div>
+                        </div>
+                        <div class="live-item-side">
+                            ${badge}
+                            <button type="button" class="live-add-btn" title="Выбрать этого учащегося">
+                                ➕ Добавить
+                            </button>
+                        </div>
+                    `;
+                    box.appendChild(div);
+                });
+
+                hint.innerHTML = `Найдено: <strong>${list.length}</strong>`;
+            })
+            .catch(err => {
+                if (err.name === 'AbortError') return;
+                console.error('[live-search] error:', err);
+                box.innerHTML = '<div class="live-empty">Ошибка загрузки</div>';
+                hint.textContent = 'Ошибка';
+            });
+    }
+
+    // =====================================================================
+    // 🔹 ВЫБОР УЧАЩЕГОСЯ
+    // =====================================================================
+    function confirmLiveSelection(item) {
+        const id = item.dataset.id;
+        const name = item.dataset.name;
+        const groupId = item.dataset.groupId;
+        const masterId = item.dataset.masterId;
+
+        $('studentSelect').value = id;
+        $('studentLiveSearch').value = name;
+
+        if (groupId && $('groupSelect')) $('groupSelect').value = groupId;
+        if (masterId && $('masterSelect')) $('masterSelect').value = masterId;
+
+        const box = $('search-suggestions');
+        box.classList.remove('active');
+        box.innerHTML = '';
+
+        $('liveSearchHint').innerHTML = `✅ Выбран: <strong>${escapeHtml(name)}</strong>`;
+
+        const titleEl = document.querySelector('.page-title');
+        if (titleEl) titleEl.textContent = '📗 Книжка: ' + name;
+    }
+
+    // =====================================================================
+    // 🔹 ХЕЛПЕР
+    // =====================================================================
+    function escapeHtml(s) {
+        if (s == null) return '';
+        return String(s)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    // =====================================================================
+    // 🔹 МОДАЛЬНОЕ ОКНО РАСШИРЕННОГО ПОИСКА
+    // =====================================================================
+    window.openSearchModal = function() {
+        const el = $('searchModal');
+        if (el) el.classList.add('active');
+    };
+    window.closeSearchModal = function() {
+        const el = $('searchModal');
+        if (el) el.classList.remove('active');
+    };
+
+    window.performSearch = function() {
+        const name = $('searchName')?.value || '';
+        const group = $('searchGroup')?.value || '';
+        const category = $('searchCategory')?.value || '';
+
+        const params = new URLSearchParams();
+        if (name) params.append('q', name);
+        if (group) params.append('group', group);
+        if (category) params.append('category', category);
+        params.append('exclude_with_books', '1');
+
+        const url = URL_STUDENT_SEARCH + '?' + params.toString();
+        const resultsDiv = $('searchResults');
+        resultsDiv.innerHTML = '<div style="text-align: center; padding: 20px;">Загрузка...</div>';
+
+        fetch(url)
+            .then(r => r.json())
+            .then(data => {
+                const list = data.results || [];
+                if (!list.length) {
+                    resultsDiv.innerHTML = '<div style="text-align: center; padding: 20px; color: #94a3b8;">Ничего не найдено</div>';
+                    return;
+                }
+                resultsDiv.innerHTML = '';
+                list.forEach(s => {
+                    const div = document.createElement('div');
+                    div.className = 'search-result-item';
+                    const meta = [];
+                    if (s.group_number) meta.push('👥 ' + s.group_number);
+                    if (s.category) meta.push('🚗 ' + s.category);
+                    if (s.master) meta.push('👨‍🏫 ' + s.master);
+                    div.innerHTML = `
+                        <div class="search-result-name">${escapeHtml(s.full_name)}</div>
+                        <div class="search-result-group">${meta.map(m => escapeHtml(m)).join(' • ')}</div>
+                    `;
+                    div.onclick = () => {
+                        $('studentSelect').value = s.id;
+                        $('studentLiveSearch').value = s.full_name;
+                        if (s.group_id && $('groupSelect')) $('groupSelect').value = s.group_id;
+                        if (s.master_id && $('masterSelect')) $('masterSelect').value = s.master_id;
+                        window.closeSearchModal();
+                    };
+                    resultsDiv.appendChild(div);
+                });
+            })
+            .catch(err => {
+                console.error('[extended-search] error:', err);
+                resultsDiv.innerHTML = '<div style="text-align: center; padding: 20px; color: #dc2626;">Ошибка загрузки</div>';
+            });
+    };
+
+    // =====================================================================
+    // 🔹 INIT
+    // =====================================================================
+    document.addEventListener('DOMContentLoaded', function() {
+        initLiveSearch();
+        console.log('[book-form] live-search initialized');
+    });
+
+    // Экспорт для inline-вызовов
+    window.doLiveSearch = doLiveSearch;
+})();
+</script>
+{% endblock %}

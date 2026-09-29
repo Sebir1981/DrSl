@@ -8,9 +8,6 @@
 {% endblock %}
 
 {% block content %}
-<!-- =================================================================== -->
-<!-- 🔹 ОСНОВНОЙ КОНТЕЙНЕР -->
-<!-- =================================================================== -->
 <div class="master-plan-container">
 
     <!-- =================================================================== -->
@@ -40,7 +37,10 @@
             <div class="header-value-row"
                  data-plan-group-id="{{ plan_group.pk }}"
                  data-total-students="{{ plan_group.total_students }}"
-                 data-driven-students="{{ plan_group.driven_students_count|default:0 }}">
+                 data-driven-students="{{ plan_group.driven_students_count|default:0 }}"
+                 data-remaining-students="{{ plan_group.remaining_students|default:0 }}"
+                 data-driven-hours="{{ plan_group.driven_hours|default:0 }}"
+                 data-remaining-hours="{{ plan_group.remaining_hours|default:0 }}">
                 <div class="value-item"><span class="value-text"><strong>{{ plan_group.group.group_number }}</strong></span></div>
                 <div class="value-item"><span class="value-text">{{ plan_group.total_students }} чел.</span></div>
                 <div class="value-item"><span class="value-text">{{ plan_group.distribution_date|date:"d.m.Y"|default:"—" }}</span></div>
@@ -85,11 +85,26 @@
             <button class="btn btn-primary" onclick="openAddGroupModal()" style="width: 100%; justify-content: center;">➕ Добавить группу</button>
         </div>
         <div class="stats-summary">
-            <div class="stat-summary-item"><span class="stat-summary-label">Всего групп:</span><span class="stat-summary-value">{{ total_groups }}</span></div>
-            <div class="stat-summary-item"><span class="stat-summary-label">Всего студентов:</span><span class="stat-summary-value">{{ total_students }}</span></div>
-            <div class="stat-summary-item"><span class="stat-summary-label">Всего часов:</span><span class="stat-summary-value">{{ total_hours|floatformat:1 }}</span></div>
-            <div class="stat-summary-item"><span class="stat-summary-label">Выкатано:</span><span class="stat-summary-value">{{ total_driven|floatformat:1 }}</span></div>
-            <div class="stat-summary-item"><span class="stat-summary-label">Осталось:</span><span class="stat-summary-value">{{ total_remaining|floatformat:1 }}</span></div>
+            <div class="stat-summary-item">
+                <span class="stat-summary-label">Всего групп:</span>
+                <span class="stat-summary-value">{{ total_groups }}</span>
+            </div>
+            <div class="stat-summary-item">
+                <span class="stat-summary-label">Всего студентов:</span>
+                <span class="stat-summary-value">{{ total_students }}</span>
+            </div>
+            <div class="stat-summary-item">
+                <span class="stat-summary-label">Всего часов:</span>
+                <span class="stat-summary-value">{{ total_hours|floatformat:1 }} ч</span>
+            </div>
+            <div class="stat-summary-item">
+                <span class="stat-summary-label">Выкатано:</span>
+                <span class="stat-summary-value">{{ total_driven_students|default:0 }} чел.</span>
+            </div>
+            <div class="stat-summary-item">
+                <span class="stat-summary-label">Осталось:</span>
+                <span class="stat-summary-value">{{ total_remaining_students|default:0 }} чел.</span>
+            </div>
         </div>
         <div class="stats-actions">
             <button type="button" class="btn btn-primary" onclick="openEditModal()">
@@ -135,12 +150,18 @@
                      data-total-students="{{ plan_group.total_students }}"
                      data-distributed-students="{{ plan_group.distributed_count|default:0 }}"
                      data-driven-students="{{ plan_group.driven_students_count|default:0 }}"
+                     data-remaining-students="{{ plan_group.remaining_students|default:0 }}"
+                     data-driven-hours="{{ plan_group.driven_hours|default:0 }}"
+                     data-remaining-hours="{{ plan_group.remaining_hours|default:0 }}"
                      data-hours-per-student="{{ plan_group.hours_per_student }}"
                      {% if plan_group.is_fully_distributed %}data-is-fully-distributed="1"{% endif %}>
                     <div class="group-header-compact">
                         <span class="group-number-compact">{{ plan_group.group.group_number }}</span>
                         <span class="group-students-compact">{{ plan_group.total_students }} чел.</span>
-                        <span class="remaining-counter">Ост: {{ plan_group.total_students }} студ.</span>
+                        <span class="remaining-counter"
+                              title="Вождение: {{ plan_group.driving_hours_plan }} ч · Экзамен: {{ plan_group.exam_hours_plan }} ч">
+                            Ост: {{ plan_group.remaining_hours|floatformat:1 }} ч
+                        </span>
                     </div>
                 </div>
                 {% endfor %}
@@ -162,8 +183,11 @@
                                    onchange="updateDistribution(this)"
                                    {% if cell.plan_group.is_fully_distributed %}disabled{% endif %}>
 
-                            <div class="matrix-input-auto" title="Выкатано (авто)">
-                                {{ cell.dist.completed_count }}
+                            <div class="matrix-input-auto"
+                                 data-driven-hours="{{ cell.driven_hours_real|default:0 }}"
+                                 data-driven-students="{{ cell.driven_students_real|default:0 }}"
+                                 title="Выкатано: {{ cell.driven_hours_real|default:0|floatformat:1 }} ч · {{ cell.driven_students_real|default:0 }} чел.">
+                                {{ cell.driven_students_real|default:0 }}
                             </div>
 
                             {% if cell.auto_assigned %}
@@ -187,7 +211,12 @@
                                    onchange="updateDistribution(this)"
                                    {% if cell.plan_group.is_fully_distributed %}disabled{% endif %}
                                    title="Количество студентов (вручную)">
-                            <div class="matrix-input-auto" title="Выкатано (авто)">0</div>
+                            <div class="matrix-input-auto"
+                                 data-driven-hours="{{ cell.driven_hours_real|default:0 }}"
+                                 data-driven-students="{{ cell.driven_students_real|default:0 }}"
+                                 title="Выкатано: {{ cell.driven_hours_real|default:0|floatformat:1 }} ч · {{ cell.driven_students_real|default:0 }} чел.">
+                                {% if cell.driven_students_real %}✅ {{ cell.driven_students_real }} · {% endif %}{{ cell.driven_hours_real|default:0|floatformat:1 }} ч
+                            </div>
                         {% endif %}
                     </div>
                 </div>
@@ -214,15 +243,23 @@
             <div class="master-stat-item"
                  data-master-id="{{ stat.master.pk }}"
                  data-master-name="{{ stat.master.short_name }}"
-                 data-groups="{% for g in stat.groups_breakdown %}{{ g.group_number }}:{{ g.students_count }}{% if not forloop.last %};{% endif %}{% endfor %}">
+                 data-groups="{% for g in stat.groups_breakdown %}{{ g.group_number }}:{{ g.students_count }}:{{ g.plan_hours|default:0 }}:{{ g.driven_hours|default:0 }}{% if not forloop.last %};{% endif %}{% endfor %}">
                 <div class="stat-compact-row">
-                    <span class="stat-compact-value" data-stat-field="students" title="Количество учеников">{{ stat.total_students }}</span>
+                    <span class="stat-compact-value" data-stat-field="students" title="Всего учеников">
+                        {{ stat.total_students }}
+                    </span>
                     <span class="stat-compact-separator">|</span>
-                    <span class="stat-compact-value" data-stat-field="total_hours" title="Всего часов">{{ stat.total_hours|floatformat:0 }}</span>
+                    <span class="stat-compact-value" data-stat-field="total_hours" title="Всего часов (план)">
+                        {{ stat.total_hours|floatformat:0 }} ч
+                    </span>
                     <span class="stat-compact-separator">|</span>
-                    <span class="stat-compact-value" data-stat-field="driven_hours" title="Выкатано часов">{{ stat.driven_hours|floatformat:0 }}</span>
+                    <span class="stat-compact-value" data-stat-field="driven_hours" title="Выкатано часов">
+                        ✅ {{ stat.driven_hours|floatformat:0 }} ч
+                    </span>
                     <span class="stat-compact-separator">|</span>
-                    <span class="stat-compact-value" data-stat-field="remaining_hours" title="Осталось часов">{{ stat.remaining_hours|floatformat:0 }}</span>
+                    <span class="stat-compact-value" data-stat-field="remaining_hours" title="Осталось часов">
+                        ⏳ {{ stat.remaining_hours|floatformat:0 }} ч
+                    </span>
                 </div>
             </div>
             {% empty %}
@@ -400,9 +437,7 @@
                             <th style="padding: 10px; text-align: left; width: 30%; border-bottom: 2px solid #e2e8f0;">Назначенный мастер</th>
                         </tr>
                     </thead>
-                    <tbody id="distributionTableBody">
-                        <!-- Заполняется через JS -->
-                    </tbody>
+                    <tbody id="distributionTableBody"></tbody>
                 </table>
             </div>
 
@@ -428,9 +463,7 @@
                 <button class="modal-close" onclick="closeCellStudentsModal()">&times;</button>
             </div>
 
-            <div id="cellStudentsBody" style="max-height: 60vh; overflow-y: auto;">
-                <!-- Заполняется через JS -->
-            </div>
+            <div id="cellStudentsBody" style="max-height: 60vh; overflow-y: auto;"></div>
 
             <div class="modal-actions">
                 <button type="button" class="btn btn-secondary"
@@ -515,9 +548,7 @@
                             <th style="padding:8px 10px;text-align:left;font-size:12px;color:#64748b;width:220px;">Новый мастер</th>
                         </tr>
                     </thead>
-                    <tbody id="reassignTableBody">
-                        <!-- Заполняется через JS -->
-                    </tbody>
+                    <tbody id="reassignTableBody"></tbody>
                 </table>
             </div>
 
@@ -530,10 +561,10 @@
         </div>
     </div>
 
-    <!-- 🔹 Глобальная подсказка (используется для ячеек матрицы и статистики по мастерам) -->
     <div id="matrixCellTooltip" class="matrix-cell-tooltip" style="display:none;"></div>
 
 </div>
+
 {% block extra_js %}
 <script src="{% static 'js/date-mask.js' %}"></script>
 
