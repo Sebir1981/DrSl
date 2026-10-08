@@ -353,9 +353,9 @@
                 <input type="hidden" name="plan_group_id" id="editPlanGroupId">
                 <div class="form-group">
                     <label>Группа</label>
-                    <select name="group_id" id="editGroupSelect2" required style="background: #f1f5f9; cursor: not-allowed; pointer-events: none;">
+                    <select name="group_id" id="editGroupSelect2" required style="...">
                         <option value="">-- Группа --</option>
-                        {% for group in all_groups %}
+                        {% for group in all_groups_in_plan %}
                         <option value="{{ group.pk }}">{{ group.group_number }}</option>
                         {% endfor %}
                     </select>

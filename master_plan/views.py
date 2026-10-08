@@ -43,7 +43,6 @@ GEARBOX_MAP = {
 # =========================================================================
 
 def parse_date(date_str):
-    """Универсальный парсер дат. Поддерживает ДД.ММ.ГГГГ и ГГГГ-ММ-ДД."""
     if not date_str or not date_str.strip():
         return None
     date_str = date_str.strip()
@@ -259,45 +258,30 @@ def _master_group_driven_hours(master_id, group_id):
     return round(float(result or 0), 1)
 
 
-def _driven_students_in_group(group_id, hours_per_student):
+def _driven_students_in_group(group_id, hours_per_student=None):
     """
-    Сколько учеников группы полностью выкатали вождение
-    (>= hours_per_student − 1 ч на экзамен).
-    """
-    required = float(hours_per_student or 0) - 1.0
-    if required <= 0:
-        required = 0.0
+    Сколько учеников группы отмечены как «Выкатан» (флаг Student.is_driven).
 
+    `hours_per_student` оставлен в сигнатуре для обратной совместимости,
+    но НЕ используется — источник правды теперь флаг is_driven,
+    который ставится вручную из книжки.
+    """
     return Student.objects.filter(
         group_id=group_id,
-        driving_hours_completed__gte=required,
+        is_driven=True,
     ).count()
 
 
-def _driven_students_for_master_group(master_id, group_id, hours_per_student):
+def _driven_students_for_master_group(master_id, group_id, hours_per_student=None):
     """
-    Сколько учеников ЭТОГО мастера в ЭТОЙ группе выкатали вождение.
-    Через StudentMasterAssignment — чтобы отнести только к этому мастеру.
+    Сколько учеников мастера в группе отмечены как «Выкатан».
+    Считаем только тех, у кого is_driven=True.
     """
-    required = float(hours_per_student or 0) - 1.0
-    if required <= 0:
-        required = 0.0
-
-    assignments = (
-        StudentMasterAssignment.objects
-        .filter(
-            plan_group__group_id=group_id,
-            master_id=master_id,
-        )
-        .select_related('student')
-    )
-
-    count = 0
-    for a in assignments:
-        completed = float(a.student.driving_hours_completed or 0)
-        if completed >= required:
-            count += 1
-    return count
+    return StudentMasterAssignment.objects.filter(
+        plan_group__group_id=group_id,
+        master_id=master_id,
+        student__is_driven=True,
+    ).count()
 
 
 # =========================================================================
@@ -427,6 +411,13 @@ def master_plan_dashboard(request):
         pk__in=plan_group_ids
     ).order_by('group_number')
 
+    # Группы, которые уже в генеральном плане — для модалки «Редактировать»
+    all_groups_in_plan = (
+        Group.objects
+        .filter(pk__in=plan_group_ids)
+        .order_by('group_number')
+    )
+
     # =====================================================================
     # ОБЩАЯ СТАТИСТИКА — в часах и учениках
     # =====================================================================
@@ -434,7 +425,7 @@ def master_plan_dashboard(request):
     total_students = sum(pg.total_students for pg in plan_groups)
     total_hours = round(sum(pg.total_hours for pg in plan_groups), 1)
 
-    # ✅ Выкатано часов — сумма по всем группам
+    # ✅ Выкатано часов — сумма по всем группам (по BookEntry)
     total_driven_hours = round(
         sum(pg.driven_hours for pg in plan_groups), 1
     )
@@ -442,12 +433,10 @@ def master_plan_dashboard(request):
         max(0.0, total_hours - total_driven_hours), 1
     )
 
-    # ✅ Выкатано учеников — для справки
+    # ✅ Выкатано учеников — по флагу is_driven
     total_driven_students = 0
     for pg in plan_groups:
-        total_driven_students += _driven_students_in_group(
-            pg.group_id, pg.hours_per_student
-        )
+        total_driven_students += _driven_students_in_group(pg.group_id)
     total_remaining_students = max(0, total_students - total_driven_students)
 
     # =====================================================================
@@ -529,9 +518,8 @@ def master_plan_dashboard(request):
             and pg.distributed_count >= pg.total_students
         )
 
-        pg.driven_students_real = _driven_students_in_group(
-            pg.group_id, pg.hours_per_student
-        )
+        # ✅ выкатанные ученики — по флагу
+        pg.driven_students_real = _driven_students_in_group(pg.group_id)
         pg.remaining_students_real = max(
             0, pg.total_students - pg.driven_students_real
         )
@@ -547,9 +535,8 @@ def master_plan_dashboard(request):
         for plan_group in plan_groups:
             dist = dist_dict.get(plan_group.pk)
 
-            hours_per_student = float(plan_group.hours_per_student)
             cell_driven_students = _driven_students_for_master_group(
-                master.id, plan_group.group_id, hours_per_student
+                master.id, plan_group.group_id
             )
             cell_driven_hours = _master_group_driven_hours(
                 master.id, plan_group.group_id
@@ -570,6 +557,7 @@ def master_plan_dashboard(request):
         'plan_groups': plan_groups,
         'masters': masters,
         'all_groups': all_groups,
+        'all_groups_in_plan': all_groups_in_plan,
         'today': timezone.now().date(),
         'total_groups': total_groups,
         'total_students': total_students,
@@ -733,14 +721,10 @@ def update_distribution(request):
         }
     )
 
-    # Пересчёт архивации: все ученики выкатали порог (plan − 1 ч)
-    threshold = float(plan_group.hours_per_student) - 1.0
-    if threshold < 0:
-        threshold = 0.0
-
+    # ✅ «Выкатан» теперь по флагу is_driven, а не по часам
     fully_driven_students_count = Student.objects.filter(
         group=plan_group.group,
-        driving_hours_completed__gte=threshold,
+        is_driven=True,
     ).count()
 
     is_fully_completed = (
@@ -754,12 +738,12 @@ def update_distribution(request):
         plan_group.save(update_fields=['is_archived', 'status'])
         logger.info(
             f"📦 Группа {plan_group.group.group_number} автоматически заархивирована "
-            f"(все {fully_driven_students_count} студентов выкатали вождение)"
+            f"(все {fully_driven_students_count} студентов отмечены как «Выкатан»)"
         )
 
     cell_driven_hours = _master_group_driven_hours(master.id, plan_group.group_id)
     cell_driven_students = _driven_students_for_master_group(
-        master.id, plan_group.group_id, plan_group.hours_per_student
+        master.id, plan_group.group_id
     )
 
     return JsonResponse({
@@ -818,10 +802,11 @@ def get_group_data(request, group_id):
 def update_group_in_plan(request):
     """Обновление данных группы в генеральном плане + автораспределение."""
     plan_group_id = request.POST.get('plan_group_id', '').strip()
+    # group_id читаем, но НЕ требуем
     group_id = request.POST.get('group_id', '').strip()
 
-    if not plan_group_id or not group_id:
-        return JsonResponse({'error': 'Не указаны обязательные параметры'}, status=400)
+    if not plan_group_id:
+        return JsonResponse({'error': 'Не указан ID группы в плане'}, status=400)
 
     try:
         plan_group = MasterPlanGroup.objects.get(pk=plan_group_id)
@@ -1304,6 +1289,7 @@ def get_cell_students(request, plan_group_id, master_id):
             'patronymic': a.student.patronymic or '',
             'full_name': a.student.full_name,
             'is_auto': a.is_auto,
+            'is_driven': bool(a.student.is_driven),
             'hours_required': round(required, 1),
             'hours_completed': round(completed, 1),
             'hours_remaining': round(remaining, 1),
@@ -1357,6 +1343,7 @@ def get_reassignment_data(request, plan_group_id):
             'last_name': s.last_name,
             'first_name': s.first_name,
             'patronymic': s.patronymic or '',
+            'is_driven': bool(s.is_driven),
             'current_master_id': str(a.master_id) if a and a.master_id else None,
             'current_master_name': (
                 f"{a.master.last_name} {a.master.first_name[:1]}."

@@ -168,6 +168,12 @@
         return { day: [null, null], month: [null, null], year: [null, null, null, null] };
     }
 
+    function isStateEmpty(state) {
+        return state.day.every(c => c == null) &&
+            state.month.every(c => c == null) &&
+            state.year.every(c => c == null);
+    }
+
     function fillStateFromDigits(state, digits) {
         digits = onlyDigits(digits).slice(0, 8);
         const c = digits.split('');
@@ -320,6 +326,13 @@
     function finalizeValidate(input) {
         const state = stateMap.get(input);
         if (!state) return true;
+
+        // 🔑 Страховка: если программно установили input.value в обход DateMask API,
+        //    state может быть пустым. Пересобираем его из строки input.value,
+        //    чтобы не потерять данные.
+        if (isStateEmpty(state) && input.value.trim() !== '') {
+            fillStateFromDigits(state, parseInitialValue(input.value.trim()));
+        }
 
         const dayFull = state.day.every(c => c != null);
         const monthFull = state.month.every(c => c != null);
@@ -517,7 +530,11 @@
             const st = stateMap.get(input);
             if (!st) return;
             if (input.value === renderValue(st)) return; // это наша же программная запись
-            fillStateFromDigits(st, onlyDigits(input.value));
+            // Если пришло то же, что уже в state — ничего не делаем
+            const rawDigits = onlyDigits(input.value);
+            const rendered = renderValue(st).replace(/_/g, '').replace(/\./g, '');
+            if (rawDigits === rendered) return;
+            fillStateFromDigits(st, rawDigits);
             applyStateToInput(input, st, renderValue(st).length);
         });
 
@@ -546,6 +563,66 @@
             });
         }
     }
+
+    // =========================================================================
+    // 🔹 Публичный API — для программной установки значений в маскированные поля
+    // =========================================================================
+    //
+    // Проблема: если просто сделать `input.value = '01.08.2026'`, внутренний
+    // `state` маски остаётся пустым. На blur/submit `finalizeValidate` решает,
+    // что поле пустое, и обнуляет его. Именно из-за этого «слетали» даты,
+    // установленные из API (proceedToEdit в dashboard.js).
+    //
+    // Решение: устанавливать значение через `window.DateMask.setValue(input, str)`,
+    // который синхронизирует и input.value, и state.
+    //
+    window.DateMask = {
+        /**
+         * Программно установить значение в input с маской.
+         * @param {HTMLInputElement|string} input  — сам элемент или его id
+         * @param {string} value                   — строка в формате 'дд.мм.гггг' или ISO 'гггг-мм-дд'
+         */
+        setValue: function (input, value) {
+            if (typeof input === 'string') input = document.getElementById(input);
+            if (!input) return;
+
+            const st = stateMap.get(input);
+            if (!st) {
+                // Маска на это поле не навешана — просто пишем value как есть
+                input.value = value || '';
+                return;
+            }
+
+            const v = (value || '').trim();
+            if (!v) {
+                // Явная очистка — обнуляем и state
+                st.day = [null, null];
+                st.month = [null, null];
+                st.year = [null, null, null, null];
+                input.value = '';
+                clearError(input);
+                return;
+            }
+
+            // Пересобираем state из строки (поддерживаются дд.мм.гггг и ISO)
+            fillStateFromDigits(st, parseInitialValue(v));
+            input.value = renderValue(st);
+
+            // Финальная валидация — дотянет короткий год и подсветит ошибки
+            finalizeValidate(input);
+        },
+
+        /** Прочитать значение из маскированного поля (то же, что input.value) */
+        getValue: function (input) {
+            if (typeof input === 'string') input = document.getElementById(input);
+            return input ? input.value : '';
+        },
+
+        /** Очистить поле (аналог setValue(input, '')) */
+        clear: function (input) {
+            window.DateMask.setValue(input, '');
+        },
+    };
 
     // =========================================================================
     // 🔹 Инициализация + MutationObserver (сканирует только добавленные узлы,

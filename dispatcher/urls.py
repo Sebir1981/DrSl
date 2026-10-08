@@ -10,4 +10,5 @@ urlpatterns = [
     path('api/student-search/', views.student_search_api, name='student_search_api'),
     path('individual-books/<int:pk>/delete/', views.individual_book_delete, name='individual_book_delete'),
     path('api/book-search/', views.book_search_api, name='book_search_api'),
+    path('individual-books/<int:pk>/mark-driven/', views.mark_student_driven, name='individual_book_mark_driven',),
 ]

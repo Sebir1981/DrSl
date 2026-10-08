@@ -592,7 +592,7 @@
     </div>
     {% endif %}
 
-    <!-- 🔹 ТРЕТИЙ РЯД: Прогресс обучения (Ровно 3 колонки) -->
+    <!-- 🔹 ТРЕТИЙ РЯД: Прогресс обучения -->
     <div class="progress-section">
         <div class="card-title">📈 Прогресс обучения</div>
         <div class="progress-grid">
@@ -639,18 +639,27 @@
                 <div class="progress-card-title">📋 Зачёты</div>
                 <div class="credits-grid-compact">
                     {% for num in "123456" %}
-                    <div class="credit-item-compact {% if num|add:0 in credits_by_number %}{% with last_attempt=credits_by_number|get_item:num|first %}{% if last_attempt.status == 'passed' %}passed{% else %}failed{% endif %}{% endwith %}{% endif %}"
+                    {% with num_key=num|add:0 %}
+                    <div class="credit-item-compact {% with attempts=credits_by_number|get_item:num_key %}{% if attempts %}{% with last=attempts|first %}{% if last.status == 'passed' %}passed{% else %}failed{% endif %}{% endwith %}{% endif %}{% endwith %}"
                          data-credit-number="{{ num }}"
                          onmouseenter="showCreditTooltip(event, {{ num }})"
                          onmouseleave="hideCreditTooltip()">
                         <div class="credit-title-compact">№{{ num }}</div>
-                        {% if num|add:0 in credits_by_number %}
-                            {% with attempts=credits_by_number|get_item:num %}
-                                {% with last=attempts|first %}
-                                <div class="credit-status-compact">{% if last.status == 'passed' %}✅{% else %}❌{% endif %}</div>
-                                <div class="credit-date-compact">{{ last.credit_date|date:"d.m.Y" }}</div>
-                                <div class="credit-date-compact">Попыток: {{ attempts|length }}</div>
-                                {% endwith %}
+
+                        {% if num_key in credits_by_number %}
+                            {% with attempts=credits_by_number|get_item:num_key %}
+                                {% if attempts %}
+                                    {% with last=attempts|first %}
+                                        <div class="credit-status-compact">
+                                            {% if last.status == 'passed' %}✅{% else %}❌{% endif %}
+                                        </div>
+                                        <div class="credit-date-compact">{{ last.credit_date|date:"d.m.Y" }}</div>
+                                        <div class="credit-date-compact">Попыток: {{ attempts|length }}</div>
+                                    {% endwith %}
+                                {% else %}
+                                    <div class="credit-status-compact" style="color: #cbd5e1;">—</div>
+                                    <div class="credit-date-compact">Не сдавал</div>
+                                {% endif %}
                             {% endwith %}
                         {% else %}
                             <div class="credit-status-compact" style="color: #cbd5e1;">—</div>
@@ -660,33 +669,38 @@
                         <div class="tooltip" id="tooltip-{{ num }}">
                             <div class="tooltip-title">Зачёт №{{ num }}</div>
                             <div class="tooltip-attempts">
-                                {% if num|add:0 in credits_by_number %}
-                                    {% with attempts=credits_by_number|get_item:num %}
-                                        {% for attempt in attempts %}
-                                        <div class="tooltip-attempt">
-                                            <div style="display: flex; flex-direction: column; gap: 2px;">
-                                                <span class="tooltip-attempt-date">{{ attempt.credit_date|date:"d.m.Y" }}</span>
-                                                <span style="font-size: 10px; color: #64748b;">
-                                                    Попытка №{{ attempt.attempt_num }} •
-                                                    {% if attempt.attempt_type == 'Платная' %}
-                                                        <span style="color: #f59e0b;"> Платная</span>
-                                                    {% else %}
-                                                        <span style="color: #10b981;">✅ Бесплатная</span>
-                                                    {% endif %}
+                                {% if num_key in credits_by_number %}
+                                    {% with attempts=credits_by_number|get_item:num_key %}
+                                        {% if attempts %}
+                                            {% for attempt in attempts %}
+                                            <div class="tooltip-attempt">
+                                                <div style="display: flex; flex-direction: column; gap: 2px;">
+                                                    <span class="tooltip-attempt-date">{{ attempt.credit_date|date:"d.m.Y" }}</span>
+                                                    <span style="font-size: 10px; color: #64748b;">
+                                                        Попытка №{{ attempt.attempt_num }} •
+                                                        {% if attempt.attempt_type == 'Платная' %}
+                                                            <span style="color: #f59e0b;"> Платная</span>
+                                                        {% else %}
+                                                            <span style="color: #10b981;">✅ Бесплатная</span>
+                                                        {% endif %}
+                                                    </span>
+                                                </div>
+                                                <span class="tooltip-attempt-result {% if attempt.status == 'passed' %}passed{% else %}failed{% endif %}">
+                                                    {% if attempt.status == 'passed' %}✅ Сдал{% else %}❌ Не сдал{% endif %}
                                                 </span>
                                             </div>
-                                            <span class="tooltip-attempt-result {% if attempt.status == 'passed' %}passed{% else %}failed{% endif %}">
-                                                {% if attempt.status == 'passed' %}✅ Сдал{% else %}❌ Не сдал{% endif %}
-                                            </span>
-                                        </div>
-                                        {% endfor %}
+                                            {% endfor %}
+                                        {% else %}
+                                            <div class="tooltip-attempt"><span>Нет попыток</span></div>
+                                        {% endif %}
                                     {% endwith %}
                                 {% else %}
-                                <div class="tooltip-attempt"><span>Нет попыток</span></div>
+                                    <div class="tooltip-attempt"><span>Нет попыток</span></div>
                                 {% endif %}
                             </div>
                         </div>
                     </div>
+                    {% endwith %}
                     {% endfor %}
                 </div>
             </div>
@@ -725,10 +739,10 @@
                     {% endif %}
                 </div>
             </div>
-        </div> <!-- Конец progress-grid -->
-    </div> <!-- Конец progress-section -->
+        </div>
+    </div>
 
-    <!-- 🔹 ЧЕТВЁРТЫЙ РЯД: История (ОТДЕЛЬНЫЙ КОНТЕЙНЕР НА ВСЮ ШИРИНУ) -->
+    <!-- 🔹 ЧЕТВЁРТЫЙ РЯД: История -->
     <div class="history-section">
         <div class="card-title">📜 История учащегося</div>
 

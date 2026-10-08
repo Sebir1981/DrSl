@@ -35,7 +35,7 @@ class MasterPlanGroup(models.Model):
         blank=True
     )
     can_drive_from = models.DateField(
-        "Можно катать с",
+        "Можно сдавать с",
         null=True,
         blank=True
     )
@@ -100,7 +100,8 @@ class MasterPlanGroup(models.Model):
     def driving_threshold(self):
         """
         Порог «вождение выкатано» = plan − 1 ч (экзамен).
-        При hours_per_student=50 порог = 49 ч.
+        Используется только для метрик в часах; для статуса «Выкатан»
+        источник правды — флаг Student.is_driven.
         """
         t = float(self.hours_per_student) - 1.0
         return max(0.0, t)
@@ -120,7 +121,7 @@ class MasterPlanGroup(models.Model):
         return round(1.0 * self.total_students, 1)
 
     # =========================================================
-    # 🔹 РЕАЛЬНО ВЫКАТАННЫЕ ЧАСЫ И УЧЕНИКИ
+    # 🔹 РЕАЛЬНО ВЫКАТАННЫЕ ЧАСЫ
     # =========================================================
 
     @property
@@ -140,44 +141,17 @@ class MasterPlanGroup(models.Model):
         )
         return round(float(result or 0), 1)
 
-    def _student_hours_map(self):
-        """
-        Возвращает {student_id: сумма_часов_из_BookEntry}.
-        Кэшируется на объекте, чтобы не делать N запросов.
-        """
-        cache_key = '_student_hours_map_cache'
-        if hasattr(self, cache_key):
-            return getattr(self, cache_key)
-
-        from dispatcher.models import BookEntry
-
-        rows = (
-            BookEntry.objects
-            .filter(book__group_id=self.group_id)
-            .values('book__student_id')
-            .annotate(total=Sum('duration_hours_cache'))
-        )
-        result = {
-            row['book__student_id']: round(float(row['total'] or 0), 1)
-            for row in rows
-        }
-        setattr(self, cache_key, result)
-        return result
+    # =========================================================
+    # 🔹 СТАТУС «ВЫКАТАН» (по флагу Student.is_driven)
+    # =========================================================
 
     @property
     def driven_students_count(self):
         """
-        Сколько студентов группы полностью выкатали вождение.
-        Читаем часы из BookEntry, а не из Student.driving_hours_completed.
+        Сколько учеников группы отмечены как «Выкатан» (Student.is_driven).
+        Источник правды — ручной флаг из книжки, не часы.
         """
-        threshold = self.driving_threshold
-        hours_map = self._student_hours_map()
-
-        count = 0
-        for s in self.group.students.all():
-            if hours_map.get(s.id, 0.0) >= threshold:
-                count += 1
-        return count
+        return self.group.students.filter(is_driven=True).count()
 
     @property
     def remaining_students(self):
@@ -186,23 +160,13 @@ class MasterPlanGroup(models.Model):
 
     def driven_students_for_master(self, master_id):
         """
-        Сколько учеников КОНКРЕТНОГО мастера в этой группе выкатали.
-        Читаем часы из BookEntry.
+        Сколько учеников КОНКРЕТНОГО мастера в этой группе отмечены как «Выкатан».
+        Считаем только тех, у кого is_driven=True.
         """
-        threshold = self.driving_threshold
-        hours_map = self._student_hours_map()
-
-        student_ids = list(
-            self.student_assignments
-            .filter(master_id=master_id)
-            .values_list('student_id', flat=True)
-        )
-
-        count = 0
-        for sid in student_ids:
-            if hours_map.get(sid, 0.0) >= threshold:
-                count += 1
-        return count
+        return self.student_assignments.filter(
+            master_id=master_id,
+            student__is_driven=True,
+        ).count()
 
     def assigned_students_for_master(self, master_id):
         """Сколько учеников закреплено за конкретным мастером в этой группе."""
@@ -219,7 +183,7 @@ class MasterPlanGroup(models.Model):
 
     @property
     def remaining_hours(self):
-        """Общий остаток по плану = план − выкатано."""
+        """Общий остаток по плану = план − выкатано (в часах)."""
         return round(max(0.0, self.total_hours - self.driven_hours), 1)
 
     @property
@@ -249,7 +213,9 @@ class MasterPlanGroup(models.Model):
 
     @property
     def is_completed(self):
-        """Все ли студенты группы полностью выкатали вождение."""
+        """
+        Все ли студенты группы отмечены как «Выкатан» (is_driven=True).
+        """
         return (
             self.total_students > 0
             and self.driven_students_count >= self.total_students
@@ -257,7 +223,7 @@ class MasterPlanGroup(models.Model):
 
     @property
     def progress_percent(self):
-        """Процент выкатанного вождения."""
+        """Процент выкатанного вождения (по часам)."""
         if self.driving_hours_plan <= 0:
             return 0.0
         return min(100.0, round(self.driven_hours / self.driving_hours_plan * 100, 1))
@@ -288,7 +254,8 @@ class MasterPlanGroup(models.Model):
     def recalculate_distribution_completed(self):
         """
         Пересчитывает completed_count для всех распределений этой группы
-        пропорционально students_count.
+        пропорционально students_count (по обновлённому driven_students_count —
+        флаг is_driven).
         """
         distributions = list(self.distributions.all())
         total_distributed = sum(d.students_count for d in distributions)
@@ -316,7 +283,7 @@ class MasterPlanGroup(models.Model):
 
     def check_and_archive(self, save=True):
         """
-        Проверяет: все ли студенты выкатали вождение (порог).
+        Проверяет: все ли студенты отмечены как «Выкатан» (is_driven=True).
         Если да — помечает группу как архивную и ставит дату архивации.
         Возвращает True, если группа была только что заархивирована.
         """
@@ -377,8 +344,8 @@ class MasterPlanDistribution(models.Model):
     @property
     def driven_students(self):
         """
-        Сколько учеников ЭТОГО мастера в ЭТОЙ группе выкатали.
-        Считаем через BookEntry (единый источник истины).
+        Сколько учеников ЭТОГО мастера в ЭТОЙ группе отмечены как «Выкатан».
+        Считаем через Student.is_driven (единый источник истины).
         """
         return self.plan_group.driven_students_for_master(self.master_id)
 

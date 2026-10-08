@@ -34,6 +34,11 @@
             <span class="icon">🗺️</span> <span class="title">Генеральный план</span>
         </a>
 
+        <!-- 🔹 Диспетчерская -->
+        <a href="{% url 'dispatcher:dashboard' %}" class="menu-item {% if request.resolver_match.app_name == 'dispatcher' %}active{% endif %}" title="Диспетчерская">
+            <span class="icon">🛣️</span> <span class="title">Диспетчерская</span>
+        </a>
+
         <!-- Отчёты -->
         <a href="{% url 'reports:dashboard' %}" class="menu-item {% if request.resolver_match.app_name == 'reports' %}active{% endif %}" title="Отчёты">
             <span class="icon">📊</span> <span class="title">Отчёты</span>

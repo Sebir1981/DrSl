@@ -42,13 +42,79 @@
 .book-item { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; background: #f8fafc; border-radius: 8px; border-left: 4px solid #8b5cf6; transition: all 0.2s; text-decoration: none; color: inherit; }
 .book-item:hover { background: #f1f5f9; transform: translateX(2px); box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
 .book-item.rs { border-left-color: #3b82f6; }
-.book-info { flex: 1; }
+.book-info { flex: 1; min-width: 0; }
 .book-name { font-weight: 600; color: #1e293b; font-size: 14px; margin-bottom: 4px; }
 .book-details { font-size: 12px; color: #64748b; display: flex; gap: 12px; flex-wrap: wrap; }
-.book-stats { display: flex; gap: 12px; align-items: center; }
+.book-stats { display: flex; gap: 12px; align-items: center; flex-shrink: 0; }
 .book-stat { text-align: center; padding: 4px 10px; background: white; border-radius: 6px; border: 1px solid #e2e8f0; }
 .book-stat-value { font-size: 14px; font-weight: 700; color: #3b82f6; }
 .book-stat-label { font-size: 10px; color: #64748b; }
+
+/* Полностью выкатанный учащийся — зелёная карточка */
+.book-item-done {
+    background: #f0fdf4;
+    border-left-color: #16a34a;
+    box-shadow: 0 0 0 1px #bbf7d0 inset;
+}
+.book-item-done:hover {
+    background: #dcfce7;
+    box-shadow: 0 2px 8px rgba(22, 163, 74, 0.15);
+}
+.book-item-done .book-name {
+    color: #166534;
+}
+.book-item-done .book-stat {
+    border-color: #bbf7d0;
+    background: #f0fdf4;
+}
+.book-item-done .book-stat-value {
+    color: #16a34a;
+}
+
+/* Даты из генерального плана */
+.book-dates {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 6px;
+    font-size: 11px;
+}
+
+.book-date {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 6px;
+    background: #f1f5f9;
+    color: #475569;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.book-date-danger {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.book-date-warning {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+/* В зелёной карточке «Выкатан» — приглушаем фон, чтобы не сливались */
+.book-item-done .book-date {
+    background: #dcfce7;
+    color: #166534;
+}
+.book-item-done .book-date-danger {
+    background: #fee2e2;
+    color: #991b1b;
+}
+.book-item-done .book-date-warning {
+    background: #fef3c7;
+    color: #92400e;
+}
 
 /* Бейджи */
 .badge { display: inline-block; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; }
@@ -97,12 +163,11 @@
     cursor: pointer;
     box-shadow: 0 2px 8px rgba(239, 68, 68, 0.25);
     transition: all 0.2s;
-    margin-left: auto;    /* ← прижимает кнопку вправо */
+    margin-left: auto;
     margin-top: 8px;
     margin-bottom: 24px;
 }
 
-/* Обёртка для выравнивания по правому краю, если кнопка не во flex-контейнере */
 .fab-delete-wrapper {
     display: flex;
     justify-content: flex-end;
@@ -256,42 +321,10 @@
 
     <!-- Заголовок -->
     <div class="dispatcher-header">
-        <h1 class="dispatcher-title">🚗 Диспетчерская</h1>
+        <h1 class="dispatcher-title">🛣️ Диспетчерская</h1>
         <a href="{% url 'dispatcher:individual_book_create' %}" class="btn btn-purple">
             📗 Новая индивидуальная книжка
         </a>
-    </div>
-
-    <!-- Статистика -->
-    <div class="stats-grid">
-        <div class="stat-card">
-            <div class="stat-icon purple">📗</div>
-            <div class="stat-info">
-                <div class="stat-value">{{ books_count|default:0 }}</div>
-                <div class="stat-label">Всего книжек</div>
-            </div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-icon blue">👥</div>
-            <div class="stat-info">
-                <div class="stat-value">{{ active_books_count|default:0 }}</div>
-                <div class="stat-label">Активных учащихся</div>
-            </div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-icon yellow">📋</div>
-            <div class="stat-info">
-                <div class="stat-value">{{ today_count|default:0 }}</div>
-                <div class="stat-label">Путевых листов сегодня</div>
-            </div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-icon green">✅</div>
-            <div class="stat-info">
-                <div class="stat-value">{{ completed_today|default:0 }}</div>
-                <div class="stat-label">Завершено сегодня</div>
-            </div>
-        </div>
     </div>
 
     <!-- Поиск и фильтры -->
@@ -358,19 +391,47 @@
             {% if books %}
             <div class="book-list">
                 {% for book in books %}
-                <a href="{% url 'dispatcher:individual_book_edit' book.pk %}" class="book-item">
+                <a href="{% url 'dispatcher:individual_book_edit' book.pk %}"
+                   class="book-item {% if book.student.is_driven %}book-item-done{% endif %}">
                     <div class="book-info">
-                        <div class="book-name">{{ book.student.full_name }}</div>
+                        <div class="book-name">
+                            {% if book.student.is_driven %}✅ {% endif %}{{ book.student.full_name }}
+                        </div>
+
                         <div class="book-details">
                             {% if book.group %}<span>👥 {{ book.group.group_number }}</span>{% endif %}
                             {% if book.group and book.group.category %}<span>🚗 {{ book.group.category.code }}</span>{% endif %}
                             {% if book.master %}<span>👨‍🏫 {{ book.master.short_name }}</span>{% endif %}
                             {% if book.car %}<span>🚘 {{ book.car }}</span>{% endif %}
                         </div>
+
+                        {% if book.plan_group %}
+                        <div class="book-dates">
+                            {% if book.plan_group.drive_until %}
+                                <span class="book-date {% if book.plan_group.drive_until_status == 'danger' %}book-date-danger{% elif book.plan_group.drive_until_status == 'warning' %}book-date-warning{% endif %}"
+                                      title="Выкатать до: {{ book.plan_group.drive_until|date:'d.m.Y' }}">
+                                    🎯 до {{ book.plan_group.drive_until|date:"d.m.Y" }}
+                                </span>
+                            {% endif %}
+
+                            {% if book.plan_group.group.exam_internal_driving_date %}
+                                <span class="book-date" title="Внутренний экзамен: Вождение">
+                                    🚗 {{ book.plan_group.group.exam_internal_driving_date|date:"d.m.Y" }}
+                                </span>
+                            {% endif %}
+
+                            {% if book.plan_group.group.exam_gai_date %}
+                                <span class="book-date" title="Экзамен ГАИ">
+                                    🏁 {{ book.plan_group.group.exam_gai_date|date:"d.m.Y" }}
+                                </span>
+                            {% endif %}
+                        </div>
+                        {% endif %}
                     </div>
+
                     <div class="book-stats">
                         <div class="book-stat">
-                            <div class="book-stat-value">{{ book.entries.count }}</div>
+                            <div class="book-stat-value">{{ book.filled_count }}/{{ book.total_count }}</div>
                             <div class="book-stat-label">записей</div>
                         </div>
                         <div class="book-stat">
@@ -532,7 +593,7 @@
     'use strict';
 
     // =========================================================================
-    // 🔹 КОНСТАНТЫ — прямые URL, без url , чтобы не падать при отсутствии маршрутов
+    // 🔹 КОНСТАНТЫ
     // =========================================================================
     const URL_BOOK_SEARCH = '/dispatcher/api/book-search/';
     const URL_BOOK_DELETE_TPL = '/dispatcher/individual-books/__ID__/delete/';

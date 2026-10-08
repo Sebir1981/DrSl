@@ -48,7 +48,15 @@
 
     const setFieldValue = (id, value) => {
         const el = document.getElementById(id);
-        if (el) el.value = value;
+        if (!el) return;
+
+        // Для маскированных полей — используем DateMask API,
+        // чтобы синхронизировать внутренний state маски
+        if (el.dataset.maskApplied === '1' && window.DateMask) {
+            window.DateMask.setValue(el, value);
+            return;
+        }
+        el.value = value;
     };
 
     function escapeHtmlName(s) {
@@ -836,7 +844,20 @@
                     return;
                 }
                 setFieldValue('editHoursInput', data.hours_per_student || DEFAULT_HOURS_PER_STUDENT);
-                setFieldValue('editDistributionDate', data.distribution_date || '');
+                console.log('[proceedToEdit] data =', data);
+console.log('[proceedToEdit] data.distribution_date =', JSON.stringify(data.distribution_date));
+console.log('[proceedToEdit] data.can_drive_from =', JSON.stringify(data.can_drive_from));
+console.log('[proceedToEdit] data.drive_until =', JSON.stringify(data.drive_until));
+
+setFieldValue('editDistributionDate', data.distribution_date || '');
+setFieldValue('editCanDriveFrom', data.can_drive_from || '');
+setFieldValue('editDriveUntil', data.drive_until || '');
+
+console.log('[proceedToEdit] после setFieldValue:',
+    JSON.stringify(document.getElementById('editDistributionDate').value),
+    JSON.stringify(document.getElementById('editCanDriveFrom').value),
+    JSON.stringify(document.getElementById('editDriveUntil').value)
+);
                 setFieldValue('editCanDriveFrom', data.can_drive_from || '');
                 setFieldValue('editDriveUntil', data.drive_until || '');
                 setFieldValue('editExamTheory', data.exam_internal_theory_date || '');

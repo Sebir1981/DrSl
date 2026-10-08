@@ -16,6 +16,32 @@
 .btn-save { background: #10b981; color: white; }
 .btn-save:hover { background: #059669; }
 
+/* Статус-бейдж рядом с заголовком */
+.status-badge {
+    display: inline-block; padding: 4px 12px; border-radius: 12px;
+    font-size: 13px; font-weight: 700; margin-left: 12px; vertical-align: middle;
+}
+.status-driven { background: #dcfce7; color: #166534; border: 2px solid #16a34a; }
+.status-learning { background: #fef3c7; color: #92400e; border: 2px solid #d97706; }
+
+/* Кнопка «Выкатан» */
+.btn-driven {
+    background: #10b981; color: white; font-weight: 700;
+    padding: 10px 24px; font-size: 15px;
+}
+.btn-driven:hover:not(:disabled) { background: #059669; }
+.btn-driven:disabled, .btn-driven.disabled {
+    background: #cbd5e1; color: #64748b; cursor: not-allowed;
+}
+
+/* Нижний блок кнопок */
+.book-footer-actions {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 12px; margin-top: 20px; padding: 16px 20px;
+    background: white; border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
 /* Шапка */
 .book-header { background: white; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
 .header-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
@@ -29,6 +55,26 @@
 .search-btn { padding: 8px 12px; background: #f1f5f9; border: 2px solid #e2e8f0; border-radius: 6px; cursor: pointer; color: #64748b; font-size: 16px; flex-shrink: 0; }
 .search-btn:hover { background: #e2e8f0; }
 
+/* Read-only значения полей в существующей книжке */
+.student-fixed {
+    display: flex;
+    align-items: center;
+    min-height: 38px;
+    padding: 8px 12px;
+    border: 2px solid #e2e8f0;
+    border-radius: 6px;
+    font-size: 14px;
+    background: #f1f5f9;
+    color: #334155;
+    font-weight: 600;
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 /* Live-search подсказки */
 #search-suggestions {
     position: absolute; top: 100%; left: 0; right: 0;
@@ -39,45 +85,27 @@
 #search-suggestions.active { display: block; }
 
 .live-item {
-    padding: 10px 14px;
-    cursor: pointer;
-    border-bottom: 1px solid #f1f5f9;
-    transition: background 0.12s;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 12px;
+    padding: 10px 14px; cursor: pointer; border-bottom: 1px solid #f1f5f9;
+    transition: background 0.12s; display: flex; justify-content: space-between;
+    align-items: center; gap: 12px;
 }
 .live-item:last-child { border-bottom: none; }
-.live-item:hover,
-.live-item.highlighted { background: #eff6ff; }
+.live-item:hover, .live-item.highlighted { background: #eff6ff; }
 
 .live-item-main { flex: 1; min-width: 0; }
-.live-item-name {
-    font-weight: 600; color: #1e293b; font-size: 13px;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.live-item-meta {
-    font-size: 11px; color: #64748b; margin-top: 2px;
-    display: flex; gap: 10px; flex-wrap: wrap;
-}
+.live-item-name { font-weight: 600; color: #1e293b; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.live-item-meta { font-size: 11px; color: #64748b; margin-top: 2px; display: flex; gap: 10px; flex-wrap: wrap; }
 .live-item-meta span { white-space: nowrap; }
 
 .live-item-side { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
-
-.live-item-badge {
-    padding: 2px 8px; border-radius: 6px;
-    font-size: 10px; font-weight: 700; white-space: nowrap;
-}
+.live-item-badge { padding: 2px 8px; border-radius: 6px; font-size: 10px; font-weight: 700; white-space: nowrap; }
 .live-item-badge.book { background: #fee2e2; color: #991b1b; }
 .live-item-badge.free { background: #dcfce7; color: #166534; }
 
 .live-add-btn {
-    background: #3b82f6; color: white;
-    border: none; border-radius: 6px;
+    background: #3b82f6; color: white; border: none; border-radius: 6px;
     padding: 4px 10px; font-size: 11px; font-weight: 700;
-    cursor: pointer; transition: all 0.15s;
-    white-space: nowrap;
+    cursor: pointer; transition: all 0.15s; white-space: nowrap;
 }
 .live-add-btn:hover { background: #2563eb; }
 .live-add-btn:active { transform: scale(0.96); }
@@ -85,10 +113,7 @@
 .live-empty { padding: 16px; text-align: center; color: #94a3b8; font-size: 13px; }
 .live-loading { padding: 16px; text-align: center; color: #64748b; font-size: 13px; }
 
-.live-search-hint {
-    font-size: 11px; color: #64748b; margin-top: 4px;
-    min-height: 14px;
-}
+.live-search-hint { font-size: 11px; color: #64748b; margin-top: 4px; min-height: 14px; }
 .live-search-hint strong { color: #1e293b; }
 
 /* Сводка часов */
@@ -104,28 +129,17 @@
 
 /* Раздел */
 .section-header td {
-    padding: 14px 8px;
-    text-align: center;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    font-size: 13px;
-    font-weight: 700;
+    padding: 14px 8px; text-align: center; letter-spacing: 2px;
+    text-transform: uppercase; font-size: 13px; font-weight: 700;
     color: #0369a1;
     background: linear-gradient(90deg, #e0f2fe 0%, #bae6fd 50%, #e0f2fe 100%);
-    border-top: 4px double #0284c7;
-    border-bottom: 2px solid #0284c7;
+    border-top: 4px double #0284c7; border-bottom: 2px solid #0284c7;
     position: relative;
 }
 .section-hours {
-    margin-left: 12px;
-    padding: 2px 10px;
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: normal;
-    text-transform: none;
-    background: #ffffffaa;
-    border-radius: 10px;
-    color: #0369a1;
+    margin-left: 12px; padding: 2px 10px; font-size: 12px; font-weight: 600;
+    letter-spacing: normal; text-transform: none; background: #ffffffaa;
+    border-radius: 10px; color: #0369a1;
 }
 
 /* Названия занятий */
@@ -133,12 +147,14 @@
 .exercise-short { cursor: help; border-bottom: 1px dotted #94a3b8; }
 .exercise-short:hover { color: #3b82f6; border-bottom-color: #3b82f6; }
 .hours-badge { display: inline-block; margin-left: 6px; padding: 1px 6px; font-size: 10px; font-weight: 600; background: #dbeafe; color: #1e40af; border-radius: 10px; }
+.hours-badge-empty { background: #f1f5f9; color: #94a3b8; }
+.hours-badge-done  { background: #dcfce7; color: #166534; }
+.hours-badge-over  { background: #fee2e2; color: #991b1b; }
 
 /* CSS-tooltip */
 [data-tooltip] { position: relative; }
 [data-tooltip]:hover::after {
-    content: attr(data-tooltip);
-    position: absolute; left: 0; bottom: 120%;
+    content: attr(data-tooltip); position: absolute; left: 0; bottom: 120%;
     background: #1e293b; color: white; padding: 6px 10px;
     border-radius: 6px; font-size: 12px; white-space: nowrap;
     z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.2);
@@ -181,96 +197,152 @@
     <form method="POST" id="bookForm">
         {% csrf_token %}
 
-        <!-- Заголовок -->
+        <!-- Заголовок с бейджем статуса -->
         <div class="page-header">
-            <h1 class="page-title">📗 {{ title }}</h1>
+            <h1 class="page-title">
+                📗 {{ title }}
+                {% if book and book.student.is_driven and is_fully_filled %}
+                    <span class="status-badge status-driven"
+                          title="Выкатан: {{ book.student.driven_at|date:'d.m.Y H:i' }}">
+                        ✅ Выкатан
+                    </span>
+                {% elif book %}
+                    <span class="status-badge status-learning">⏳ Обучение</span>
+                {% endif %}
+            </h1>
             <div class="header-buttons">
                 <a href="{% url 'dispatcher:dashboard' %}" class="btn btn-back">← Назад</a>
                 <button type="submit" class="btn btn-save">💾 Сохранить</button>
             </div>
         </div>
 
-        <!-- Сводка часов -->
-        {% if student_stats %}
-        <div class="hours-summary">
-            <span>🕒 Выкатано всего: <strong>{{ student_stats.total_hours }} ч</strong></span>
-            <span>📋 По плану: <strong>{{ total_planned }} ч</strong></span>
-            <span>👨‍🎓 Учащийся: <strong>{{ book.student.full_name }}</strong></span>
-        </div>
-        {% endif %}
+        {% if book %}
+<div class="hours-summary">
+    <span>👨‍🎓 Учащийся: <strong>{{ book.student.full_name }}</strong></span>
+    <span>📋 По плану: <strong>{{ total_planned|default:0|floatformat:1 }} ч</strong></span>
+    <span>🕒 Выкатано всего:
+        <strong {% if total_done > total_planned %}style="color:#dc2626"{% endif %}>
+            {{ total_done|default:0|floatformat:1 }} ч
+        </strong>
+    </span>
+
+    <span>🎯 Выкатать до:
+        <strong>
+            {% if plan_group and plan_group.drive_until %}
+                {{ plan_group.drive_until|date:"d.m.Y" }}
+            {% else %}
+                —
+            {% endif %}
+        </strong>
+    </span>
+
+    <span>🚗 Внутр. экзамен: Вождение:
+        <strong>
+            {% if plan_group and plan_group.group.exam_internal_driving_date %}
+                {{ plan_group.group.exam_internal_driving_date|date:"d.m.Y" }}
+            {% else %}
+                —
+            {% endif %}
+        </strong>
+    </span>
+</div>
+{% endif %}
 
         <!-- Шапка книжки -->
         <div class="book-header">
             <div class="header-grid">
 
-                <!-- 1. ФИО учащегося с live-search -->
+                <!-- 1. ФИО учащегося -->
                 <div class="form-group">
                     <label class="form-label">👤 ФИО учащегося *</label>
-                    <div class="search-wrapper">
-                        <input type="text"
-                               class="form-input"
-                               id="studentLiveSearch"
-                               placeholder="Начните вводить ФИО..."
-                               autocomplete="off"
-                               autocorrect="off"
-                               autocapitalize="off"
-                               spellcheck="false"
-                               data-live-search="true"
-                               data-target="studentSelect"
-                               data-api-url="{% url 'dispatcher:student_search_api' %}"
-                               value="{% if book %}{{ book.student.full_name }}{% endif %}">
-                        <input type="hidden" name="student" id="studentSelect"
-                               value="{% if book %}{{ book.student_id }}{% elif form.student.value %}{{ form.student.value }}{% endif %}">
-                        <button type="button" class="search-btn" onclick="openSearchModal()" title="Расширенный поиск">🔍</button>
-                        <div id="search-suggestions"></div>
-                    </div>
-                    <div id="liveSearchHint" class="live-search-hint"></div>
+                    {% if book %}
+                        <div class="student-fixed">{{ book.student.full_name }}</div>
+                        <input type="hidden" name="student" id="studentSelect" value="{{ book.student_id }}">
+                    {% else %}
+                        <div class="search-wrapper">
+                            <input type="text"
+                                   class="form-input"
+                                   id="studentLiveSearch"
+                                   placeholder="Начните вводить ФИО..."
+                                   autocomplete="off"
+                                   autocorrect="off"
+                                   autocapitalize="off"
+                                   spellcheck="false"
+                                   data-live-search="true"
+                                   data-target="studentSelect"
+                                   data-api-url="{% url 'dispatcher:student_search_api' %}"
+                                   value="{% if form.student.value %}{{ form.student.value }}{% endif %}">
+                            <input type="hidden" name="student" id="studentSelect"
+                                   value="{% if form.student.value %}{{ form.student.value }}{% endif %}">
+                            <button type="button" class="search-btn" onclick="openSearchModal()" title="Расширенный поиск">🔍</button>
+                            <div id="search-suggestions"></div>
+                        </div>
+                        <div id="liveSearchHint" class="live-search-hint"></div>
+                    {% endif %}
                 </div>
 
                 <!-- 2. Учебная группа -->
                 <div class="form-group">
                     <label class="form-label">👥 Учебная группа</label>
-                    <select name="group" id="groupSelect" class="form-input">
-                        <option value="">Не выбрана</option>
-                        {% for group in groups %}
-                            <option value="{{ group.id }}"
-                                {% if book and book.group_id == group.id %}selected
-                                {% elif form.group.value == group.id|stringformat:"d" %}selected{% endif %}>
-                                {{ group.group_number }}
-                            </option>
-                        {% endfor %}
-                    </select>
+                    {% if book %}
+                        <div class="student-fixed">{{ book.student.group.group_number|default:"Не назначена" }}</div>
+                        <input type="hidden" name="group" id="groupSelect"
+                               value="{{ book.student.group_id|default:'' }}">
+                    {% else %}
+                        <select name="group" id="groupSelect" class="form-input">
+                            <option value="">Не выбрана</option>
+                            {% for group in groups %}
+                                <option value="{{ group.id }}"
+                                    {% if form.group.value == group.id|stringformat:"d" %}selected{% endif %}>
+                                    {{ group.group_number }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    {% endif %}
                 </div>
 
                 <!-- 3. Мастер ПОВ -->
                 <div class="form-group">
                     <label class="form-label">👨‍🏫 Мастер ПОВ</label>
-                    <select name="master" id="masterSelect" class="form-input">
-                        <option value="">Не назначен</option>
-                        {% for master in masters %}
-                            <option value="{{ master.id }}"
-                                {% if book and book.master_id == master.id %}selected
-                                {% elif form.master.value == master.id|stringformat:"d" %}selected{% endif %}>
-                                {{ master.short_name }}
-                            </option>
-                        {% endfor %}
-                    </select>
+                    {% if book %}
+                        <div class="student-fixed">{{ book.student.master.short_name|default:"Не назначен" }}</div>
+                        <input type="hidden" name="master" id="masterSelect"
+                               value="{{ book.student.master_id|default:'' }}">
+                    {% else %}
+                        <select name="master" id="masterSelect" class="form-input">
+                            <option value="">Не назначен</option>
+                            {% for master in masters %}
+                                <option value="{{ master.id }}"
+                                    {% if form.master.value == master.id|stringformat:"d" %}selected{% endif %}>
+                                    {{ master.short_name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    {% endif %}
                 </div>
 
                 <!-- 4. Автомобиль -->
                 <div class="form-group">
                     <label class="form-label">🚗 Автомобиль</label>
-                    <select name="car" id="carSelect" class="form-input">
-                        <option value="">Не назначен</option>
-                        {% for car in cars %}
-                            <option value="{{ car.id }}"
-                                {% if book and book.car_id == car.id %}selected
-                                {% elif form.car.value == car.id|stringformat:"d" %}selected{% endif %}>
-                                {{ car.license_plate }} ({{ car.brand }})
-                            </option>
-                        {% endfor %}
-                    </select>
+                    {% if book and book.car %}
+                        <div class="student-fixed">
+                            {{ book.car.license_plate }}{% if book.car.brand %} ({{ book.car.brand }}){% endif %}
+                        </div>
+                        <input type="hidden" name="car" id="carSelect" value="{{ book.car_id }}">
+                    {% else %}
+                        <select name="car" id="carSelect" class="form-input">
+                            <option value="">Не назначен</option>
+                            {% for car in cars %}
+                                <option value="{{ car.id }}"
+                                    {% if book and book.car_id == car.id %}selected
+                                    {% elif form.car.value == car.id|stringformat:"d" %}selected{% endif %}>
+                                    {{ car.license_plate }} ({{ car.brand }})
+                                </option>
+                            {% endfor %}
+                        </select>
+                    {% endif %}
                 </div>
+
             </div>
         </div>
 
@@ -310,22 +382,34 @@
 
                         {% for exercise in section.exercises %}
                         {% with entry=entries_by_exercise|get_item:exercise.id %}
-                        <tr {% if entry %}class="filled-row"{% endif %}>
+                        <tr {% if entry and entry.date and entry.start_time and entry.end_time %}class="filled-row"{% endif %}>
                             <td class="exercise-name">
                                 <span class="exercise-short"
                                       data-tooltip="{{ exercise.display_full }}"
                                       title="{{ exercise.display_full }}">
                                     {{ exercise.display_short }}
                                 </span>
+
                                 {% if student_stats %}
                                     {% with stat=student_stats.by_exercise|get_item:exercise.id %}
                                         {% if stat %}
-                                            <span class="hours-badge"
-                                                  data-tooltip="Выкатано {{ stat.done|floatformat:1 }} ч из {{ stat.planned|floatformat:1 }} ч по плану">
-                                                {{ stat.done|floatformat:1 }}/{{ stat.planned|floatformat:1 }}
+                                            <span class="hours-badge
+                                                         {% if stat.done > exercise.hours %}hours-badge-over{% elif stat.done == exercise.hours %}hours-badge-done{% endif %}"
+                                                  data-tooltip="По плану {{ exercise.hours|default:0|floatformat:1 }} ч. Выкатано {{ stat.done|floatformat:1 }} ч">
+                                                {{ exercise.hours|default:0|floatformat:1 }}/{{ stat.done|floatformat:1 }}
+                                            </span>
+                                        {% else %}
+                                            <span class="hours-badge hours-badge-empty"
+                                                  data-tooltip="По плану {{ exercise.hours|default:0|floatformat:1 }} ч. Ещё не выкатано">
+                                                {{ exercise.hours|default:0|floatformat:1 }}/0,0
                                             </span>
                                         {% endif %}
                                     {% endwith %}
+                                {% else %}
+                                    <span class="hours-badge hours-badge-empty"
+                                          data-tooltip="По плану {{ exercise.hours|default:0|floatformat:1 }} ч.">
+                                        {{ exercise.hours|default:0|floatformat:1 }}/0,0
+                                    </span>
                                 {% endif %}
                             </td>
 
@@ -382,6 +466,24 @@
                 </tbody>
             </table>
         </div>
+
+        <!-- Нижний блок кнопок -->
+        <div class="book-footer-actions">
+            <a href="{% url 'dispatcher:dashboard' %}" class="btn btn-back">← Назад</a>
+
+            {% if book %}
+                <button type="button"
+                        class="btn btn-driven {% if not is_fully_filled or book.student.is_driven %}disabled{% endif %}"
+                        id="btnMarkDriven"
+                        data-book-id="{{ book.pk }}"
+                        {% if not is_fully_filled or book.student.is_driven %}disabled{% endif %}
+                        title="{% if book.student.is_driven %}Учащийся уже отмечен как выкатанный{% elif not is_fully_filled %}Кнопка станет активной, когда ВСЕ занятия будут заполнены (дата + время начала + время окончания). Заполнено {{ filled_count }} из {{ total_count }}{% if missing_exercises %}. Пропущено: {% for ex in missing_exercises %}{{ ex.exercise_number }}{% if not forloop.last %}, {% endif %}{% endfor %}{% endif %}{% else %}Отметить учащегося как выкатанного{% endif %}">
+                    ✅ Выкатан
+                </button>
+            {% endif %}
+
+            <button type="submit" class="btn btn-save">💾 Сохранить</button>
+        </div>
     </form>
 </div>
 
@@ -425,12 +527,47 @@
         </div>
     </div>
 </div>
+<!-- Модалка подтверждения «Выкатан» -->
+<div class="modal-overlay" id="markDrivenModal">
+    <div class="modal-content" style="max-width: 480px;">
+        <div class="modal-header">
+            <h2 class="modal-title">✅ Подтвердите действие</h2>
+            <button type="button" class="modal-close" onclick="closeMarkDrivenModal()">×</button>
+        </div>
 
+        <div style="padding: 8px 0 16px;">
+            <p style="font-size: 15px; color: #1e293b; margin: 0 0 12px;">
+                Отметить учащегося
+                <strong>{{ book.student.full_name }}</strong>
+                как <strong>«Выкатан»</strong>?
+            </p>
+            <div style="
+                background: #fef3c7;
+                border-left: 4px solid #d97706;
+                padding: 10px 14px;
+                border-radius: 6px;
+                font-size: 13px;
+                color: #92400e;
+                line-height: 1.5;
+            ">
+                ⚠️ После этого учащийся будет считаться <b>полностью выкатанным</b>.
+                Действие фиксируется в базе данных с текущей датой и временем.
+            </div>
+        </div>
+
+        <div class="modal-actions" style="display:flex;justify-content:flex-end;gap:10px;">
+            <button type="button"
+                    class="btn btn-back"
+                    onclick="closeMarkDrivenModal()">Отмена</button>
+            <button type="button"
+                    class="btn btn-driven"
+                    id="confirmMarkDrivenBtn">✅ Да, выкатан</button>
+        </div>
+    </div>
+</div>
 <script>
 (function() {
     'use strict';
-
-    // ⚠️ Прямые URL — чтобы не зависеть от url  в JS (Django парсит шаблон целиком,
 
     const URL_STUDENT_SEARCH = '/dispatcher/api/student-search/';
     const CSRF_TOKEN = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
@@ -452,7 +589,6 @@
 
         if (!input || !box) return;
 
-        // --- Ввод ---
         input.addEventListener('input', function() {
             clearTimeout(liveTimer);
             const q = this.value.trim();
@@ -475,24 +611,18 @@
             }
         });
 
-        // --- Клик по подсказке ---
         box.addEventListener('click', function(e) {
-            // «➕ Добавить» — то же, что и клик по строке
-            const addBtn = e.target.closest('.live-add-btn');
             const item = e.target.closest('.live-item');
             if (!item) return;
-            // если клик по кнопке или просто по строке — выбираем
             confirmLiveSelection(item);
         });
 
-        // --- Скрыть при клике вне ---
         document.addEventListener('click', function(e) {
             if (!e.target.closest('.search-wrapper')) {
                 box.classList.remove('active');
             }
         });
 
-        // --- Клавиатура ---
         input.addEventListener('keydown', function(e) {
             const items = box.querySelectorAll('.live-item');
             if (!items.length) return;
@@ -520,28 +650,21 @@
             }
         });
 
-        // --- Реакция на смену фильтров ---
         ['groupSelect', 'masterSelect'].forEach(id => {
             const el = $(id);
             if (el) {
                 el.addEventListener('change', function() {
                     const q = input.value.trim();
-                    if (q) doLiveSearch(q);
-                    else doLiveSearch('');   // даже без текста — показать подходящих
+                    doLiveSearch(q);
                 });
             }
         });
     }
 
-    // =====================================================================
-    // 🔹 ЗАПРОС К API
-    // =====================================================================
     function doLiveSearch(q) {
         const box = $('search-suggestions');
         const hint = $('liveSearchHint');
 
-        // 🔥 Было: if (!q) return;  — теперь пустой q допустим и означает «все»
-        // Собираем фильтры
         const groupId = $('groupSelect')?.value || '';
         const masterId = $('masterSelect')?.value || '';
 
@@ -552,7 +675,6 @@
         if (masterId) params.append('master', masterId);
 
         const url = URL_STUDENT_SEARCH + '?' + params.toString();
-        console.log('[live-search] URL:', url);
 
         if (liveAbort) liveAbort.abort();
         liveAbort = new AbortController();
@@ -614,9 +736,6 @@
             });
     }
 
-    // =====================================================================
-    // 🔹 ВЫБОР УЧАЩЕГОСЯ
-    // =====================================================================
     function confirmLiveSelection(item) {
         const id = item.dataset.id;
         const name = item.dataset.name;
@@ -636,12 +755,13 @@
         $('liveSearchHint').innerHTML = `✅ Выбран: <strong>${escapeHtml(name)}</strong>`;
 
         const titleEl = document.querySelector('.page-title');
-        if (titleEl) titleEl.textContent = '📗 Книжка: ' + name;
+        if (titleEl) {
+            const badge = titleEl.querySelector('.status-badge');
+            titleEl.textContent = '📗 Книжка: ' + name;
+            if (badge) titleEl.appendChild(badge);
+        }
     }
 
-    // =====================================================================
-    // 🔹 ХЕЛПЕР
-    // =====================================================================
     function escapeHtml(s) {
         if (s == null) return '';
         return String(s)
@@ -716,14 +836,108 @@
     };
 
     // =====================================================================
+    // 🔹 КНОПКА «ВЫКАТАН» + МОДАЛКА ПОДТВЕРЖДЕНИЯ
+    // =====================================================================
+    let _pendingDrivenBookId = null;
+
+    function openMarkDrivenModal(bookId) {
+        _pendingDrivenBookId = bookId;
+        const modal = $('markDrivenModal');
+        if (modal) modal.classList.add('active');
+    }
+
+    function closeMarkDrivenModal() {
+        const modal = $('markDrivenModal');
+        if (modal) modal.classList.remove('active');
+        _pendingDrivenBookId = null;
+    }
+
+    function submitMarkDriven() {
+        const bookId = _pendingDrivenBookId;
+        if (!bookId) return;
+
+        const btn = $('confirmMarkDrivenBtn');
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = '⏳ Отправка...';
+        }
+
+        fetch(`/dispatcher/individual-books/${bookId}/mark-driven/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': CSRF_TOKEN,
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        })
+            .then(r => r.json().then(d => ({ ok: r.ok, d })))
+            .then(({ d }) => {
+                if (d.success) {
+                    closeMarkDrivenModal();
+                    alert('✅ ' + d.message);
+                    location.reload();
+                } else {
+                    alert('❌ ' + (d.error || 'Ошибка'));
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.textContent = '✅ Да, выкатан';
+                    }
+                }
+            })
+            .catch(err => {
+                console.error('[mark-driven] error:', err);
+                alert('❌ Ошибка сети');
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = '✅ Да, выкатан';
+                }
+            });
+    }
+
+    function initMarkDrivenButton() {
+        const btn = $('btnMarkDriven');
+        if (!btn || btn.disabled) return;
+
+        btn.addEventListener('click', function() {
+            const bookId = this.dataset.bookId;
+            if (!bookId) return;
+            openMarkDrivenModal(bookId);
+        });
+
+        const confirmBtn = $('confirmMarkDrivenBtn');
+        if (confirmBtn) {
+            confirmBtn.addEventListener('click', submitMarkDriven);
+        }
+
+        // Закрытие по клику на overlay
+        const modal = $('markDrivenModal');
+        if (modal) {
+            modal.addEventListener('click', function(e) {
+                if (e.target === this) closeMarkDrivenModal();
+            });
+        }
+
+        // Закрытие по Esc
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') closeMarkDrivenModal();
+        });
+    }
+
+    // =====================================================================
+    // 🔹 ЭКСПОРТ В window (для inline onclick в HTML модалки)
+    // =====================================================================
+    window.openMarkDrivenModal = openMarkDrivenModal;
+    window.closeMarkDrivenModal = closeMarkDrivenModal;
+    window.submitMarkDriven = submitMarkDriven;
+
+    // =====================================================================
     // 🔹 INIT
     // =====================================================================
     document.addEventListener('DOMContentLoaded', function() {
         initLiveSearch();
-        console.log('[book-form] live-search initialized');
+        initMarkDrivenButton();
+        console.log('[book-form] initialized');
     });
 
-    // Экспорт для inline-вызовов
     window.doLiveSearch = doLiveSearch;
 })();
 </script>

@@ -85,6 +85,17 @@ class Student(models.Model):
         blank=True,
         help_text="Выберите тип коробки передач для обучения"
     )
+    is_driven = models.BooleanField(
+        "Выкатан",
+        default=False,
+        help_text="Все занятия закрыты и подтверждены кнопкой «Выкатан»"
+    )
+    driven_at = models.DateTimeField(
+        "Дата выката",
+        null=True,
+        blank=True,
+        help_text="Когда нажали кнопку «Выкатан»"
+    )
 
     # =========================================================
     # Даты обучения
